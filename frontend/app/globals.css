@@ -7,7 +7,12 @@
 }
 
 body {
-  @apply bg-brand-bg text-slate-100 antialiased;
+  @apply text-slate-100 antialiased;
+  background-color: #072027;
+  background-image:
+    radial-gradient(900px 500px at 12% -8%, rgba(29, 171, 90, 0.16), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgba(29, 171, 90, 0.08), transparent 55%);
+  background-attachment: fixed;
 }
 
 /* Pasek przewijania w stylu marki */
@@ -16,30 +21,72 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a2d37;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #214652;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #1dab5a;
+  background: rgba(255, 255, 255, 0.22);
 }
 
 @layer components {
+  /* Karta „szklana" */
   .card {
-    @apply rounded-2xl border border-brand-border/60 bg-brand-surface/40 p-5 shadow-lg shadow-black/20;
+    @apply rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-xl shadow-black/20 backdrop-blur-sm;
   }
+  /* Lżejszy kafelek wewnątrz karty */
+  .soft {
+    @apply rounded-xl border border-white/10 bg-white/[0.03];
+  }
+
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-brand-accent text-white hover:bg-brand-accentHover;
+    @apply btn text-[#04130b] shadow-lg shadow-brand-accent/25;
+    background-image: linear-gradient(180deg, #25c96b, #1dab5a);
   }
+  .btn-primary:hover:not(:disabled) {
+    @apply -translate-y-px brightness-105;
+  }
+  /* „secondary" = przezroczysty (ghost) */
   .btn-secondary {
-    @apply btn border border-brand-border bg-brand-surface/60 text-slate-100 hover:border-brand-accent;
+    @apply btn border border-white/15 bg-white/[0.04] text-slate-100 hover:border-brand-accent hover:text-white;
   }
+
   .input {
-    @apply w-full rounded-xl border border-brand-border bg-brand-bg/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand-accent;
+    @apply w-full rounded-xl border border-white/15 bg-black/20 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-brand-accent;
+  }
+  .input:focus {
+    box-shadow: 0 0 0 3px rgba(29, 171, 90, 0.15);
+  }
+
+  /* Element nawigacji (sidebar + mobilne taby) */
+  .navlink {
+    @apply flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white;
+  }
+  .navlink-active {
+    @apply border-brand-accent/35 bg-brand-accent/15 text-brand-accent2;
+  }
+
+  /* Tag/chip (słowa kluczowe, etykiety) */
+  .chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-brand-accent/30 bg-brand-accent/10 py-1.5 pl-3 pr-2 text-[13px] font-semibold text-emerald-200;
+  }
+
+  /* Etykieta statusu */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+  .pill-ok {
+    @apply border border-brand-accent/30 bg-brand-accent/15 text-brand-accent2;
+  }
+  .pill-warn {
+    @apply border border-amber-400/30 bg-amber-400/15 text-amber-300;
+  }
+  .pill-muted {
+    @apply border border-white/10 bg-white/[0.06] text-slate-300;
   }
 }

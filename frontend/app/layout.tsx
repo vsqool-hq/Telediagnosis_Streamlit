@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import MobileNav from "@/components/MobileNav";
 import AuthGate from "@/components/AuthGate";
 
 const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter" });
@@ -18,8 +19,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthGate>
           <div className="flex min-h-screen">
             <Sidebar />
-            <main className="flex-1 overflow-x-hidden px-6 py-8 md:px-10">
-              <div className="mx-auto max-w-6xl">{children}</div>
+            <main className="flex-1 overflow-x-hidden px-5 py-7 md:px-10">
+              <div className="mx-auto max-w-6xl">
+                <MobileNav />
+                {children}
+              </div>
             </main>
           </div>
         </AuthGate>

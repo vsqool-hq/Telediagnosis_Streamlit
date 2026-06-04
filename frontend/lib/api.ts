@@ -153,6 +153,7 @@ export const api = {
 
   logsUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/logs`),
   resultUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/result`),
+  inputUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/input`),
 
   listVersions: (kind: string) => req<Version[]>(`/api/versions/${kind}`),
   uploadVersion: (kind: string, file: File, label: string) => {

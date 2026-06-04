@@ -3,16 +3,16 @@
 import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid,
+  PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid,
 } from "recharts";
-import { Building2, Layers, FileCheck2, Coins } from "lucide-react";
+import { Building2, Layers, TrendingUp, Coins } from "lucide-react";
 import { api, Overview, JobStats, TrendPoint } from "@/lib/api";
 
 const MOD_COLORS: Record<string, string> = {
   RTG: "#1dab5a",
-  TK: "#36b9cc",
+  TK: "#36c5d0",
   MR: "#9b6cf0",
-  MMG: "#f0ad4e",
+  MMG: "#f6c560",
   INNE: "#6b7280",
 };
 
@@ -21,17 +21,17 @@ const TOOLTIP_STYLE = { background: "#0e3b49", border: "1px solid #214652", bord
 const zl = (n?: number) =>
   n === undefined ? "—" : n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
 
-function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+function StatCard({
+  icon, label, value, sub,
+}: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
   return (
-    <div className="card flex items-center gap-4">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-accent/15 text-brand-accent">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-2xl font-bold">{value}</p>
+    <div className="card">
+      <div className="flex items-center justify-between">
         <p className="text-sm text-slate-400">{label}</p>
-        {sub && <p className="truncate text-xs text-slate-500">{sub}</p>}
+        <span className="text-brand-accent">{icon}</span>
       </div>
+      <p className="mt-2.5 truncate text-[28px] font-extrabold leading-none">{value}</p>
+      {sub && <p className="mt-1.5 truncate text-xs text-slate-400">{sub}</p>}
     </div>
   );
 }
@@ -54,11 +54,21 @@ export default function Dashboard() {
     api.trends().then((t) => setTrends(t.points)).catch(() => {});
   }, []);
 
+  const avgPerClient =
+    stats && !stats.empty && stats.clients_count
+      ? zl(Math.round((stats.total_revenue ?? 0) / stats.clients_count))
+      : "—";
+
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold">Pulpit</h1>
-        <p className="text-sm text-slate-400">Przegląd ostatniego rozliczenia i trendów.</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[26px] font-extrabold tracking-tight">Pulpit</h1>
+          <p className="text-sm text-slate-400">Przegląd ostatniego rozliczenia i trendów.</p>
+        </div>
+        {overview?.active_cennik && (
+          <span className="pill pill-ok">Aktywny cennik: {overview.active_cennik.original_name}</span>
+        )}
       </header>
 
       {error && (
@@ -68,40 +78,49 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={<Coins size={22} />} label="Wartość ostatniego rozliczenia"
+        <StatCard icon={<Coins size={20} />} label="Wartość ost. rozliczenia"
           value={zl(stats?.total_revenue)} />
-        <StatCard icon={<Layers size={22} />} label="Jednostek (okolic) w rozliczeniu"
-          value={stats?.total_studies?.toLocaleString("pl-PL") ?? "—"} />
-        <StatCard icon={<Building2 size={22} />} label="Klientów"
-          value={stats?.clients_count?.toString() ?? "—"} />
-        <StatCard icon={<FileCheck2 size={22} />} label="Wykonanych rozliczeń"
-          value={overview ? `${overview.jobs_done}/${overview.jobs_total}` : "—"}
-          sub={overview?.active_wzorcowe?.original_name ?? "brak aktywnego słownika"} />
+        <StatCard icon={<Layers size={20} />} label="Pozycji rozliczonych"
+          value={stats?.total_studies?.toLocaleString("pl-PL") ?? "—"}
+          sub={stats?.clients_count ? `w ${stats.clients_count} jednostkach` : undefined} />
+        <StatCard icon={<Building2 size={20} />} label="Klientów"
+          value={stats?.clients_count?.toString() ?? "—"}
+          sub={overview ? `wykonano ${overview.jobs_done}/${overview.jobs_total} rozliczeń` : undefined} />
+        <StatCard icon={<TrendingUp size={20} />} label="Średnio / klienta"
+          value={avgPerClient} />
       </div>
 
       {trends.length > 1 && (
         <div className="card">
-          <h2 className="mb-4 text-lg font-semibold">Trend miesięczny — wartość rozliczeń</h2>
+          <h2 className="mb-4 text-base font-bold">Trend wartości rozliczeń</h2>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trends} margin={{ left: 10, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#214652" />
-              <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-              <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+            <AreaChart data={trends} margin={{ left: 10, right: 10 }}>
+              <defs>
+                <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#1dab5a" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#1dab5a" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
+              <XAxis dataKey="date" stroke="#8aa0a3" fontSize={12} />
+              <YAxis stroke="#8aa0a3" fontSize={12} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => zl(v)} />
-              <Line type="monotone" dataKey="revenue" name="Wartość" stroke="#1dab5a" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
+              <Area type="monotone" dataKey="revenue" name="Wartość" stroke="#25c96b"
+                strokeWidth={3} fill="url(#revFill)" dot={{ r: 3, fill: "#25c96b" }} />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       )}
 
       {stats && !stats.empty ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div className="card">
-            <h2 className="mb-4 text-lg font-semibold">Wartość wg modalności</h2>
+            <h2 className="mb-4 text-base font-bold">Wartość wg modalności</h2>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie data={stats.by_modality} dataKey="revenue" nameKey="modality"
-                  cx="50%" cy="50%" outerRadius={100} label={(e: any) => e.modality}>
+                  cx="50%" cy="50%" innerRadius={62} outerRadius={100} paddingAngle={2}
+                  stroke="#0a2d37" strokeWidth={3}>
                   {stats.by_modality!.map((m) => (
                     <Cell key={m.modality} fill={MOD_COLORS[m.modality] || "#6b7280"} />
                   ))}
@@ -113,11 +132,11 @@ export default function Dashboard() {
           </div>
 
           <div className="card">
-            <h2 className="mb-4 text-lg font-semibold">Top 15 klientów (wartość)</h2>
+            <h2 className="mb-4 text-base font-bold">Top 15 klientów (wartość)</h2>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={stats.top_clients} layout="vertical" margin={{ left: 20 }}>
-                <XAxis type="number" stroke="#64748b" fontSize={12} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
-                <YAxis type="category" dataKey="client" width={120} stroke="#94a3b8" fontSize={11} />
+                <XAxis type="number" stroke="#8aa0a3" fontSize={12} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                <YAxis type="category" dataKey="client" width={120} stroke="#8aa0a3" fontSize={11} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => zl(v)} />
                 <Bar dataKey="revenue" name="Wartość" fill="#1dab5a" radius={[0, 6, 6, 0]} />
               </BarChart>

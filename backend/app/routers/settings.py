@@ -18,7 +18,15 @@ async def update_settings(payload: dict):
     cfg = payload.get("settings", payload)
     if not isinstance(cfg, dict):
         raise HTTPException(400, "Nieprawidłowy format konfiguracji.")
-    # Walidacja kluczowych pól liczbowych
+    # Walidacja kluczowych pól liczbowych (num_processes: 0 = Auto)
+    if "num_processes" in cfg:
+        try:
+            cfg["num_processes"] = max(0, int(cfg["num_processes"]))
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Pole num_processes musi być liczbą całkowitą (0 = Auto).")
+        # Zgodność wstecz: utrzymuj jedno źródło prawdy dla obu etapów.
+        cfg["num_processes_verify"] = cfg["num_processes"] or 1
+        cfg["num_processes_billing"] = cfg["num_processes"] or 1
     for key in ("num_processes_verify", "num_processes_billing"):
         if key in cfg:
             try:

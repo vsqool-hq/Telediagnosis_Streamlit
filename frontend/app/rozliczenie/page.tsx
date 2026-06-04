@@ -64,7 +64,7 @@ export default function RozliczeniePage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">Rozliczenie</h1>
+        <h1 className="text-[26px] font-extrabold tracking-tight">Rozliczenie</h1>
         <p className="text-sm text-slate-400">
           Wgraj miesięczny plik z danymi jednostek i uruchom proces. Pliki wzorcowe i cennik
           pobierane są z aktywnych wersji (zakładki obok).

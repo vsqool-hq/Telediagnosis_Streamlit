@@ -34,8 +34,20 @@ MR_STAWY_KEYWORDS = CONFIG["mr_stawy_keywords"]
 MASTER_PRIORITY_ORDER = CONFIG["master_priority_order"]
 PRIORITY_COLORS = CONFIG["priority_colors"]
 PROCEDURE_TYPE_COLORS = CONFIG["procedure_type_colors"]
-NUM_PROCESSES_VERIFY = int(CONFIG["num_processes_verify"])
-NUM_PROCESSES_BILLING = int(CONFIG["num_processes_billing"])
+# Jedna liczba rdzeni dla całego procesu. 0 = Auto (wszystkie dostępne).
+# Niezależnie od ustawienia, wartość jest ograniczana do liczby fizycznych
+# rdzeni maszyny — na komputerze z 4 rdzeniami wpisanie 8 nic nie przyspieszy.
+_CPU = multiprocessing.cpu_count() or 1
+_n = CONFIG.get("num_processes")
+if _n is None:  # zgodność wstecz ze starą konfiguracją (osobne etapy)
+    _n = max(int(CONFIG.get("num_processes_verify", 4)),
+             int(CONFIG.get("num_processes_billing", 4)))
+_n = int(_n)
+if _n <= 0:     # 0 = Auto
+    _n = _CPU
+_n = max(1, min(_n, _CPU))
+NUM_PROCESSES_VERIFY = _n
+NUM_PROCESSES_BILLING = _n
 
 
 # ###################################################################################

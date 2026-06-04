@@ -2,56 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  PlayCircle,
-  BookText,
-  ReceiptText,
-  History,
-  Settings,
-  Activity,
-  LogOut,
-} from "lucide-react";
+import { Plus, LogOut } from "lucide-react";
 import { clearToken, getToken } from "@/lib/api";
-
-const NAV = [
-  { href: "/", label: "Pulpit", icon: LayoutDashboard },
-  { href: "/rozliczenie", label: "Rozliczenie", icon: PlayCircle },
-  { href: "/wzorcowe", label: "Pliki wzorcowe", icon: BookText },
-  { href: "/cennik", label: "Cennik", icon: ReceiptText },
-  { href: "/historia", label: "Historia", icon: History },
-  { href: "/ustawienia", label: "Ustawienia", icon: Settings },
-];
+import { NAV, isActive } from "@/components/nav";
 
 export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-brand-border/60 bg-brand-surface/30 px-4 py-6 md:flex">
+    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-black/20 px-4 py-6 md:flex">
       <div className="mb-8 flex items-center gap-3 px-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-accent/20 text-brand-accent">
-          <Activity size={22} />
+        <div className="flex h-11 w-11 items-center justify-center rounded-[13px] bg-gradient-to-b from-brand-accent2 to-brand-accent text-[#04130b]">
+          <Plus size={24} strokeWidth={2.6} />
         </div>
         <div>
-          <p className="text-sm font-bold leading-tight">Telediagnosis</p>
+          <p className="font-extrabold leading-tight">Telediagnosis</p>
           <p className="text-xs text-slate-400">Rozliczenia</p>
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1">
+      <nav className="flex flex-1 flex-col gap-1.5">
         {NAV.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          const active = isActive(href, pathname);
           return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-brand-accent/15 text-brand-accent"
-                  : "text-slate-300 hover:bg-brand-bg/50 hover:text-white"
-              }`}
-            >
-              <Icon size={18} />
+            <Link key={href} href={href} className={`navlink ${active ? "navlink-active" : ""}`}>
+              <Icon size={19} />
               {label}
             </Link>
           );
@@ -61,13 +36,13 @@ export default function Sidebar() {
       {getToken() && (
         <button
           onClick={() => { clearToken(); window.location.reload(); }}
-          className="mb-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-brand-bg/50 hover:text-white"
+          className="navlink !text-slate-400"
         >
-          <LogOut size={18} />
+          <LogOut size={19} />
           Wyloguj
         </button>
       )}
-      <p className="px-3 text-xs text-slate-500">v0.1 · {new Date().getFullYear()}</p>
+      <p className="px-3 pt-1.5 text-xs text-slate-500">v0.2 · {new Date().getFullYear()}</p>
     </aside>
   );
 }

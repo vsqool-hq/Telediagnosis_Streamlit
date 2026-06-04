@@ -65,9 +65,9 @@ export default function VersionManager({
     <div className="space-y-6">
       <header>
         {embedded ? (
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 className="text-lg font-bold">{title}</h2>
         ) : (
-          <h1 className="text-2xl font-bold">{title}</h1>
+          <h1 className="text-[26px] font-extrabold tracking-tight">{title}</h1>
         )}
         <p className="text-sm text-slate-400">{description}</p>
       </header>
@@ -101,14 +101,14 @@ export default function VersionManager({
               <div
                 key={v.id}
                 className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
-                  v.is_active ? "border-brand-accent/60 bg-brand-accent/10" : "border-brand-border/60 bg-brand-bg/30"
+                  v.is_active ? "border-brand-accent/50 bg-brand-accent/10" : "border-white/10 bg-white/[0.02]"
                 }`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{v.original_name}</span>
+                    <span className="truncate font-semibold">{v.original_name}</span>
                     {v.is_active === 1 && (
-                      <span className="flex items-center gap-1 rounded-full bg-brand-accent/20 px-2 py-0.5 text-xs text-brand-accent">
+                      <span className="pill pill-ok">
                         <CheckCircle2 size={12} /> Aktywna
                       </span>
                     )}

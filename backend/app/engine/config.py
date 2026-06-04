@@ -89,7 +89,12 @@ DEFAULT_CONFIG = {
         "TK Zwykłe": "E8E8E8",
     },
 
-    # Wydajność — liczba rdzeni dla każdego etapu
+    # Wydajność — jedna liczba rdzeni dla całego procesu (weryfikacja + rozliczenia).
+    # 0 = Auto (użyj wszystkich rdzeni dostępnych na serwerze).
+    # Wartość jest zawsze ograniczana do liczby fizycznych rdzeni maszyny.
+    "num_processes": 0,
+
+    # (zachowane dla zgodności wstecznej — nieużywane w UI)
     "num_processes_verify": 4,
     "num_processes_billing": 5,
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lock, LogIn, Activity, Loader2 } from "lucide-react";
+import { Lock, LogIn, Plus, Loader2 } from "lucide-react";
 import { api, setToken, clearToken } from "@/lib/api";
 
 type State = "checking" | "locked" | "open";
@@ -47,12 +47,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <form onSubmit={login} className="card w-full max-w-sm space-y-5">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-accent/20 text-brand-accent">
-              <Activity size={24} />
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-b from-brand-accent2 to-brand-accent text-[#04130b]">
+              <Plus size={26} strokeWidth={2.6} />
             </div>
-            <h1 className="text-lg font-bold">Automatyzator Rozliczeń</h1>
-            <p className="text-sm text-slate-400">Podaj hasło dostępu.</p>
+            <div>
+              <h1 className="text-xl font-extrabold tracking-tight">Automatyzator Rozliczeń</h1>
+              <p className="text-sm text-slate-400">Telediagnosis · panel wewnętrzny</p>
+            </div>
           </div>
 
           <div className="relative">

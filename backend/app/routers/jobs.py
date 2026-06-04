@@ -119,6 +119,18 @@ async def download_single(job_id: str, filename: str):
     raise HTTPException(404, "Nie znaleziono pliku.")
 
 
+@router.get("/{job_id}/input")
+async def download_input(job_id: str):
+    """Pobranie oryginalnego, wgranego pliku wejściowego (Jednostki) danego zadania."""
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    path = os.path.join(job_paths(job_id)["jednostki"], job["input_name"])
+    if not os.path.isfile(path):
+        raise HTTPException(404, "Brak pliku źródłowego.")
+    return FileResponse(path, filename=job["input_name"])
+
+
 @router.get("/{job_id}/import-export")
 async def import_export(job_id: str, fmt: str = "csv"):
     """Zbiorczy plik importowy (Data/Klient/Badanie/Ilość) z pełnego rozliczenia."""
