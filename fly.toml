@@ -1,0 +1,34 @@
+# Konfiguracja Fly.io — backend ze scale-to-zero.
+# Maszyna budzi się na żądanie, usypia po bezczynności (auto_stop_machines).
+# Nazwę aplikacji ("app") ustaw przy pierwszym `fly launch`.
+
+app = "telediagnosis-backend"
+primary_region = "waw"   # Warszawa — najbliżej
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  TELEDIAG_DATA_DIR = "/data"
+  TELEDIAG_SEED_DIR = "/srv/seed_data"
+  # TELEDIAG_CORS_ORIGINS ustaw na URL front-endu z Vercel, np. "https://app.telediagnosis.pl"
+  # TELEDIAG_API_TOKEN  ustaw jako sekret: `fly secrets set TELEDIAG_API_TOKEN=...`
+
+# Trwały wolumen na dane (SQLite, wersje plików, katalogi zadań).
+# Utwórz przed startem: `fly volumes create teledag_data --size 3 --region waw`
+[mounts]
+  source = "teledag_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"     # scale-to-zero: usypianie po bezczynności
+  auto_start_machines = true      # budzenie na żądanie
+  min_machines_running = 0
+
+# 4 rdzenie + 8 GB RAM — by zmieścić się w ≤15 min jak na laptopie.
+# Maszyna działa tylko w czasie liczenia (scale-to-zero), więc koszt jest niski.
+[[vm]]
+  size = "performance-4x"
+  memory = "8gb"

@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-brand-bg text-slate-100 antialiased;
+}
+
+/* Pasek przewijania w stylu marki */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a2d37;
+}
+::-webkit-scrollbar-thumb {
+  background: #214652;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #1dab5a;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-brand-border/60 bg-brand-surface/40 p-5 shadow-lg shadow-black/20;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand-accent text-white hover:bg-brand-accentHover;
+  }
+  .btn-secondary {
+    @apply btn border border-brand-border bg-brand-surface/60 text-slate-100 hover:border-brand-accent;
+  }
+  .input {
+    @apply w-full rounded-xl border border-brand-border bg-brand-bg/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand-accent;
+  }
+}
