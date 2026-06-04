@@ -117,3 +117,34 @@ async def download_single(job_id: str, filename: str):
         if os.path.basename(path) == filename:
             return FileResponse(path, filename=filename)
     raise HTTPException(404, "Nie znaleziono pliku.")
+
+
+@router.get("/{job_id}/import-export")
+async def import_export(job_id: str, fmt: str = "csv"):
+    """Zbiorczy plik importowy (Data/Klient/Badanie/Ilość) z pełnego rozliczenia."""
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    if job["mode"] != "full":
+        raise HTTPException(400, "Eksport dostępny tylko dla pełnego rozliczenia.")
+
+    from app.engine.summary import build_import_data  # pandas dopiero tutaj
+
+    df = build_import_data(job_paths(job_id)["wynik"])
+    if df.empty:
+        raise HTTPException(404, "Brak danych do eksportu.")
+
+    buffer = io.BytesIO()
+    if fmt == "xlsx":
+        df.to_excel(buffer, index=False)
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        name = "Import.xlsx"
+    else:
+        buffer.write(df.to_csv(index=False, sep=";", encoding="utf-8").encode("utf-8"))
+        media = "text/csv"
+        name = "Import.csv"
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer, media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )

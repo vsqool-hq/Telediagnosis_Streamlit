@@ -4,16 +4,35 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") || "http://localhost:8080";
 
-const API_TOKEN = process.env.NEXT_PUBLIC_API_TOKEN || "";
+export const TOKEN_KEY = "teledag_token";
+
+// Token: najpierw z localStorage (po zalogowaniu), w ostateczności ze zmiennej środowiskowej.
+export function getToken(): string {
+  if (typeof window !== "undefined") {
+    const t = window.localStorage.getItem(TOKEN_KEY);
+    if (t) return t;
+  }
+  return process.env.NEXT_PUBLIC_API_TOKEN || "";
+}
+
+export function setToken(token: string) {
+  if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken() {
+  if (typeof window !== "undefined") window.localStorage.removeItem(TOKEN_KEY);
+}
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  return API_TOKEN ? { "X-API-Token": API_TOKEN, ...extra } : extra;
+  const token = getToken();
+  return token ? { "X-API-Token": token, ...extra } : extra;
 }
 
 // Token doklejany do URL-i używanych przez EventSource / pobieranie plików
 export function withToken(url: string): string {
-  if (!API_TOKEN) return url;
-  return url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(API_TOKEN);
+  const token = getToken();
+  if (!token) return url;
+  return url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
 }
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -69,16 +88,31 @@ export interface Overview {
 export interface JobStats {
   empty: boolean;
   total_studies?: number;
+  total_revenue?: number;
   clients_count?: number;
-  by_modality?: { modality: string; count: number }[];
-  top_clients?: { client: string; count: number }[];
+  by_modality?: { modality: string; count: number; revenue: number }[];
+  top_clients?: { client: string; count: number; revenue: number }[];
+}
+
+export interface TrendPoint {
+  job_id: string;
+  date: string;
+  label: string;
+  studies: number;
+  revenue: number;
 }
 
 // ---- Wywołania --------------------------------------------------------------
 
 export const api = {
+  // Walidacja tokenu/sesji — 200 oznacza autoryzację (lub wyłączony token w backendzie).
+  validate: () => req("/api/settings"),
+
   overview: () => req<Overview>("/api/stats/overview"),
   jobStats: (id: string) => req<JobStats>(`/api/stats/job/${id}`),
+  trends: () => req<{ points: TrendPoint[] }>("/api/stats/trends"),
+  importExportUrl: (id: string, fmt: "csv" | "xlsx") =>
+    withToken(`${API_BASE}/api/jobs/${id}/import-export?fmt=${fmt}`),
 
   listJobs: () => req<Job[]>("/api/jobs"),
   getJob: (id: string) => req<Job>(`/api/jobs/${id}`),

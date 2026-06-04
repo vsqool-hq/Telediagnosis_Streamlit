@@ -1,9 +1,9 @@
 """
 Router statystyk do dashboardu.
 
-Statystyki ilościowe budujemy z plików rozliczeń zadania przy pomocy tej samej
-logiki, co eksport importowy (engine.summary.build_import_data). Dzięki temu
-liczby zgadzają się z resztą systemu.
+Statystyki budujemy z plików rozliczeń zadania:
+  * liczbę/ilość jednostek oraz przychód (zł) liczymy w Pythonie (engine.revenue),
+    odtwarzając logikę wyceny silnika — bo Excel trzyma formuły, nie liczby.
 """
 
 from collections import defaultdict
@@ -31,9 +31,9 @@ async def overview():
     }
 
 
-def _modality_from_badanie(badanie: str) -> str:
-    token = str(badanie).split(" ", 1)[0].upper()
-    return token if token in {"RTG", "TK", "MR", "MMG"} else "INNE"
+def _modality_norm(m: str) -> str:
+    m = str(m).strip().upper()
+    return m if m in {"RTG", "TK", "MR", "MMG"} else "INNE"
 
 
 @router.get("/job/{job_id}")
@@ -44,30 +44,56 @@ async def job_stats(job_id: str):
     if job["mode"] != "full":
         raise HTTPException(400, "Statystyki dostępne tylko dla pełnego rozliczenia.")
 
-    # Import wewnątrz funkcji — pandas ciągnięty tylko gdy faktycznie liczymy.
-    from app.engine.summary import build_import_data
+    from app.engine.revenue import build_revenue  # pandas dopiero tutaj
 
     paths = job_paths(job_id)
-    df = build_import_data(paths["wynik"])
+    df = build_revenue(paths["wynik"], paths["cennik"])
     if df.empty:
         return {"empty": True}
 
-    df["Modalność"] = df["Badanie"].apply(_modality_from_badanie)
+    df["Modalność"] = df["Modalność"].apply(_modality_norm)
 
-    total_studies = int(df["Ilość"].sum())
-
-    by_modality = defaultdict(int)
-    for _, r in df.iterrows():
-        by_modality[r["Modalność"]] += int(r["Ilość"])
-
+    by_mod = df.groupby("Modalność").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum")).reset_index()
     by_client = (
-        df.groupby("Klient")["Ilość"].sum().sort_values(ascending=False).head(15)
+        df.groupby("Klient").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum"))
+        .sort_values("revenue", ascending=False).head(15).reset_index()
     )
 
     return {
         "empty": False,
-        "total_studies": total_studies,
+        "total_studies": int(df["Ilość"].sum()),
+        "total_revenue": round(float(df["Wartość"].sum()), 2),
         "clients_count": int(df["Klient"].nunique()),
-        "by_modality": [{"modality": k, "count": int(v)} for k, v in sorted(by_modality.items())],
-        "top_clients": [{"client": k, "count": int(v)} for k, v in by_client.items()],
+        "by_modality": [
+            {"modality": r["Modalność"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
+            for _, r in by_mod.iterrows()
+        ],
+        "top_clients": [
+            {"client": r["Klient"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
+            for _, r in by_client.iterrows()
+        ],
     }
+
+
+@router.get("/trends")
+async def trends():
+    """Trend liczby jednostek i przychodu w czasie — po ukończonych pełnych rozliczeniach."""
+    from app.engine.revenue import build_revenue
+
+    jobs = [j for j in db.list_jobs(limit=100) if j["status"] == "done" and j["mode"] == "full"]
+    jobs.sort(key=lambda j: j["created_at"])
+
+    points = []
+    for j in jobs:
+        paths = job_paths(j["id"])
+        df = build_revenue(paths["wynik"], paths["cennik"])
+        if df.empty:
+            continue
+        points.append({
+            "job_id": j["id"],
+            "date": (j["finished_at"] or j["created_at"])[:10],
+            "label": j["input_name"],
+            "studies": int(df["Ilość"].sum()),
+            "revenue": round(float(df["Wartość"].sum()), 2),
+        })
+    return {"points": points}

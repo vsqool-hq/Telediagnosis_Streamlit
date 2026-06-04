@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet } from "lucide-react";
 import { api, Job } from "@/lib/api";
 
 type Phase = "idle" | "running" | "done" | "error";
@@ -101,10 +101,18 @@ export default function RozliczeniePage() {
           </button>
 
           {phase === "done" && job && (
-            <a className="btn-primary ml-auto" href={api.resultUrl(job.id)}>
-              <Download size={18} />
-              Pobierz wyniki
-            </a>
+            <div className="ml-auto flex flex-wrap gap-2">
+              <a className="btn-primary" href={api.resultUrl(job.id)}>
+                <Download size={18} />
+                Pobierz wyniki
+              </a>
+              {job.mode === "full" && (
+                <a className="btn-secondary" href={api.importExportUrl(job.id, "xlsx")}>
+                  <FileSpreadsheet size={18} />
+                  Plik importowy
+                </a>
+              )}
+            </div>
           )}
         </div>
       </div>
