@@ -17,11 +17,12 @@ DB_PATH = os.path.join(DATA_DIR, "app.db")
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 VERSIONS_DIR = os.path.join(DATA_DIR, "versions")
 JOBS_DIR = os.path.join(DATA_DIR, "jobs")
+TMP_DIR = os.path.join(DATA_DIR, "tmp")
 
 
 def ensure_dirs():
     for d in [DATA_DIR, VERSIONS_DIR, os.path.join(VERSIONS_DIR, "wzorcowe"),
-              os.path.join(VERSIONS_DIR, "cennik"), JOBS_DIR]:
+              os.path.join(VERSIONS_DIR, "cennik"), JOBS_DIR, TMP_DIR]:
         os.makedirs(d, exist_ok=True)
 
 

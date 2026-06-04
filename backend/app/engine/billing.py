@@ -494,7 +494,7 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         logs.append(f"\n--- Rozliczam plik: {os.path.basename(excel_path)} ---")
         df_details = pd.read_excel(excel_path, sheet_name='Szczegółowe')
 
-        df_prices = pd.read_csv(csv_path, sep=';', encoding='utf-8', decimal=',')
+        df_prices = pd.read_csv(csv_path, sep=';', encoding='utf-8-sig', decimal=',')
         df_prices['Cena'] = pd.to_numeric(df_prices['Cena'], errors='coerce')
         df_prices['BADANIE'] = df_prices['BADANIE'].str.replace(r'\s+', ' ', regex=True).str.strip()
 

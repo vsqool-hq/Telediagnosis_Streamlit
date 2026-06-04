@@ -25,7 +25,7 @@ def _load_prices(cennik_dir: str) -> pd.DataFrame | None:
     csvs = glob.glob(os.path.join(cennik_dir, "*.csv"))
     if not csvs:
         return None
-    df = pd.read_csv(csvs[0], sep=";", encoding="utf-8", decimal=",")
+    df = pd.read_csv(csvs[0], sep=";", encoding="utf-8-sig", decimal=",")
     df["Cena"] = pd.to_numeric(df["Cena"], errors="coerce")
     df["BADANIE"] = df["BADANIE"].str.replace(r"\s+", " ", regex=True).str.strip()
     return df

@@ -32,6 +32,9 @@ wartości są teraz edytowalne z panelu **Ustawienia**.
   logi na żywo, pobranie wyników (ZIP lub pojedyncze pliki).
 - **Pliki wzorcowe / Cennik** — wersjonowanie: wgrywanie wielu wersji i wskazanie
   aktywnej, używanej przy rozliczeniach.
+- **Konwerter cennika** — wgranie szerokiego Excela (badania w wierszach, jednostki
+  w kolumnach), automatyczny rozkład na cennik 3-kolumnowy (BADANIE;Jednostka;Cena),
+  walidacja (duplikaty, ceny 0 zł, „brudne" kwoty, błędy) i zapis jako wersja cennika.
 - **Ustawienia** — edycja konfiguracji silnika (priorytety, mapy sufiksów, słowa
   kluczowe MR, kolory raportu, liczba rdzeni).
 - **Pulpit** — statystyki i wykresy z ostatniego rozliczenia.

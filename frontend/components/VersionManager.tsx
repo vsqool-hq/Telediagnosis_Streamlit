@@ -15,11 +15,13 @@ export default function VersionManager({
   title,
   description,
   accept,
+  embedded = false,
 }: {
   kind: "wzorcowe" | "cennik";
   title: string;
   description: string;
   accept: string;
+  embedded?: boolean;
 }) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [label, setLabel] = useState("");
@@ -62,7 +64,11 @@ export default function VersionManager({
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">{title}</h1>
+        {embedded ? (
+          <h2 className="text-lg font-semibold">{title}</h2>
+        ) : (
+          <h1 className="text-2xl font-bold">{title}</h1>
+        )}
         <p className="text-sm text-slate-400">{description}</p>
       </header>
 

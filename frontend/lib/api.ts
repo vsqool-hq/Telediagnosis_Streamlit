@@ -94,6 +94,33 @@ export interface JobStats {
   top_clients?: { client: string; count: number; revenue: number }[];
 }
 
+export interface CennikValidation {
+  n_rows: number;
+  n_badania: number;
+  n_units: number;
+  n_zeros: number;
+  n_repaired: number;
+  n_errors: number;
+  n_duplicates: number;
+  price_min: number;
+  price_max: number;
+  zeros_sample: [string, string][];
+  repaired: { badanie: string; jednostka: string; z: string; na: string }[];
+  errors: { badanie: string; jednostka: string; wartosc: string }[];
+  duplicates: { badanie: string; jednostka: string }[];
+  excluded_rows: string[];
+  units: string[];
+  badania: string[];
+}
+
+export interface CennikConversion {
+  id: string;
+  source_name: string;
+  source_preview: { header: string[]; rows: string[][] };
+  result_preview: { badanie: string; jednostka: string; cena: number }[];
+  validation: CennikValidation;
+}
+
 export interface TrendPoint {
   job_id: string;
   date: string;
@@ -140,6 +167,19 @@ export const api = {
     req(`/api/versions/${kind}/${id}`, { method: "DELETE" }),
   versionDownloadUrl: (kind: string, id: string) =>
     withToken(`${API_BASE}/api/versions/${kind}/${id}/download`),
+
+  convertCennik: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return req<CennikConversion>("/api/cennik/convert", { method: "POST", body: fd });
+  },
+  saveConvertedCennik: (id: string, label: string, filename: string) => {
+    const fd = new FormData();
+    fd.append("label", label);
+    fd.append("filename", filename);
+    return req<Version>(`/api/cennik/convert/${id}/save`, { method: "POST", body: fd });
+  },
+  convertedDownloadUrl: (id: string) => withToken(`${API_BASE}/api/cennik/convert/${id}/download`),
 
   getSettings: () => req<{ settings: any; defaults: any }>("/api/settings"),
   saveSettings: (settings: any) =>
