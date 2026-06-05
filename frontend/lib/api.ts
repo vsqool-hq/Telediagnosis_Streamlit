@@ -102,7 +102,6 @@ export interface CennikValidation {
   n_repaired: number;
   n_errors: number;
   n_duplicates: number;
-  n_skipped_red?: number;
   n_skipped_label?: number;
   stopped_at_wsparcie?: boolean;
   price_min: number;

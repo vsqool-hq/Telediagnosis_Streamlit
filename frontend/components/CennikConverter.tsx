@@ -118,8 +118,7 @@ export default function CennikConverter() {
             {v.excluded_rows.length ? v.excluded_rows.join(", ") : "—"}.
           </p>
           <div className="flex flex-wrap gap-2 text-xs">
-            {!!v.n_skipped_red && <span className="pill pill-warn">Pominięto czerwone: {v.n_skipped_red}</span>}
-            {!!v.n_skipped_label && <span className="pill pill-warn">Pominięto etykiety (np. „simp"): {v.n_skipped_label}</span>}
+            {!!v.n_skipped_label && <span className="pill pill-warn">Pominięto etykiety (np. „Wpis SIMP"): {v.n_skipped_label}</span>}
             {v.stopped_at_wsparcie && <span className="pill pill-ok">Import zakończony na „WSPARCIE" (poniżej pominięto)</span>}
           </div>
 

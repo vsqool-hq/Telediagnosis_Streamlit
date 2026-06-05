@@ -14,8 +14,8 @@ Reguły konwersji (odtworzone z istniejącego cennika i ustaleń z użytkownikie
     kończą się na kolumnie „Mediana",
   * wiersz jest "badaniem", jeśli ma ≥1 wartość liczbową w kolumnach jednostek
     (to odcina nagłówki sekcji oraz wiersze etykiet typu JEDNOSTKA/UWAGI),
-  * wiersze oznaczone na CZERWONO są pomijane,
-  * wiersze z etykietą ze SKIP_LABELS (np. „simp") są pomijane,
+  * puste wiersze-separatory sekcji są pomijane (pusta kolumna A),
+  * wiersze z etykietą ze SKIP_LABELS (np. „Wpis SIMP") są pomijane,
   * wiersz „WSPARCIE" jest ostatnim importowanym — wszystko PONIŻEJ niego pomijamy,
   * w takim wierszu: liczba → cena, "-" → 0, pusta komórka → pomijana,
   * ceny zaokrąglane do 2 miejsc; "brudne" zapisy (np. "2 500,00 zł") naprawiane
@@ -30,30 +30,10 @@ from openpyxl import load_workbook
 STOP_HEADERS = {"MEDIANA", "ŚREDNIA", "SREDNIA", "MAX", "MIN", "SUMA"}
 
 # Etykiety wierszy, których nie importujemy (porównanie bez wielkości liter).
-SKIP_LABELS = {"SIMP"}
+SKIP_LABELS = {"WPIS SIMP"}
 
 # Po przetworzeniu tego wiersza kończymy import — wszystko poniżej pomijamy.
 STOP_AFTER_LABEL = "WSPARCIE"
-
-
-def _is_red_fill(cell) -> bool:
-    """Czy komórka ma jednolite, czerwone wypełnienie (wiersz do pominięcia)."""
-    try:
-        fill = cell.fill
-        if fill is None or fill.fill_type not in ("solid", "darkRed", "lightUp"):
-            return False
-        color = fill.fgColor
-        rgb = getattr(color, "rgb", None)
-        if not isinstance(rgb, str) or len(rgb) < 6:
-            return False
-        hexv = rgb[-6:]  # pomiń kanał alfa (AARRGGBB → RRGGBB)
-        r = int(hexv[0:2], 16)
-        g = int(hexv[2:4], 16)
-        b = int(hexv[4:6], 16)
-        # „czerwony" = mocno dominujący kanał czerwony nad zielonym i niebieskim.
-        return r >= 140 and g <= r * 0.6 and b <= r * 0.6
-    except (ValueError, TypeError, AttributeError):
-        return False
 
 
 def _clean_name(value) -> str:
@@ -111,16 +91,14 @@ def convert_workbook(path_or_bytes) -> dict:
       rows: [(BADANIE, Jednostka, cena_float)]
       units, badania, source_preview, validation
     """
-    # Pełne wczytanie (nie read_only) — potrzebujemy kolorów komórek do wykrycia
-    # wierszy czerwonych. data_only=True daje wartości zamiast formuł.
-    wb = load_workbook(path_or_bytes, data_only=True)
+    wb = load_workbook(path_or_bytes, data_only=True, read_only=True)
     ws = wb[wb.sheetnames[0]]
 
-    grid_cells = list(ws.iter_rows())
-    if not grid_cells:
+    grid = list(ws.iter_rows(values_only=True))
+    if not grid:
         raise ValueError("Arkusz jest pusty.")
 
-    header = [_clean_name(c.value) for c in grid_cells[0]]
+    header = [_clean_name(v) for v in grid[0]]
 
     # kolumny jednostek: od indeksu 1 do pierwszej kolumny pomocniczej
     # (nazwy jednostek kończą się na kolumnie „Mediana").
@@ -141,29 +119,22 @@ def convert_workbook(path_or_bytes) -> dict:
     seen: dict[tuple[str, str], int] = {}
     duplicates: list[dict] = []
     per_badanie: dict[str, int] = {}
-    n_skipped_red = 0
     n_skipped_label = 0
     stopped = False
 
-    for row_cells in grid_cells[1:]:
-        first_cell = row_cells[0] if len(row_cells) > 0 else None
-        badanie = _clean_name(first_cell.value if first_cell is not None else "")
+    for grow in grid[1:]:
+        # Pusty wiersz-separator (pusta kolumna A) — pomijamy.
+        badanie = _clean_name(grow[0] if len(grow) > 0 else "")
         if not badanie:
             continue
 
-        # Wiersze czerwone — pomijamy w całości.
-        if first_cell is not None and _is_red_fill(first_cell):
-            n_skipped_red += 1
-            excluded_rows.append(f"{badanie} (czerwony)")
-            continue
-
-        # Etykiety do pominięcia (np. „simp").
+        # Etykiety do pominięcia (np. „Wpis SIMP").
         if badanie.upper() in SKIP_LABELS:
             n_skipped_label += 1
             excluded_rows.append(f"{badanie} (etykieta)")
             continue
 
-        cells = [(c, row_cells[c].value if c < len(row_cells) else None) for c in unit_cols]
+        cells = [(c, grow[c] if c < len(grow) else None) for c in unit_cols]
 
         has_numeric = any(isinstance(v, (int, float)) or _looks_numeric(v) for _, v in cells)
         if not has_numeric:
@@ -204,9 +175,9 @@ def convert_workbook(path_or_bytes) -> dict:
     source_preview = {
         "header": ["BADANIE"] + [header[c] for c in preview_cols],
         "rows": [
-            [_clean_name(g[0].value if len(g) else "")] +
-            [("" if (c >= len(g) or g[c].value is None) else str(g[c].value)) for c in preview_cols]
-            for g in grid_cells[1:13]
+            [_clean_name(g[0] if len(g) else "")] +
+            [("" if (c >= len(g) or g[c] is None) else str(g[c])) for c in preview_cols]
+            for g in grid[1:13]
         ],
     }
 
@@ -220,7 +191,6 @@ def convert_workbook(path_or_bytes) -> dict:
         "n_repaired": len(repaired),
         "n_errors": len(errors),
         "n_duplicates": len(duplicates),
-        "n_skipped_red": n_skipped_red,
         "n_skipped_label": n_skipped_label,
         "stopped_at_wsparcie": stopped,
         "price_min": min(prices_only) if prices_only else 0,
