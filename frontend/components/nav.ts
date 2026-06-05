@@ -5,6 +5,9 @@ import {
   ReceiptText,
   History,
   SlidersHorizontal,
+  Stethoscope,
+  Wallet,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,6 +24,9 @@ export const NAV: NavItem[] = [
   { href: "/wzorcowe", label: "Pliki wzorcowe", short: "Wzorcowe", icon: BookText },
   { href: "/cennik", label: "Cennik", short: "Cennik", icon: ReceiptText },
   { href: "/historia", label: "Historia", short: "Historia", icon: History },
+  { href: "/rozliczenie-lekarzy", label: "Rozliczenie lekarzy", short: "Lekarze", icon: Stethoscope },
+  { href: "/cennik-lekarzy", label: "Cennik lekarzy", short: "Cennik lek.", icon: Wallet },
+  { href: "/porownanie", label: "Porównanie", short: "Porównanie", icon: Scale },
   { href: "/ustawienia", label: "Ustawienia", short: "Ustawienia", icon: SlidersHorizontal },
 ];
 

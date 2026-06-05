@@ -17,7 +17,7 @@ export default function VersionManager({
   accept,
   embedded = false,
 }: {
-  kind: "wzorcowe" | "cennik";
+  kind: "wzorcowe" | "cennik" | "cennik_lekarzy";
   title: string;
   description: string;
   accept: string;

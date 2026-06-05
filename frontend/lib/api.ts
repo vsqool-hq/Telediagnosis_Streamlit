@@ -49,9 +49,11 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 // ---- Typy -------------------------------------------------------------------
 
+export type VersionKind = "wzorcowe" | "cennik" | "cennik_lekarzy";
+
 export interface Version {
   id: string;
-  kind: "wzorcowe" | "cennik";
+  kind: VersionKind;
   filename: string;
   original_name: string;
   label: string;
@@ -123,6 +125,67 @@ export interface CennikConversion {
   validation: CennikValidation;
 }
 
+// ---- Moduł lekarzy ----
+export interface DoctorValidation {
+  n_rows: number;
+  n_doctors: number;
+  n_categories: number;
+  n_zeros: number;
+  n_repaired: number;
+  n_nonstandard: number;
+  n_doctors_empty: number;
+  price_min: number;
+  price_max: number;
+  repaired: { lekarz: string; kategoria: string; z: string; na: string }[];
+  nonstandard: { lekarz: string; kategoria: string }[];
+  doctors_empty: string[];
+  skipped_sheets: string[];
+  categories: string[];
+}
+
+export interface DoctorConversion {
+  id: string;
+  source_name: string;
+  result_preview: { lekarz: string; kategoria: string; cena: number }[];
+  validation: DoctorValidation;
+}
+
+export interface DoctorCoverage {
+  doctor_cennik: { rows: number; doctors: number } | null;
+  slownik_lekarz_filled: number;
+  slownik_total: number;
+  ready: boolean;
+}
+
+export interface DoctorBilling {
+  empty: boolean;
+  reason?: string;
+  rows?: { lekarz: string; kategoria: string; ilosc: number; stawka: number; wartosc: number }[];
+  by_doctor?: { lekarz: string; ilosc: number; wartosc: number }[];
+  validation?: {
+    total_studies: number;
+    priced_studies: number;
+    studies_without_category: number;
+    n_doctors: number;
+    total_value: number;
+    doctors_unmatched: string[];
+    pairs_without_price: { _lek_disp: string; _kategoria: string; n: number }[];
+  };
+}
+
+export interface DoctorComparison {
+  empty: boolean;
+  reason?: string;
+  rows?: {
+    "Modalność": string; kategoria: string; ilosc: number;
+    przychod_jednostki: number; koszt_lekarzy: number; marza: number;
+  }[];
+  totals?: {
+    przychod_jednostki: number; koszt_lekarzy: number; marza: number;
+    studies: number; studies_without_category: number;
+  };
+}
+
 export interface TrendPoint {
   job_id: string;
   date: string;
@@ -183,6 +246,25 @@ export const api = {
     return req<Version>(`/api/cennik/convert/${id}/save`, { method: "POST", body: fd });
   },
   convertedDownloadUrl: (id: string) => withToken(`${API_BASE}/api/cennik/convert/${id}/download`),
+
+  // ---- Moduł lekarzy ----
+  convertCennikLekarzy: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return req<DoctorConversion>("/api/cennik-lekarzy/convert", { method: "POST", body: fd });
+  },
+  saveConvertedCennikLekarzy: (id: string, label: string, filename: string) => {
+    const fd = new FormData();
+    fd.append("label", label);
+    fd.append("filename", filename);
+    return req<Version>(`/api/cennik-lekarzy/convert/${id}/save`, { method: "POST", body: fd });
+  },
+  convertedLekarzyDownloadUrl: (id: string) =>
+    withToken(`${API_BASE}/api/cennik-lekarzy/convert/${id}/download`),
+
+  doctorsCoverage: () => req<DoctorCoverage>("/api/doctors/coverage"),
+  doctorsBilling: (jobId: string) => req<DoctorBilling>(`/api/doctors/billing/${jobId}`),
+  doctorsCompare: (jobId: string) => req<DoctorComparison>(`/api/doctors/compare/${jobId}`),
 
   getSettings: () => req<{ settings: any; defaults: any }>("/api/settings"),
   saveSettings: (settings: any) =>

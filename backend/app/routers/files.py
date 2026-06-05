@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/versions", tags=["versions"])
 KINDS = {
     "wzorcowe": (".xlsx", ".xls"),
     "cennik": (".csv",),
+    "cennik_lekarzy": (".csv",),
 }
 
 
