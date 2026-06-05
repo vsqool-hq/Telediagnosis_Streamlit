@@ -117,6 +117,11 @@ export default function CennikConverter() {
             Zakres cen: {v.price_min} – {v.price_max} zł. Pominięte wiersze (nagłówki/etykiety):{" "}
             {v.excluded_rows.length ? v.excluded_rows.join(", ") : "—"}.
           </p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {!!v.n_skipped_red && <span className="pill pill-warn">Pominięto czerwone: {v.n_skipped_red}</span>}
+            {!!v.n_skipped_label && <span className="pill pill-warn">Pominięto etykiety (np. „simp"): {v.n_skipped_label}</span>}
+            {v.stopped_at_wsparcie && <span className="pill pill-ok">Import zakończony na „WSPARCIE" (poniżej pominięto)</span>}
+          </div>
 
           {/* Ostrzeżenia */}
           <div className="space-y-2">
