@@ -21,38 +21,63 @@ export default function RozliczeniePage() {
 
   useEffect(() => () => esRef.current?.close(), []);
 
+  // Po wejściu na stronę: jeśli z banera przyszedł ?job=ID, albo gdzieś trwa
+  // rozliczenie — podłącz się i wznów podgląd logów (odtwarzane z pliku).
+  useEffect(() => {
+    const qid = new URLSearchParams(window.location.search).get("job");
+    if (qid) {
+      attach(qid);
+      return;
+    }
+    api.activeJob().then((j) => {
+      if (j && (j.live_status === "running" || j.status === "running" ||
+                j.live_status === "queued" || j.status === "queued")) {
+        attach(j.id);
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Otwiera strumień logów zadania (nowego lub już trwającego) i śledzi go do końca. */
+  function attach(jobId: string) {
+    esRef.current?.close();
+    setPhase("running");
+    setLogs([]);
+    setError(null);
+    api.getJob(jobId).then(setJob).catch(() => {});
+
+    const es = new EventSource(api.logsUrl(jobId));
+    esRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        setLogs((prev) => [...prev, JSON.parse(e.data)]);
+      } catch {
+        setLogs((prev) => [...prev, e.data]);
+      }
+    };
+    es.addEventListener("end", async (e: Event) => {
+      es.close();
+      const status = JSON.parse((e as MessageEvent).data).status;
+      const refreshed = await api.getJob(jobId).catch(() => null);
+      if (refreshed) setJob(refreshed);
+      setPhase(status === "done" ? "done" : "error");
+    });
+    es.onerror = () => {
+      es.close();
+      setPhase((p) => (p === "running" ? "error" : p));
+    };
+  }
+
   async function run(mode: "full" | "unmatched") {
     if (!file) return;
     setPhase("running");
     setLogs([]);
     setError(null);
     setJob(null);
-
     try {
       const created = await api.createJob(file, mode);
-      setJob(created);
-
-      const es = new EventSource(api.logsUrl(created.id));
-      esRef.current = es;
-
-      es.onmessage = (e) => {
-        try {
-          setLogs((prev) => [...prev, JSON.parse(e.data)]);
-        } catch {
-          setLogs((prev) => [...prev, e.data]);
-        }
-      };
-      es.addEventListener("end", async (e: Event) => {
-        es.close();
-        const status = JSON.parse((e as MessageEvent).data).status;
-        const refreshed = await api.getJob(created.id).catch(() => created);
-        setJob(refreshed);
-        setPhase(status === "done" ? "done" : "error");
-      });
-      es.onerror = () => {
-        es.close();
-        setPhase((p) => (p === "running" ? "error" : p));
-      };
+      attach(created.id);
     } catch (e: any) {
       setError(e.message);
       setPhase("error");

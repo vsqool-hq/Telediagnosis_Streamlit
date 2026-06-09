@@ -13,6 +13,9 @@ primary_region = "fra"   # Warszawa — najbliżej
   TELEDIAG_SEED_DIR = "/srv/seed_data"
   # TELEDIAG_CORS_ORIGINS ustaw na URL front-endu z Vercel, np. "https://app.telediagnosis.pl"
   # TELEDIAG_API_TOKEN  ustaw jako sekret: `fly secrets set TELEDIAG_API_TOKEN=...`
+  # Keep-alive na czas liczenia: proces zadania pinguje publiczny adres aplikacji,
+  # by maszyna nie usnęła w trakcie. Adres budowany automatycznie z FLY_APP_NAME
+  # (ustawiane przez Fly). Można nadpisać: TELEDIAG_PUBLIC_URL = "https://..."
 
 # Trwały wolumen na dane (SQLite, wersje plików, katalogi zadań).
 # Utwórz przed startem: `fly volumes create teledag_data --size 3 --region waw`
