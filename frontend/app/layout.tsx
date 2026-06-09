@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import MobileNav from "@/components/MobileNav";
+import ActiveJobBanner from "@/components/ActiveJobBanner";
 import AuthGate from "@/components/AuthGate";
 
 const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter" });
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main className="flex-1 overflow-x-hidden px-5 py-7 md:px-10">
               <div className="mx-auto max-w-6xl">
                 <MobileNav />
+                <ActiveJobBanner />
                 {children}
               </div>
             </main>

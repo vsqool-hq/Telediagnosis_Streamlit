@@ -34,6 +34,18 @@ async def list_jobs():
     return db.list_jobs()
 
 
+@router.get("/active")
+async def active_job():
+    """Najnowsze zadanie w toku (queued/running) wraz z aktualnym statusem, albo null.
+    Pozwala dowolnemu urządzeniu wznowić podgląd trwającego rozliczenia."""
+    for job in db.list_jobs(limit=20):
+        status = runner.read_status(job["id"]).get("status", job["status"])
+        if status in ("queued", "running"):
+            job["live_status"] = status
+            return job
+    return None
+
+
 @router.get("/{job_id}")
 async def get_job(job_id: str):
     job = db.get_job(job_id)

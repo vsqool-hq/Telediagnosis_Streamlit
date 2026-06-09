@@ -207,6 +207,7 @@ export const api = {
     withToken(`${API_BASE}/api/jobs/${id}/import-export?fmt=${fmt}`),
 
   listJobs: () => req<Job[]>("/api/jobs"),
+  activeJob: () => req<Job | null>("/api/jobs/active"),
   getJob: (id: string) => req<Job>(`/api/jobs/${id}`),
 
   createJob: (file: File, mode: "full" | "unmatched") => {
