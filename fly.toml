@@ -3,7 +3,7 @@
 # Nazwę aplikacji ("app") ustaw przy pierwszym `fly launch`.
 
 app = "telediagnosis-backend"
-primary_region = "waw"   # Warszawa — najbliżej
+primary_region = "fra"   # Warszawa — najbliżej
 
 [build]
   dockerfile = "Dockerfile"
@@ -30,5 +30,5 @@ primary_region = "waw"   # Warszawa — najbliżej
 # 4 rdzenie + 8 GB RAM — by zmieścić się w ≤15 min jak na laptopie.
 # Maszyna działa tylko w czasie liczenia (scale-to-zero), więc koszt jest niski.
 [[vm]]
-  size = "performance-4x"
-  memory = "8gb"
+  size = "shared-cpu-2x"
+  memory = "4gb"
