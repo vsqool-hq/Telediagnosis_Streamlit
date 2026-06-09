@@ -82,14 +82,21 @@ def create_and_start_job(mode: str, upload_filename: str, upload_bytes: bytes) -
         _fail(job_id, paths, "Brak aktywnej wersji cennika. Wgraj i ustaw aktywną w zakładce 'Cennik'.")
         return db.get_job(job_id)
 
-    # Start procesu liczącego w tle
-    backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../backend
+    # Start procesu liczącego w tle.
+    # `app` to pakiet (backend/app); aby `python -m app.run_job` zadziałał,
+    # katalogiem roboczym musi być KATALOG NAD pakietem (backend/), nie sam pakiet.
+    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../app
+    backend_root = os.path.dirname(app_dir)                               # kontener pakietu `app`
+    # Błędy startu (np. importu) kierujemy do logu zadania, nie do /dev/null,
+    # żeby były widoczne w panelu „Logi procesu".
+    err_log = open(paths["log"], "a", encoding="utf-8")
     proc = subprocess.Popen(
         [sys.executable, "-m", "app.run_job", job_id, mode],
         cwd=backend_root,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=err_log,
+        stderr=subprocess.STDOUT,
     )
+    err_log.close()  # dziecko ma własną kopię deskryptora
     db.update_job(job_id, status="running", started_at=_now(), pid=proc.pid)
     return db.get_job(job_id)
 
