@@ -289,7 +289,9 @@ class MedicalVerificationAgent:
             all_unmatched_records = []
             processed_clients_count = 0
 
-            with multiprocessing.Pool(processes=num_processes) as pool:
+            # 'spawn' zamiast 'fork' — odporne na zakleszczenie przy forku po
+            # wystartowaniu wątku (keep-alive); workery to świeże procesy.
+            with multiprocessing.get_context("spawn").Pool(processes=num_processes) as pool:
                 results = pool.map(MedicalVerificationAgent.wrapper_process_client_data, tasks)
 
             for result in results:
@@ -679,7 +681,8 @@ def run_billing_process(input_dir, cennik_dir, output_dir):
         num_processes = NUM_PROCESSES_BILLING
         print(f"Rozpoczynam równoległe tworzenie {len(tasks)} rozliczeń na {num_processes} rdzeniach...", flush=True)
 
-        with multiprocessing.Pool(processes=num_processes) as pool:
+        # 'spawn' — patrz uwaga w run_verification (odporne na deadlock fork+wątek).
+        with multiprocessing.get_context("spawn").Pool(processes=num_processes) as pool:
             results = pool.starmap(bill_process_single_file, tasks)
 
         for log_list in results:
