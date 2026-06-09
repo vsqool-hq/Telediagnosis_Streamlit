@@ -48,6 +48,8 @@ async def auth_guard(request: Request, call_next):
 @app.on_event("startup")
 def _startup():
     db.init_db()
+    from app.services.runner import mark_interrupted_jobs
+    mark_interrupted_jobs()
     from app.seed import seed_if_empty
     seed_if_empty()
 

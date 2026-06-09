@@ -109,6 +109,32 @@ def _fail(job_id: str, paths: dict, message: str):
     db.update_job(job_id, status="error", error=message, finished_at=_now())
 
 
+def mark_interrupted_jobs():
+    """
+    Wywoływane przy starcie aplikacji. Procesy liczące to podprocesy serwera —
+    po restarcie/wdrożeniu/uśpieniu maszyny żaden nie przeżywa. Każde zadanie
+    wciąż „queued"/"running" jest więc osierocone → oznaczamy je jako przerwane
+    (w bazie i w status.json), żeby baner „aktywne zadanie" nie pokazywał duchów.
+    """
+    msg = "Przerwane (restart serwera / wdrożenie)."
+    for job in db.list_jobs(limit=1000):
+        if job["status"] not in ("queued", "running"):
+            continue
+        paths = job_paths(job["id"])
+        ts = _now()
+        db.update_job(job["id"], status="error", error=msg, finished_at=ts)
+        try:
+            with open(paths["status"], "w", encoding="utf-8") as f:
+                json.dump({"status": "error", "error": msg, "finished_at": ts}, f, ensure_ascii=False)
+        except OSError:
+            pass
+        try:
+            with open(paths["log"], "a", encoding="utf-8") as f:
+                f.write(f"\nBŁĄD: {msg}\n")
+        except OSError:
+            pass
+
+
 def read_status(job_id: str) -> dict:
     """Czyta status.json zadania i synchronizuje go z bazą (bo proces jest osobny)."""
     paths = job_paths(job_id)
