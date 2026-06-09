@@ -269,7 +269,11 @@ class MedicalVerificationAgent:
         print(f"Wczytuję główny plik z danymi: {os.path.basename(master_file_path)}", flush=True)
 
         try:
-            master_df = pd.read_excel(master_file_path, sheet_name=0, header=0)
+            xls = pd.ExcelFile(master_file_path)
+            sheet = "Szczegółowe" if "Szczegółowe" in xls.sheet_names else xls.sheet_names[0]
+            if sheet != "Szczegółowe":
+                print(f"OSTRZEŻENIE: Brak arkusza 'Szczegółowe' — używam '{sheet}'.", flush=True)
+            master_df = pd.read_excel(xls, sheet_name=sheet, header=0)
             if 'Klient' not in master_df.columns:
                 print("BŁĄD KRYTYCZNY: W pliku wejściowym brakuje kolumny 'Klient'.", flush=True)
                 return False
@@ -779,7 +783,11 @@ def run_unmatched_only(jednostki_dir, wzorcowe_dir, sprawdzone_dir):
     print(f"Wczytuję plik: {os.path.basename(excel_files[0])}", flush=True)
 
     try:
-        master_df = pd.read_excel(excel_files[0], sheet_name=0, header=0)
+        xls = pd.ExcelFile(excel_files[0])
+        sheet = "Szczegółowe" if "Szczegółowe" in xls.sheet_names else xls.sheet_names[0]
+        if sheet != "Szczegółowe":
+            print(f"OSTRZEŻENIE: Brak arkusza 'Szczegółowe' — używam '{sheet}'.", flush=True)
+        master_df = pd.read_excel(xls, sheet_name=sheet, header=0)
     except Exception as e:
         print(f"BŁĄD wczytywania pliku: {e}", flush=True)
         return
