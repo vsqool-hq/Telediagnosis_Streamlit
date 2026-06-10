@@ -33,5 +33,5 @@ primary_region = "fra"   # Warszawa — najbliżej
 # 4 rdzenie + 8 GB RAM — by zmieścić się w ≤15 min jak na laptopie.
 # Maszyna działa tylko w czasie liczenia (scale-to-zero), więc koszt jest niski.
 [[vm]]
-  size = "shared-cpu-2x"
-  memory = "4gb"
+  size = "performance-4x"
+  memory = "8gb"
