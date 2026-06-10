@@ -44,41 +44,17 @@ async def job_stats(job_id: str):
     if job["mode"] != "full":
         raise HTTPException(400, "Statystyki dostępne tylko dla pełnego rozliczenia.")
 
-    from app.engine.revenue import build_revenue  # pandas dopiero tutaj
+    from app.engine.revenue import cached_summary  # pandas dopiero tutaj
 
     paths = job_paths(job_id)
-    df = build_revenue(paths["wynik"], paths["cennik"])
-    if df.empty:
-        return {"empty": True}
-
-    df["Modalność"] = df["Modalność"].apply(_modality_norm)
-
-    by_mod = df.groupby("Modalność").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum")).reset_index()
-    by_client = (
-        df.groupby("Klient").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum"))
-        .sort_values("revenue", ascending=False).head(15).reset_index()
-    )
-
-    return {
-        "empty": False,
-        "total_studies": int(df["Ilość"].sum()),
-        "total_revenue": round(float(df["Wartość"].sum()), 2),
-        "clients_count": int(df["Klient"].nunique()),
-        "by_modality": [
-            {"modality": r["Modalność"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
-            for _, r in by_mod.iterrows()
-        ],
-        "top_clients": [
-            {"client": r["Klient"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
-            for _, r in by_client.iterrows()
-        ],
-    }
+    return cached_summary(paths["base"], paths["wynik"], paths["cennik"])
 
 
 @router.get("/trends")
 async def trends():
-    """Trend liczby jednostek i przychodu w czasie — po ukończonych pełnych rozliczeniach."""
-    from app.engine.revenue import build_revenue
+    """Trend liczby jednostek i przychodu w czasie — po ukończonych pełnych rozliczeniach.
+    Korzysta z cache podsumowań (stats.json), więc nie przelicza plików przy każdym wejściu."""
+    from app.engine.revenue import cached_summary
 
     jobs = [j for j in db.list_jobs(limit=100) if j["status"] == "done" and j["mode"] == "full"]
     jobs.sort(key=lambda j: j["created_at"])
@@ -86,14 +62,14 @@ async def trends():
     points = []
     for j in jobs:
         paths = job_paths(j["id"])
-        df = build_revenue(paths["wynik"], paths["cennik"])
-        if df.empty:
+        s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
+        if s.get("empty"):
             continue
         points.append({
             "job_id": j["id"],
             "date": (j["finished_at"] or j["created_at"])[:10],
             "label": j["input_name"],
-            "studies": int(df["Ilość"].sum()),
-            "revenue": round(float(df["Wartość"].sum()), 2),
+            "studies": s["total_studies"],
+            "revenue": s["total_revenue"],
         })
     return {"points": points}

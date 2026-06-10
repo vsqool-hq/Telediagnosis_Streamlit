@@ -10,6 +10,7 @@ zgadzały się z arkuszem.
 
 import os
 import glob
+import json
 
 import pandas as pd
 
@@ -81,3 +82,58 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
         return pd.DataFrame(columns=["Klient", "Modalność", "Ilość", "Wartość"])
 
     return pd.concat(frames, ignore_index=True)
+
+
+def _modality_norm(m) -> str:
+    m = str(m).strip().upper()
+    return m if m in {"RTG", "TK", "MR", "MMG"} else "INNE"
+
+
+def summarize(wynik_dir: str, cennik_dir: str) -> dict:
+    """Podsumowanie zadania: przychód/ilości łącznie, wg modalności i top klienci."""
+    df = build_revenue(wynik_dir, cennik_dir)
+    if df.empty:
+        return {"empty": True}
+    df = df.copy()
+    df["Modalność"] = df["Modalność"].map(_modality_norm)
+    by_mod = df.groupby("Modalność").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum")).reset_index()
+    by_client = (
+        df.groupby("Klient").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum"))
+        .sort_values("revenue", ascending=False).head(15).reset_index()
+    )
+    return {
+        "empty": False,
+        "total_studies": int(df["Ilość"].sum()),
+        "total_revenue": round(float(df["Wartość"].sum()), 2),
+        "clients_count": int(df["Klient"].nunique()),
+        "by_modality": [
+            {"modality": r["Modalność"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
+            for _, r in by_mod.iterrows()
+        ],
+        "top_clients": [
+            {"client": r["Klient"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
+            for _, r in by_client.iterrows()
+        ],
+    }
+
+
+def cached_summary(base_dir: str, wynik_dir: str, cennik_dir: str) -> dict:
+    """
+    Zwraca podsumowanie zadania z cache (stats.json w katalogu zadania). Liczone
+    RAZ — wyniki zadania są niezmienne, więc cache nigdy się nie dezaktualizuje.
+    Dzięki temu Historia/Pulpit nie przeliczają wszystkich plików przy każdym wejściu.
+    """
+    cache = os.path.join(base_dir, "stats.json")
+    if os.path.isfile(cache):
+        try:
+            with open(cache, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            pass
+    summary = summarize(wynik_dir, cennik_dir)
+    try:
+        with open(cache, "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False)
+    except OSError:
+        pass
+    return summary
