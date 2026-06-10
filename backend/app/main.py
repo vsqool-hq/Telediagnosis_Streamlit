@@ -42,7 +42,12 @@ async def auth_guard(request: Request, call_next):
         token = request.headers.get("X-API-Token") or request.query_params.get("token")
         if token != API_TOKEN:
             return JSONResponse({"detail": "Brak autoryzacji."}, status_code=401)
-    return await call_next(request)
+    response = await call_next(request)
+    # Private Network Access: pozwól stronie z HTTPS (Vercel) łączyć się z lokalnym
+    # backendem (http://localhost) przy wyborze „Ten komputer" — Chrome tego wymaga.
+    if request.headers.get("access-control-request-private-network"):
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 
 
 @app.on_event("startup")

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu } from "lucide-react";
 import { api } from "@/lib/api";
+import BackendSwitcher from "@/components/BackendSwitcher";
 
 type MapPair = { from: string; to: string };
 
@@ -154,7 +155,23 @@ export default function UstawieniaPage() {
     }
   }
 
-  if (!settings) return <div className="card">Wczytywanie…</div>;
+  // Przełącznik backendu pokazujemy zawsze (także gdy ustawienia się nie wczytały —
+  // np. lokalny backend nie działa — żeby zawsze dało się wrócić na chmurę).
+  if (!settings) {
+    return (
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-[26px] font-extrabold tracking-tight">Ustawienia</h1>
+          <p className="text-sm text-slate-400">Wczytywanie konfiguracji z backendu…</p>
+        </header>
+        <BackendSwitcher />
+        {error && <div className="card border-red-500/40 text-red-300">{error}</div>}
+        <div className="card text-slate-400">
+          Jeśli to trwa, wybrany backend powyżej może być niedostępny (np. lokalny nie jest uruchomiony).
+        </div>
+      </div>
+    );
+  }
 
   const coreOptions = CORE_OPTIONS.includes(numProc) ? CORE_OPTIONS : [...CORE_OPTIONS, numProc].sort((a, b) => a - b);
 
@@ -173,6 +190,8 @@ export default function UstawieniaPage() {
         </div>
       )}
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}
+
+      <BackendSwitcher />
 
       {/* Wydajność */}
       <div className="card">

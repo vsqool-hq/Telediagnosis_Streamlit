@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Lock, LogIn, Plus, Loader2 } from "lucide-react";
 import { api, setToken, clearToken } from "@/lib/api";
+import BackendSwitcher from "@/components/BackendSwitcher";
 
 type State = "checking" | "locked" | "open";
 
@@ -75,6 +76,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             {busy ? <Loader2 className="animate-spin" size={18} /> : <LogIn size={18} />}
             Zaloguj
           </button>
+
+          <div className="border-t border-white/10 pt-3">
+            <p className="mb-1.5 text-xs text-slate-500">Silnik obliczeń:</p>
+            <BackendSwitcher compact />
+          </div>
         </form>
       </div>
     );

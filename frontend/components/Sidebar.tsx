@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, LogOut } from "lucide-react";
-import { clearToken, getToken } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Plus, LogOut, Cloud, Laptop } from "lucide-react";
+import { clearToken, getToken, isLocalBackend } from "@/lib/api";
 import { NAV, isActive } from "@/components/nav";
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [local, setLocal] = useState(false);
+  useEffect(() => setLocal(isLocalBackend()), []);
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-black/20 px-4 py-6 md:flex">
@@ -42,7 +45,11 @@ export default function Sidebar() {
           Wyloguj
         </button>
       )}
-      <p className="px-3 pt-1.5 text-xs text-slate-500">v0.2 · {new Date().getFullYear()}</p>
+      <div className={`mx-1 mb-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs ${local ? "text-amber-300" : "text-slate-400"}`}>
+        {local ? <Laptop size={14} /> : <Cloud size={14} />}
+        Silnik: {local ? "Ten komputer" : "Chmura"}
+      </div>
+      <p className="px-3 text-xs text-slate-500">v0.2 · {new Date().getFullYear()}</p>
     </aside>
   );
 }

@@ -1,8 +1,39 @@
 // Klient API backendu FastAPI.
-// Bazowy URL i opcjonalny token z publicznych zmiennych środowiskowych.
+// Bazowy URL: można przełączać w aplikacji (Chmura ↔ Ten komputer) — wybór trzymany
+// w localStorage; w razie braku używana jest zmienna środowiskowa (chmura).
 
-export const API_BASE =
+// Adres chmury (wstrzykiwany przy buildzie na Vercel) i adres lokalnego backendu.
+export const CLOUD_BASE =
   process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") || "http://localhost:8080";
+export const LOCAL_BASE = "http://localhost:8080";
+export const BASE_KEY = "teledag_api_base";
+
+/** Aktualny adres backendu (wybór z localStorage albo domyślnie chmura). */
+export function getApiBase(): string {
+  if (typeof window !== "undefined") {
+    const v = window.localStorage.getItem(BASE_KEY);
+    if (v) return v.replace(/\/$/, "");
+  }
+  return CLOUD_BASE;
+}
+
+/** Zapisuje wybrany backend. Pusty/cloud → usuwa wpis (wraca do chmury). */
+export function setApiBase(url: string) {
+  if (typeof window === "undefined") return;
+  if (!url || url.replace(/\/$/, "") === CLOUD_BASE) {
+    window.localStorage.removeItem(BASE_KEY);
+  } else {
+    window.localStorage.setItem(BASE_KEY, url.replace(/\/$/, ""));
+  }
+}
+
+/** Czy aktualnie liczymy lokalnie (na tym komputerze)? */
+export function isLocalBackend(): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)/.test(getApiBase());
+}
+
+// Wyliczane przy załadowaniu modułu (w przeglądarce). Zmiana backendu → przeładowanie strony.
+export const API_BASE = getApiBase();
 
 export const TOKEN_KEY = "teledag_token";
 
