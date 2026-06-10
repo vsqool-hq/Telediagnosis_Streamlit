@@ -227,9 +227,23 @@ export interface TrendPoint {
 
 // ---- Wywołania --------------------------------------------------------------
 
+export interface SyncResult {
+  synced: Record<string, string | null>;
+  errors: Record<string, string>;
+}
+
 export const api = {
   // Walidacja tokenu/sesji — 200 oznacza autoryzację (lub wyłączony token w backendzie).
   validate: () => req("/api/settings"),
+
+  // Pobiera aktywne pliki (słownik/cennik/cennik lekarzy) z chmury do bieżącego
+  // (lokalnego) backendu. Wywoływane gdy liczymy „na tym komputerze".
+  syncFromCloud: () =>
+    req<SyncResult>("/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cloud_base: CLOUD_BASE, token: getToken() }),
+    }),
 
   overview: () => req<Overview>("/api/stats/overview"),
   jobStats: (id: string) => req<JobStats>(`/api/stats/job/${id}`),
