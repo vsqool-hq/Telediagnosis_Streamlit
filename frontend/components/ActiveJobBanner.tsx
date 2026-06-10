@@ -1,33 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Loader2, ArrowRight } from "lucide-react";
 import { api, Job } from "@/lib/api";
 
 /**
- * Baner widoczny na każdej stronie, gdy trwa rozliczenie. Odpytywanie co 7 s
- * pełni dwie role: pokazuje aktywne zadanie ORAZ — bo leci przez proxy Fly —
- * podtrzymuje „obudzoną" maszynę, gdy aplikacja jest otwarta na jakimkolwiek
- * urządzeniu. Samo liczenie i tak biegnie po stronie serwera niezależnie.
+ * Baner widoczny, gdy trwa rozliczenie.
+ *
+ * WAŻNE (koszty / scale-to-zero): NIE odpytujemy w kółko, gdy nic się nie liczy —
+ * inaczej otwarta karta budziłaby maszynę Fly 24/7. Robimy więc:
+ *   • pojedyncze sprawdzenie przy wejściu i przy powrocie na kartę (focus),
+ *   • dopiero gdy WYKRYJEMY aktywne zadanie, odpytujemy co 5 s aż do końca,
+ *   • brak aktywnego zadania → zero pętli (maszyna może spokojnie zasnąć).
  */
 export default function ActiveJobBanner() {
   const [job, setJob] = useState<Job | null>(null);
   const pathname = usePathname();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alive = useRef(true);
 
   useEffect(() => {
-    let alive = true;
-    const tick = () =>
-      api.activeJob().then((j) => { if (alive) setJob(j); }).catch(() => {});
-    tick();
-    const id = setInterval(tick, 7000);
-    return () => { alive = false; clearInterval(id); };
+    alive.current = true;
+
+    const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+
+    const check = async () => {
+      try {
+        const j = await api.activeJob();
+        if (!alive.current) return;
+        setJob(j);
+        clear();
+        // Pętlę utrzymujemy TYLKO dopóki realnie coś się liczy.
+        if (j) timer.current = setTimeout(check, 5000);
+      } catch {
+        /* offline/uśpiona maszyna — nie ponawiamy w pętli */
+      }
+    };
+
+    check(); // jednorazowo po wejściu
+    const onFocus = () => { if (!timer.current) check(); };
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      alive.current = false;
+      clear();
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   if (!job) return null;
-  // Na stronie rozliczenia mamy już pełny podgląd — baner zbędny.
-  if (pathname === "/rozliczenie") return null;
+  if (pathname === "/rozliczenie") return null; // tam jest pełny podgląd
 
   return (
     <Link
