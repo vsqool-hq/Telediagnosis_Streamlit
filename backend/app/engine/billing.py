@@ -282,7 +282,9 @@ class MedicalVerificationAgent:
             print(f"Znaleziono dane dla {len(unique_clients)} unikalnych klientów.", flush=True)
 
             num_processes = NUM_PROCESSES_VERIFY
-            tasks = [(self, master_df[master_df['Klient'] == client], client) for client in unique_clients]
+            # Zadania niosą tylko dane klienta; słownik wzorcowy ładuje initializer
+            # RAZ na workera (a nie 115× w payloadzie) — to oszczędza pamięć.
+            tasks = [(master_df[master_df['Klient'] == client], client) for client in unique_clients]
 
             print(f"Rozpoczynam równoległą weryfikację na {num_processes} rdzeniach...", flush=True)
 
@@ -291,8 +293,11 @@ class MedicalVerificationAgent:
 
             # 'spawn' zamiast 'fork' — odporne na zakleszczenie przy forku po
             # wystartowaniu wątku (keep-alive); workery to świeże procesy.
-            with multiprocessing.get_context("spawn").Pool(processes=num_processes) as pool:
-                results = pool.map(MedicalVerificationAgent.wrapper_process_client_data, tasks)
+            ctx = multiprocessing.get_context("spawn")
+            with ctx.Pool(processes=num_processes,
+                          initializer=_verify_init_worker,
+                          initargs=(self.reference_data, self.input_folder, self.output_folder)) as pool:
+                results = pool.map(_verify_one, tasks)
 
             for result in results:
                 if result is not None:
@@ -317,6 +322,22 @@ class MedicalVerificationAgent:
         except Exception as e:
             print(f"BŁĄD KRYTYCZNY podczas wczytywania lub dzielenia pliku {os.path.basename(master_file_path)}: {e}", flush=True)
             return False
+
+
+# --- Worker weryfikacji (Pool initializer) -----------------------------------
+# Słownik wzorcowy ładujemy RAZ na proces workera (initargs), zamiast pakować go
+# do każdego z ~115 zadań — to drastycznie obniża zużycie pamięci przy 'spawn'.
+_WORKER_VERIFIER = None
+
+
+def _verify_init_worker(reference_df, input_folder, output_folder):
+    global _WORKER_VERIFIER
+    _WORKER_VERIFIER = MedicalVerificationAgent(reference_df, input_folder, output_folder)
+
+
+def _verify_one(args):
+    client_df, client_name = args
+    return _WORKER_VERIFIER.process_client_data(client_df, client_name)
 
 
 # ###################################################################################
