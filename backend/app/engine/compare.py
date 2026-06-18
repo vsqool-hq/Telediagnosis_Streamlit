@@ -44,9 +44,9 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     if df is None or df.empty:
         return {"empty": True, "reason": "Brak zweryfikowanych danych."}
 
+    # Częściowo/niewypełniona kolumna „Rodzaj procedury lekarz" nie blokuje porównania —
+    # badania bez kategorii są pomijane w marży i raportowane (studies_without_category).
     cat_map = load_lekarz_categories(slownik_path)
-    if not cat_map:
-        return {"empty": True, "reason": "Słownik nie ma wypełnionej kolumny 'Rodzaj procedury lekarz'."}
 
     unit_prices = _load_units_prices(units_cennik_dir)
     doc_prices = load_doctor_prices(doctor_cennik_csv)

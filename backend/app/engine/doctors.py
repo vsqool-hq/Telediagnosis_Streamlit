@@ -104,9 +104,10 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
     if OPISUJACY_COL not in df.columns:
         return {"empty": True, "reason": f"Brak kolumny '{OPISUJACY_COL}' w danych."}
 
+    # Częściowo (a nawet w ogóle nie) wypełniona kolumna „Rodzaj procedury lekarz"
+    # NIE blokuje liczenia — badania bez przypisanej kategorii są pomijane i
+    # raportowane (studies_without_category). Pełna pustka = po prostu 0 wycenionych.
     cat_map = load_lekarz_categories(slownik_path)
-    if not cat_map:
-        return {"empty": True, "reason": "Słownik nie ma wypełnionej kolumny 'Rodzaj procedury lekarz'."}
 
     prices = load_doctor_prices(doctor_cennik_csv)
 
@@ -166,6 +167,7 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
             "total_studies": int(len(df)),
             "priced_studies": int(len(ok)),
             "studies_without_category": studies_no_cat,
+            "slownik_categories": len(cat_map),
             "n_doctors": int(by_doctor.shape[0]),
             "total_value": round(float(ok["wartosc"].sum()), 2),
             "doctors_unmatched": doctors_unmatched[:100],
