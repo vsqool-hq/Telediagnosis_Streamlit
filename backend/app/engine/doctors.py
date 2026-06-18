@@ -11,11 +11,11 @@ Wejście:
 Wynik: rozliczenie per lekarz i kategoria (ilość, stawka, wartość) + diagnostyka
 (niedopasowani lekarze, procedury bez kategorii, kategorie bez stawki).
 
-UWAGA (do potwierdzenia po wypełnieniu słownika):
-  Zakładamy, że kolumna „Rodzaj procedury lekarz" zawiera PEŁNĄ kategorię cennika
-  (np. „TK CITO A"). Jeśli okaże się, że priorytet (CITO/PILNE/PLANOWE) ma być
-  doklejany z kolumny „Priorytet opisu" badania, podmienimy tylko funkcję
-  `resolve_category()` — reszta przepływu pozostaje bez zmian.
+Składanie kategorii:
+  Kolumna „Rodzaj procedury lekarz" zawiera BAZĘ bez priorytetu („RTG", „TK A",
+  „MR C"…), a cennik lekarzy ma priorytet w środku („RTG CITO", „TK CITO A").
+  Priorytet bierzemy z kolumny „Priorytet opisu" badania i wstawiamy między
+  modalność a rozmiar — patrz resolve_category().
 """
 
 import os
@@ -26,6 +26,22 @@ from app.engine.cennik_lekarzy_convert import doctor_key
 
 LEKARZ_COL_SLOWNIK = "Rodzaj procedury lekarz"
 OPISUJACY_COL = "Opisujący"
+
+_PRIORITIES = {"CITO", "PILNE", "PLANOWE"}
+
+
+def _priority_from_study(value) -> str:
+    """Mapuje 'Priorytet opisu' badania na priorytet cennika lekarzy (CITO/PILNE/PLANOWE)."""
+    raw = str(value or "").strip().upper()
+    if not raw:
+        return ""
+    if "CITO" in raw or "RATUN" in raw or "UDAR" in raw:
+        return "CITO"
+    if "PIL" in raw:               # Pilny, Bardzo pilny
+        return "PILNE"
+    if "PLAN" in raw:              # Planowy
+        return "PLANOWE"
+    return ""
 
 
 def _norm(s) -> str:
@@ -67,10 +83,29 @@ def load_lekarz_categories(slownik_path: str) -> dict:
 
 def resolve_category(study_row, slownik_category: str) -> str:
     """
-    Zwraca finalną kategorię cennika lekarzy dla danego badania.
-    Domyślnie: kategoria ze słownika 1:1. (Patrz UWAGA w nagłówku modułu.)
+    Składa finalną kategorię cennika lekarzy z bazy ze słownika + priorytetu badania.
+
+    Słownik podaje bazę BEZ priorytetu: "RTG", "TK A", "MR C"…
+    Cennik lekarzy ma priorytet w środku: "RTG CITO", "TK CITO A", "MR PLANOWE C".
+    Wstawiamy więc priorytet (z 'Priorytet opisu') między modalność a rozmiar:
+      "RTG" + CITO        -> "RTG CITO"
+      "TK A" + PLANOWE     -> "TK PLANOWE A"
+
+    Jeśli baza nie jest modalnością RTG/TK/MR albo już zawiera priorytet
+    (np. gotowe "MMG SKRINING"), zwracamy ją bez zmian.
     """
-    return _norm(slownik_category)
+    base = _norm(slownik_category)
+    if not base:
+        return ""
+    toks = base.upper().split(" ")
+    modality = toks[0]
+    if modality not in ("RTG", "TK", "MR") or any(t in _PRIORITIES for t in toks):
+        return base  # gotowa kategoria / inna modalność — bez składania
+    priority = _priority_from_study(study_row.get("Priorytet opisu"))
+    if not priority:
+        return base  # brak priorytetu → zostaw bazę (trafi do „bez stawki")
+    rest = " ".join(toks[1:])  # rozmiar: A/B/C/D (lub puste dla RTG)
+    return f"{modality} {priority} {rest}".strip()
 
 
 def read_verified_studies(sprawdzone_dir: str):

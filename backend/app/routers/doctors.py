@@ -29,6 +29,17 @@ def _slownik_path(wzorcowe_dir: str) -> str | None:
     return files[0] if files else None
 
 
+def _active_slownik_path() -> str | None:
+    """Ścieżka do AKTYWNEJ wersji słownika (a nie kopii sprzed uruchomienia zadania).
+    Kolumnę „Rodzaj procedury lekarz" wypełnia się na bieżąco, więc kategorie
+    bierzemy z aktualnego słownika, nie ze starego snapshotu zadania."""
+    wz = db.get_active_version("wzorcowe")
+    if not wz:
+        return None
+    p = os.path.join(version_dir("wzorcowe", wz["id"]), wz["filename"])
+    return p if os.path.isfile(p) else None
+
+
 @router.get("/coverage")
 async def coverage():
     """Czy moduł jest gotowy: cennik lekarzy + wypełniona kolumna w słowniku."""
@@ -87,7 +98,9 @@ def _resolve_job(job_id: str):
     if job["mode"] != "full":
         raise HTTPException(400, "Moduł lekarzy działa na pełnym rozliczeniu jednostek.")
     paths = job_paths(job_id)
-    slownik = _slownik_path(paths["wzorcowe"])
+    # Słownik bierzemy z AKTYWNEJ wersji (świeże kategorie „Rodzaj procedury lekarz"),
+    # a tylko awaryjnie z kopii zapisanej przy zadaniu.
+    slownik = _active_slownik_path() or _slownik_path(paths["wzorcowe"])
     cennik_lek = _active_doctor_cennik_csv()
     if not slownik:
         raise HTTPException(400, "Brak słownika w danych zadania.")
