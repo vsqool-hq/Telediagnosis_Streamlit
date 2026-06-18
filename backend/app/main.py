@@ -58,6 +58,20 @@ def _startup():
     from app.seed import seed_if_empty
     seed_if_empty()
 
+    # Auto-synchronizacja aktywnych plików z chmury przy starcie LOKALNEGO backendu.
+    # Włączana wyłącznie przez zmienną TELEDIAG_SYNC_URL (ustawia ją launcher lokalny),
+    # więc backend w chmurze NIE synchronizuje się sam ze sobą. Best-effort: brak sieci
+    # / wyłączona chmura nie przerywa startu. Reguła „lokalne nowsze wygrywa" jest w
+    # pull_active_from_cloud, więc nie nadpisuje świeższych plików lokalnych.
+    sync_url = os.environ.get("TELEDIAG_SYNC_URL", "").strip().rstrip("/")
+    if sync_url and not sync_url.startswith(("http://localhost", "http://127.0.0.1")):
+        try:
+            from app.routers.sync import pull_active_from_cloud
+            res = pull_active_from_cloud(sync_url, os.environ.get("TELEDIAG_SYNC_TOKEN", "").strip())
+            print(f"[startup-sync] z {sync_url}: {res}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"[startup-sync] pominięto ({e}).", flush=True)
+
 
 @app.get("/health")
 async def health():

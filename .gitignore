@@ -20,6 +20,7 @@ out/
 .env.local
 frontend/.env
 frontend/.env.local
+sync.env
 
 # System
 .DS_Store

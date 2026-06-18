@@ -36,15 +36,17 @@ def _fetch(url: str, token: str) -> bytes:
         return resp.read()
 
 
-@router.post("")
-async def sync_from_cloud(payload: dict):
-    cloud = (payload.get("cloud_base") or "").rstrip("/")
-    token = payload.get("token") or ""
-    if not cloud:
-        raise HTTPException(400, "Brak adresu chmury (cloud_base).")
-    if cloud.startswith(("http://localhost", "http://127.0.0.1")):
-        raise HTTPException(400, "Adres chmury wskazuje na localhost — nie ma skąd synchronizować.")
+def pull_active_from_cloud(cloud: str, token: str) -> dict:
+    """
+    Pobiera aktywne wersje plików z chmury i ustawia je jako aktywne lokalnie.
 
+    Reguły:
+      * jeśli lokalna aktywna wersja jest NOWSZA lub równa (po dacie) — nie ruszamy,
+      * deduplikacja: wersję z chmury zapisujemy pod stałym id ("cloud_<id>") z jej
+        oryginalną datą; przy kolejnej synchronizacji nie pobieramy jej ponownie,
+        tylko aktywujemy. Dzięki temu wersje się nie mnożą przy każdym starcie.
+    """
+    cloud = cloud.rstrip("/")
     ensure_dirs()
     synced: dict = {}
     errors: dict = {}
@@ -53,27 +55,53 @@ async def sync_from_cloud(payload: dict):
         try:
             versions = json.loads(_fetch(f"{cloud}/api/versions/{kind}", token))
             active = next((v for v in versions if v.get("is_active")), None)
+            if active is None and versions:
+                active = max(versions, key=lambda v: v.get("uploaded_at", ""))
             if not active:
                 synced[kind] = None
                 continue
 
-            content = _fetch(f"{cloud}/api/versions/{kind}/{active['id']}/download", token)
+            # Lokalne nowsze/równe → zostawiamy lokalne.
+            local_active = db.get_active_version(kind)
+            if local_active and str(local_active.get("uploaded_at", "")) >= str(active.get("uploaded_at", "")):
+                synced[kind] = None
+                continue
+
+            cloud_id = "cloud_" + str(active["id"])
             name = active.get("original_name") or active.get("filename") or f"{kind}.dat"
 
-            version_id = uuid.uuid4().hex[:12]
-            vdir = version_dir(kind, version_id)
+            if db.get_version(cloud_id):  # już pobrana wcześniej → tylko aktywuj
+                db.set_active_version(kind, cloud_id)
+                synced[kind] = name
+                continue
+
+            content = _fetch(f"{cloud}/api/versions/{kind}/{active['id']}/download", token)
+            vdir = version_dir(kind, cloud_id)
             os.makedirs(vdir, exist_ok=True)
             with open(os.path.join(vdir, name), "wb") as f:
                 f.write(content)
 
             db.add_version({
-                "id": version_id, "kind": kind, "filename": name, "original_name": name,
+                "id": cloud_id, "kind": kind, "filename": name, "original_name": name,
                 "label": f"Z chmury ({active.get('label') or name})",
-                "size": len(content), "is_active": 0, "uploaded_at": _now(),
+                "size": len(content), "is_active": 0,
+                "uploaded_at": active.get("uploaded_at") or _now(),
             })
-            db.set_active_version(kind, version_id)
+            db.set_active_version(kind, cloud_id)
             synced[kind] = name
         except Exception as e:  # noqa: BLE001
             errors[kind] = str(e)
 
     return {"synced": synced, "errors": errors}
+
+
+@router.post("")
+async def sync_from_cloud(payload: dict):
+    cloud = (payload.get("cloud_base") or "").rstrip("/")
+    token = payload.get("token") or ""
+    if not cloud:
+        raise HTTPException(400, "Brak adresu chmury (cloud_base).")
+    if cloud.startswith(("http://localhost", "http://127.0.0.1")):
+        raise HTTPException(400, "Adres chmury wskazuje na localhost — nie ma skąd synchronizować.")
+    return pull_active_from_cloud(cloud, token)
+

@@ -6,6 +6,11 @@ cd "$(dirname "$0")"
 # Załaduj nvm, by mieć node/npm w PATH (przy uruchomieniu z Findera .zshrc nie jest wczytywany).
 [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
 
+# Konfiguracja synchronizacji z chmury (opcjonalna, niewersjonowana — patrz sync.env).
+# Gdy ustawisz TELEDIAG_SYNC_URL/TELEDIAG_SYNC_TOKEN, lokalny backend pobierze przy
+# starcie najnowsze aktywne pliki z chmury (chyba że lokalne są nowsze).
+[ -f "./sync.env" ] && source "./sync.env"
+
 echo "Uruchamiam backend (http://localhost:8080)…"
 ( cd backend && source .venv/bin/activate && \
   export TELEDIAG_DATA_DIR=./data TELEDIAG_SEED_DIR=../seed_data && \
