@@ -56,8 +56,16 @@ def _clean(value) -> str:
 
 
 def doctor_key(name) -> str:
-    """Klucz dopasowania niewrażliwy na kolejność imię/nazwisko i wielkość liter."""
-    s = re.sub(r"\s+", " ", str(name or "")).strip().upper()
+    """
+    Klucz dopasowania lekarza — niewrażliwy na:
+      • kolejność imię/nazwisko (sortujemy człony),
+      • wielkość liter,
+      • łączniki vs spacje w nazwiskach dwuczłonowych oraz różne rodzaje myślników
+        ('Szalacha-Tarała' == 'Szalacha Tarała'; działa też po zamianie kolejności).
+    """
+    s = str(name or "")
+    s = re.sub(r"[-‐-―−]", " ", s)  # łączniki/myślniki → spacja
+    s = re.sub(r"\s+", " ", s).strip().upper()
     if not s:
         return ""
     return " ".join(sorted(s.split(" ")))
