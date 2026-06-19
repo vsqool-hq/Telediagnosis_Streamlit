@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw } from "lucide-react";
 import { api, Job, DoctorBilling, DoctorCoverage } from "@/lib/api";
 
 const zl = (n: number) =>
@@ -24,11 +24,21 @@ export default function RozliczenieLekarzyPage() {
     }).catch((e) => setError(e.message));
   }, []);
 
-  async function run() {
+  // Po wyborze zadania wczytaj ZAPISANY wynik (bez liczenia) — dzięki temu po
+  // powrocie na zakładkę rozliczenie jest od razu, nie znika.
+  useEffect(() => {
+    if (!jobId) { setResult(null); return; }
+    setResult(null); setError(null);
+    api.doctorsBilling(jobId, { peek: true })
+      .then((r) => setResult(r && (r as any).reason === "not_computed" ? null : r))
+      .catch(() => {});
+  }, [jobId]);
+
+  async function run(recompute = false) {
     if (!jobId) return;
     setBusy(true); setError(null); setResult(null);
     try {
-      setResult(await api.doctorsBilling(jobId));
+      setResult(await api.doctorsBilling(jobId, { recompute }));
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
 
@@ -68,10 +78,25 @@ export default function RozliczenieLekarzyPage() {
             ))}
           </select>
         </label>
-        <button className="btn-primary" disabled={!jobId || busy} onClick={run}>
+        <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
           {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
           Policz rozliczenie lekarzy
         </button>
+        {result && !result.empty && (
+          <>
+            <a className="btn-secondary" href={api.doctorsBillingDownloadUrl(jobId)}>
+              <Download size={18} /> Pobierz Excel
+            </a>
+            <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
+              <RefreshCw size={18} /> Przelicz ponownie
+            </button>
+            {result.computed_at && (
+              <span className="text-xs text-slate-400">
+                Zapisano: {new Date(result.computed_at).toLocaleString("pl-PL")}
+              </span>
+            )}
+          </>
+        )}
       </div>
 
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}

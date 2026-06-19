@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Scale, Play, Loader2, AlertTriangle } from "lucide-react";
+import { Scale, Play, Loader2, AlertTriangle, Download, RefreshCw } from "lucide-react";
 import { api, Job, DoctorComparison } from "@/lib/api";
 
 const zl = (n: number) =>
@@ -22,11 +22,20 @@ export default function PorownaniePage() {
     }).catch((e) => setError(e.message));
   }, []);
 
-  async function run() {
+  // Wczytaj zapisane porównanie po wyborze zadania (bez liczenia).
+  useEffect(() => {
+    if (!jobId) { setResult(null); return; }
+    setResult(null); setError(null);
+    api.doctorsCompare(jobId, { peek: true })
+      .then((r) => setResult(r && (r as any).reason === "not_computed" ? null : r))
+      .catch(() => {});
+  }, [jobId]);
+
+  async function run(recompute = false) {
     if (!jobId) return;
     setBusy(true); setError(null); setResult(null);
     try {
-      setResult(await api.doctorsCompare(jobId));
+      setResult(await api.doctorsCompare(jobId, { recompute }));
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
 
@@ -54,10 +63,25 @@ export default function PorownaniePage() {
             ))}
           </select>
         </label>
-        <button className="btn-primary" disabled={!jobId || busy} onClick={run}>
+        <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
           {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
           Policz porównanie
         </button>
+        {result && !result.empty && (
+          <>
+            <a className="btn-secondary" href={api.doctorsCompareDownloadUrl(jobId)}>
+              <Download size={18} /> Pobierz Excel
+            </a>
+            <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
+              <RefreshCw size={18} /> Przelicz ponownie
+            </button>
+            {result.computed_at && (
+              <span className="text-xs text-slate-400">
+                Zapisano: {new Date(result.computed_at).toLocaleString("pl-PL")}
+              </span>
+            )}
+          </>
+        )}
       </div>
 
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}

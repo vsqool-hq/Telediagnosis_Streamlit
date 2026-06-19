@@ -5,14 +5,51 @@ jego zweryfikowanych danych i snapshotu słownika). Moduł jednostek bez zmian.
 """
 
 import os
+import io
+import json
 import glob
+import datetime
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app import db
 from app.storage import job_paths, version_dir
 
 router = APIRouter(prefix="/api/doctors", tags=["doctors"])
+
+
+def _now():
+    return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def _lekarze_dir(paths: dict) -> str:
+    d = os.path.join(paths["base"], "lekarze")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _cache_path(paths: dict, name: str) -> str:
+    return os.path.join(_lekarze_dir(paths), name)
+
+
+def _load_cache(paths: dict, name: str):
+    p = _cache_path(paths, name)
+    if os.path.isfile(p):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return None
+    return None
+
+
+def _save_cache(paths: dict, name: str, data: dict):
+    try:
+        with open(_cache_path(paths, name), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except OSError:
+        pass
 
 
 def _active_doctor_cennik_csv() -> str | None:
@@ -110,14 +147,91 @@ def _resolve_job(job_id: str):
 
 
 @router.get("/billing/{job_id}")
-async def doctor_billing(job_id: str):
+async def doctor_billing(job_id: str, recompute: bool = False, peek: bool = False):
+    """
+    Rozliczenie lekarzy dla zadania. Wynik jest ZAPISYWANY na dysku (lekarze/billing.json),
+    więc po zmianie zakładki / restarcie wczytuje się od razu, bez ponownego liczenia.
+      • peek=true     → zwróć zapisany wynik albo {empty, reason:'not_computed'} BEZ liczenia,
+      • recompute=true → policz od nowa i nadpisz zapis,
+      • domyślnie      → zwróć zapis, a gdy go brak — policz i zapisz.
+    """
+    paths = job_paths(job_id)
+    cached = None if recompute else _load_cache(paths, "billing.json")
+    if cached is not None:
+        return cached
+    if peek:
+        return {"empty": True, "reason": "not_computed", "computed_at": None}
+
     _job, paths, slownik, cennik_lek = _resolve_job(job_id)
     from app.engine.doctors import build_doctor_billing
-    return build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek)
+    result = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek)
+    if not result.get("empty"):
+        result["computed_at"] = _now()
+        _save_cache(paths, "billing.json", result)
+    return result
 
 
 @router.get("/compare/{job_id}")
-async def doctor_compare(job_id: str):
+async def doctor_compare(job_id: str, recompute: bool = False, peek: bool = False):
+    """Porównanie (marża) dla zadania — z takim samym zapisem/odczytem jak rozliczenie."""
+    paths = job_paths(job_id)
+    cached = None if recompute else _load_cache(paths, "compare.json")
+    if cached is not None:
+        return cached
+    if peek:
+        return {"empty": True, "reason": "not_computed", "computed_at": None}
+
     _job, paths, slownik, cennik_lek = _resolve_job(job_id)
     from app.engine.compare import build_comparison
-    return build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
+    result = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
+    if not result.get("empty"):
+        result["computed_at"] = _now()
+        _save_cache(paths, "compare.json", result)
+    return result
+
+
+def _xlsx_response(sheets: dict, filename: str) -> StreamingResponse:
+    import pandas as pd
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        for sheet, rows in sheets.items():
+            pd.DataFrame(rows or []).to_excel(writer, sheet_name=sheet[:31], index=False)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/billing/{job_id}/download")
+async def doctor_billing_download(job_id: str):
+    paths = job_paths(job_id)
+    res = _load_cache(paths, "billing.json")
+    if res is None:
+        _job, paths, slownik, cennik_lek = _resolve_job(job_id)
+        from app.engine.doctors import build_doctor_billing
+        res = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek)
+        if res.get("empty"):
+            raise HTTPException(400, res.get("reason", "Brak danych do rozliczenia lekarzy."))
+        res["computed_at"] = _now()
+        _save_cache(paths, "billing.json", res)
+    return _xlsx_response(
+        {"Per lekarz": res.get("by_doctor", []), "Lekarz i kategoria": res.get("rows", [])},
+        "Rozliczenie_lekarzy.xlsx",
+    )
+
+
+@router.get("/compare/{job_id}/download")
+async def doctor_compare_download(job_id: str):
+    paths = job_paths(job_id)
+    res = _load_cache(paths, "compare.json")
+    if res is None:
+        _job, paths, slownik, cennik_lek = _resolve_job(job_id)
+        from app.engine.compare import build_comparison
+        res = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
+        if res.get("empty"):
+            raise HTTPException(400, res.get("reason", "Brak danych do porównania."))
+        res["computed_at"] = _now()
+        _save_cache(paths, "compare.json", res)
+    return _xlsx_response({"Marża per kategoria": res.get("rows", [])}, "Porownanie_lekarze_jednostki.xlsx")

@@ -191,6 +191,7 @@ export interface DoctorCoverage {
 export interface DoctorBilling {
   empty: boolean;
   reason?: string;
+  computed_at?: string | null;
   rows?: { lekarz: string; kategoria: string; ilosc: number; stawka: number; wartosc: number }[];
   by_doctor?: { lekarz: string; ilosc: number; wartosc: number }[];
   validation?: {
@@ -207,6 +208,7 @@ export interface DoctorBilling {
 export interface DoctorComparison {
   empty: boolean;
   reason?: string;
+  computed_at?: string | null;
   rows?: {
     "Modalność": string; kategoria: string; ilosc: number;
     przychod_jednostki: number; koszt_lekarzy: number; marza: number;
@@ -309,8 +311,12 @@ export const api = {
     withToken(`${API_BASE}/api/cennik-lekarzy/convert/${id}/download`),
 
   doctorsCoverage: () => req<DoctorCoverage>("/api/doctors/coverage"),
-  doctorsBilling: (jobId: string) => req<DoctorBilling>(`/api/doctors/billing/${jobId}`),
-  doctorsCompare: (jobId: string) => req<DoctorComparison>(`/api/doctors/compare/${jobId}`),
+  doctorsBilling: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
+    req<DoctorBilling>(`/api/doctors/billing/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
+  doctorsBillingDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/download`),
+  doctorsCompare: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
+    req<DoctorComparison>(`/api/doctors/compare/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
+  doctorsCompareDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/compare/${jobId}/download`),
 
   getSettings: () => req<{ settings: any; defaults: any }>("/api/settings"),
   saveSettings: (settings: any) =>
