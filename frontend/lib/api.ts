@@ -192,6 +192,7 @@ export interface DoctorBilling {
   empty: boolean;
   reason?: string;
   computed_at?: string | null;
+  files_count?: number;
   rows?: { lekarz: string; kategoria: string; ilosc: number; stawka: number; wartosc: number }[];
   by_doctor?: { lekarz: string; ilosc: number; wartosc: number }[];
   validation?: {
@@ -314,6 +315,7 @@ export const api = {
   doctorsBilling: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
     req<DoctorBilling>(`/api/doctors/billing/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
   doctorsBillingDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/download`),
+  doctorsBillingFilesUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/files`),
   doctorsCompare: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
     req<DoctorComparison>(`/api/doctors/compare/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
   doctorsCompareDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/compare/${jobId}/download`),

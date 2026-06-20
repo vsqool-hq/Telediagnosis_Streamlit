@@ -8,6 +8,7 @@ import os
 import io
 import json
 import glob
+import zipfile
 import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -173,9 +174,19 @@ async def doctor_billing(job_id: str, recompute: bool = False, peek: bool = Fals
         return {"empty": True, "reason": "not_computed", "computed_at": None}
 
     _job, paths, slownik, cennik_lek = _resolve_job(job_id)
-    from app.engine.doctors import build_doctor_billing
+    from app.engine.doctors import build_doctor_billing, generate_doctor_billing_files
     result = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek, excluded_keys=excluded)
     if not result.get("empty"):
+        # Per-lekarz pliki Excel (układ jak jednostki) — gotowe do pobrania.
+        try:
+            gen = generate_doctor_billing_files(
+                paths["sprawdzone"], slownik, cennik_lek,
+                os.path.join(_lekarze_dir(paths), "pliki"), excluded_keys=excluded,
+            )
+            result["files_count"] = gen["count"]
+        except Exception as e:  # noqa: BLE001
+            result["files_count"] = 0
+            result["files_error"] = str(e)
         result["computed_at"] = _now()
         result["_excluded_keys"] = excluded
         _save_cache(paths, "billing.json", result)
@@ -232,6 +243,29 @@ async def doctor_billing_download(job_id: str):
     return _xlsx_response(
         {"Per lekarz": res.get("by_doctor", []), "Lekarz i kategoria": res.get("rows", [])},
         "Rozliczenie_lekarzy.xlsx",
+    )
+
+
+@router.get("/billing/{job_id}/files")
+async def doctor_billing_files(job_id: str):
+    """ZIP z osobnym plikiem Excel dla każdego lekarza (układ jak jednostki).
+    Pliki powstają przy „Policz/Przelicz ponownie" rozliczenia lekarzy."""
+    paths = job_paths(job_id)
+    pliki_dir = os.path.join(_lekarze_dir(paths), "pliki")
+    files = sorted(
+        f for f in glob.glob(os.path.join(pliki_dir, "*.xlsx"))
+        if not os.path.basename(f).startswith("~$")
+    )
+    if not files:
+        raise HTTPException(404, "Brak plików — najpierw policz rozliczenie lekarzy.")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in files:
+            zf.write(p, os.path.basename(p))
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="Rozliczenia_lekarzy.zip"'},
     )
 
 

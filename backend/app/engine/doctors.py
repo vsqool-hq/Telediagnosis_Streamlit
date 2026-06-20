@@ -191,9 +191,12 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
         df[df["_lek_key"].isin(doctors_in_data - doctors_in_cennik)]["_lek_disp"].unique().tolist()
     )
 
+    from app.engine.billing import bill_extract_multiplier
     ok = priced[priced["_stawka"].notna()].copy()
-    ok["ilosc"] = 1  # TODO: mnożnik/ilość okolic do potwierdzenia po wypełnieniu słownika
-    ok["wartosc"] = ok["ilosc"] * ok["_stawka"]
+    ok["ilosc"] = 1  # licznik badań (do kolumny „Badania")
+    # Wartość = stawka × liczba okolic (jak u jednostek) — okolice z „Procedura rozlicz.".
+    ok["_okolice"] = ok["Procedura rozlicz."].map(bill_extract_multiplier)
+    ok["wartosc"] = ok["_okolice"] * ok["_stawka"]
 
     by_cat = (
         ok.groupby(["_lek_disp", "_kategoria"])
@@ -223,3 +226,64 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
             "pairs_without_price": pairs_no_price.head(100).to_dict("records"),
         },
     }
+
+
+def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
+                                  out_dir: str, excluded_keys=None) -> dict:
+    """
+    Tworzy OSOBNY plik Excel dla KAŻDEGO lekarza — w układzie identycznym jak
+    rozliczenia jednostek (arkusz „Szczegółowe" z jego badaniami + „Rozliczenie"
+    z podziałem na priorytety, liczbą okolic i sumami), ale wyceniony cennikiem
+    lekarzy (stawka per Lekarz+Kategoria; Wartość = stawka × ilość_okolic).
+
+    Braki kategorii/stawki → stawka 0 (jak braki cen u jednostek). Wyłączeni
+    lekarze pomijani. Zwraca listę utworzonych plików.
+    """
+    import os as _os
+    import re as _re
+    import shutil
+    import numpy as np
+    from app.engine.billing import bill_make_grouped, bill_finalize_to_excel
+
+    excluded = set(excluded_keys or [])
+    df = read_verified_studies(sprawdzone_dir)
+    if df is None or df.empty or OPISUJACY_COL not in df.columns:
+        return {"files": [], "count": 0}
+
+    cat_map = load_lekarz_categories(slownik_path)
+    prices = load_doctor_prices(doctor_cennik_csv)
+
+    df = df.copy()
+    df["_lek_key"] = df[OPISUJACY_COL].map(doctor_key)
+    if excluded:
+        df = df[~df["_lek_key"].isin(excluded)]
+
+    # świeży katalog wyjściowy
+    shutil.rmtree(out_dir, ignore_errors=True)
+    _os.makedirs(out_dir, exist_ok=True)
+
+    files = []
+    for lek_key, sub in df.groupby("_lek_key"):
+        if not lek_key:
+            continue
+        disp = _norm(sub[OPISUJACY_COL].iloc[0])
+        grouped, det = bill_make_grouped(sub.copy(), OPISUJACY_COL)
+
+        def _cena(r):
+            base = cat_map.get((_key(r["Procedura"]), _key(r["Rodzaj procedury rozlicz."])), "")
+            category = resolve_category(r, base)
+            if not category:
+                return np.nan
+            return prices.get((lek_key, category.upper()), np.nan)
+
+        grouped["Cena"] = grouped.apply(_cena, axis=1)
+
+        safe = _re.sub(r"[^\w\s-]", "", disp).strip().replace(" ", "_") or "lekarz"
+        fname = f"Rozliczenie_lekarz_{safe}.xlsx"
+        try:
+            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname))
+            files.append(fname)
+        except Exception as e:  # noqa: BLE001
+            print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)
+
+    return {"files": sorted(files), "count": len(files)}

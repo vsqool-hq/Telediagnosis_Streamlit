@@ -530,6 +530,137 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
         ws.column_dimensions[get_column_letter(column[0].column)].width = min(max_len + 2, 50)
 
 
+def bill_make_grouped(df_details, entity_col):
+    """
+    Grupuje arkusz „Szczegółowe" do tabeli rozliczeniowej. Wspólne dla jednostek
+    i lekarzy — różni je tylko kolumna podmiotu (entity_col: 'Klient' / 'Opisujący').
+    Zwraca (grouped, df_details) — df_details ze znormalizowanymi kolumnami.
+    """
+    if 'Badania do porównania' not in df_details.columns:
+        df_details['Badania do porównania'] = 0
+    df_details['Badania do porównania'] = pd.to_numeric(df_details['Badania do porównania'], errors='coerce').fillna(0)
+
+    grouping_columns = ['Priorytet opisu', 'Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.', entity_col]
+    for col in grouping_columns:
+        if pd.api.types.is_string_dtype(df_details[col]):
+            df_details[col] = df_details[col].astype(str).str.strip()
+
+    grouped = df_details.groupby(grouping_columns).agg({'Nr badania': 'count', 'Badania do porównania': 'sum'}).reset_index()
+    grouped.rename(columns={'Nr badania': '#', 'Badania do porównania': 'Porownawcze_Flag'}, inplace=True)
+    grouped['Mnożnik'] = grouped['Procedura rozlicz.'].apply(bill_extract_multiplier)
+    grouped['Porownawcze_Flag'] = grouped['Porownawcze_Flag'] * grouped['Mnożnik']
+    return grouped, df_details
+
+
+def bill_finalize_to_excel(merged, df_details, output_path, logs=None):
+    """
+    Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
+    „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
+    jak rozliczenie jednostek — używany też dla rozliczeń lekarzy (inne źródło 'Cena').
+    """
+    logs = logs if logs is not None else []
+    merged['Ilość'] = merged['#'] * merged['Mnożnik']
+    merged['Wartość'] = np.nan
+
+    billing_table = merged.sort_values(by=['Modalność', 'Rodzaj procedury rozlicz.'])
+    priorities_in_data = merged['Priorytet opisu'].unique()
+    priorities_for_this_report = [p for p in MASTER_PRIORITY_ORDER if p in priorities_in_data]
+
+    final_billing_table = billing_table.drop_duplicates(['Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.'])
+    final_billing_table = final_billing_table[['Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.']].copy()
+
+    for p in priorities_for_this_report:
+        priority_data = billing_table[billing_table['Priorytet opisu'] == p]
+        p_cols = {
+            'Cena': f'{p} Stawka', '#': f'{p} #', 'Porownawcze_Flag': f'{p} w tym porównawcze',
+            'Mnożnik': f'{p} Mnożnik', 'Ilość': f'{p} Ilość', 'Wartość': f'{p} Wartość'
+        }
+        priority_subset = priority_data[['Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.'] + list(p_cols.keys())].rename(columns=p_cols)
+        final_billing_table = final_billing_table.merge(priority_subset, on=['Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.'], how='left')
+
+    billing_table = final_billing_table
+    ordered_cols = ['Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.']
+    for p in priorities_for_this_report:
+        ordered_cols.extend([f'{p} Stawka', f'{p} #', f'{p} w tym porównawcze', f'{p} Mnożnik', f'{p} Ilość', f'{p} Wartość'])
+
+    billing_table = billing_table[[c for c in ordered_cols if c in billing_table.columns]]
+    num_cols = [c for c in billing_table.columns if any(k in c for k in ['Stawka', '#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze'])]
+    billing_table[num_cols] = billing_table[num_cols].fillna(0)
+
+    df_details_modified = df_details.copy()
+
+    def transform_comparative_studies(row):
+        if pd.to_numeric(row['Badania do porównania'], errors='coerce') == 1:
+            return bill_extract_multiplier(row['Procedura rozlicz.'])
+        return row['Badania do porównania']
+
+    df_details_modified['Badania do porównania'] = df_details_modified.apply(transform_comparative_studies, axis=1)
+
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        df_details_modified.to_excel(writer, sheet_name='Szczegółowe', index=False)
+
+        wb = writer.book
+        ws = wb.create_sheet('Rozliczenie')
+        modalnosci = sorted(billing_table['Modalność'].unique())
+        data_sections, current_row = [], 1
+        subtotal_rows = []
+
+        for m in modalnosci:
+            m_data = billing_table[billing_table['Modalność'] == m].copy()
+            if m_data.empty:
+                continue
+
+            col_map = {name: get_column_letter(i + 1) for i, name in enumerate(m_data.columns)}
+            for c_idx, c_name in enumerate(m_data.columns, 1):
+                ws.cell(row=current_row, column=c_idx).value = c_name
+            data_sections.append({'modalnosc': m, 'data': m_data, 'start_row': current_row})
+            current_row += 1
+
+            for r_idx, (_, row_data) in enumerate(m_data.iterrows(), start=current_row):
+                for c_idx, c_name in enumerate(m_data.columns, 1):
+                    cell = ws.cell(row=r_idx, column=c_idx)
+                    col_str = str(c_name)
+
+                    if col_str.endswith(' Mnożnik'):
+                        priority_prefix = col_str.replace(' Mnożnik', '')
+                        hash_col = col_map.get(f'{priority_prefix} #')
+                        if hash_col:
+                            cell.value = f'=IF({hash_col}{r_idx}>0,VALUE(LEFT($D{r_idx},1)),0)'
+                        else:
+                            cell.value = f"=VALUE(LEFT($D{r_idx},1))"
+
+                    elif col_str.endswith(' Ilość'):
+                        priority_prefix = col_str.replace(' Ilość', '')
+                        hash_col = col_map.get(f'{priority_prefix} #')
+                        mult_col = col_map.get(f'{priority_prefix} Mnożnik')
+                        if hash_col and mult_col:
+                            cell.value = f"={hash_col}{r_idx}*{mult_col}{r_idx}"
+
+                    elif col_str.endswith(' Wartość'):
+                        priority_prefix = col_str.replace(' Wartość', '')
+                        stawka_col_letter = col_map.get(f'{priority_prefix} Stawka')
+                        ilosc_col_letter = col_map.get(f'{priority_prefix} Ilość')
+                        if stawka_col_letter and ilosc_col_letter:
+                            cell.value = f"={stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}"
+                    else:
+                        cell.value = row_data[c_name]
+            current_row += len(m_data)
+            subtotal_rows.append(current_row)
+            current_row += 2
+
+        total_row = current_row
+        ws.cell(row=total_row, column=1).value = "SUMA CAŁKOWITA"
+        SUMMABLE_KEYWORDS = ['#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze']
+        for c_idx, c_name in enumerate(billing_table.columns, 1):
+            if any(k in str(c_name) for k in SUMMABLE_KEYWORDS) and 'Mnożnik' not in str(c_name):
+                col_letter = get_column_letter(c_idx)
+                formula_parts = [f"{col_letter}{r}" for r in subtotal_rows]
+                if formula_parts:
+                    ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
+        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True)
+    return logs
+
+
 def bill_process_single_file(excel_path, csv_path, output_path):
     logs = []
     try:

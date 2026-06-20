@@ -84,8 +84,13 @@ export default function RozliczenieLekarzyPage() {
         </button>
         {result && !result.empty && (
           <>
+            {!!result.files_count && (
+              <a className="btn-primary" href={api.doctorsBillingFilesUrl(jobId)}>
+                <Download size={18} /> Pobierz pliki lekarzy (ZIP · {result.files_count})
+              </a>
+            )}
             <a className="btn-secondary" href={api.doctorsBillingDownloadUrl(jobId)}>
-              <Download size={18} /> Pobierz Excel
+              <Download size={18} /> Zbiorczy (Excel)
             </a>
             <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
               <RefreshCw size={18} /> Przelicz ponownie
