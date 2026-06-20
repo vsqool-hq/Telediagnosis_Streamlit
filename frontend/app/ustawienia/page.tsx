@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu } from "lucide-react";
 import { api } from "@/lib/api";
 import BackendSwitcher from "@/components/BackendSwitcher";
+import DoctorsSettings from "@/components/DoctorsSettings";
 
 type MapPair = { from: string; to: string };
 
@@ -262,6 +263,8 @@ export default function UstawieniaPage() {
         <button className="btn-primary" onClick={save}><Save size={18} /> Zapisz ustawienia</button>
         <button className="btn-secondary" onClick={reset}><RotateCcw size={18} /> Przywróć domyślne</button>
       </div>
+
+      <DoctorsSettings />
     </div>
   );
 }

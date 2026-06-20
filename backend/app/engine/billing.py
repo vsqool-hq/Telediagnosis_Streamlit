@@ -470,7 +470,10 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
             if any(k in str(col_name) for k in SUMMABLE_KEYWORDS) and pd.api.types.is_numeric_dtype(billing_table.iloc[:, c_idx - 1]):
                 if 'Stawka' not in str(col_name) and 'Mnożnik' not in str(col_name):
                     sum_cell = ws.cell(row=sum_row, column=c_idx)
-                    sum_cell.value = f"=SUM({col_letter}{data_start_row}:{col_letter}{data_end_row})"
+                    # AGGREGATE(9, 6, …) = SUMA ignorująca błędy. Jeśli pojedyncza
+                    # pozycja ma pustą liczbę okolic i jej formuła daje #ARG!/błąd,
+                    # suma kolumny (a przez to całość szpitala) i tak się policzy.
+                    sum_cell.value = f"=AGGREGATE(9,6,{col_letter}{data_start_row}:{col_letter}{data_end_row})"
                     if is_currency:
                         sum_cell.style = "accounting"
 

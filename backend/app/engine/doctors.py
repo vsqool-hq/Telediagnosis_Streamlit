@@ -22,7 +22,7 @@ import os
 import re
 import glob
 
-from app.engine.cennik_lekarzy_convert import doctor_key
+from app.engine.cennik_lekarzy_convert import doctor_key, fix_category_typos
 
 LEKARZ_COL_SLOWNIK = "Rodzaj procedury lekarz"
 OPISUJACY_COL = "Opisujący"
@@ -58,7 +58,8 @@ def load_doctor_prices(csv_path: str) -> dict:
     df = pd.read_csv(csv_path, sep=";", encoding="utf-8-sig", decimal=",")
     prices = {}
     for _, r in df.iterrows():
-        prices[(doctor_key(r["Lekarz"]), _norm(r["Kategoria"]).upper())] = float(r["Cena"])
+        kat = fix_category_typos(_norm(r["Kategoria"])).upper()  # łatka PLINE→PILNE
+        prices[(doctor_key(r["Lekarz"]), kat)] = float(r["Cena"])
     return prices
 
 
@@ -77,6 +78,7 @@ def load_lekarz_categories(slownik_path: str) -> dict:
         kat = _norm(r.get(LEKARZ_COL_SLOWNIK))
         if not kat or kat.lower() in ("none", "nan"):
             continue
+        kat = fix_category_typos(kat)  # łatka PLINE→PILNE również po stronie słownika
         mapping[(_key(r.get("Procedura")), _key(r.get("Rodzaj procedury rozlicz.")))] = kat
     return mapping
 
@@ -124,14 +126,20 @@ def read_verified_studies(sprawdzone_dir: str):
     return pd.concat(frames, ignore_index=True)
 
 
-def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str) -> dict:
+def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
+                         excluded_keys=None) -> dict:
     """
     Liczy rozliczenie lekarzy. Zwraca:
       rows: [{lekarz, kategoria, ilosc, stawka, wartosc}]
       by_doctor: [{lekarz, ilosc, wartosc}]
       validation: diagnostyka niedopasowań
+
+    excluded_keys: zbiór kluczy lekarzy (doctor_key) do POMINIĘCIA w rozliczeniu —
+    np. lekarze rozliczani osobno. Ich badania nie są wyceniane ani zgłaszane jako
+    braki; pokazujemy tylko ile pominięto.
     """
     import pandas as pd
+    excluded_keys = set(excluded_keys or [])
 
     df = read_verified_studies(sprawdzone_dir)
     if df is None or df.empty:
@@ -156,6 +164,11 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
     ]
     df["_lek_key"] = df[OPISUJACY_COL].map(doctor_key)
     df["_lek_disp"] = df[OPISUJACY_COL].map(_norm)
+
+    # Wyłączeni lekarze (z ustawień) — pomijamy ich badania w rozliczeniu.
+    excluded_studies = int(df["_lek_key"].isin(excluded_keys).sum()) if excluded_keys else 0
+    if excluded_keys:
+        df = df[~df["_lek_key"].isin(excluded_keys)].copy()
 
     # diagnostyka
     no_category = df[df["_kategoria"] == ""]
@@ -205,6 +218,7 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
             "slownik_categories": len(cat_map),
             "n_doctors": int(by_doctor.shape[0]),
             "total_value": round(float(ok["wartosc"].sum()), 2),
+            "excluded_studies": excluded_studies,
             "doctors_unmatched": doctors_unmatched[:100],
             "pairs_without_price": pairs_no_price.head(100).to_dict("records"),
         },

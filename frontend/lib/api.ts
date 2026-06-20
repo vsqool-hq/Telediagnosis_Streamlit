@@ -317,6 +317,14 @@ export const api = {
   doctorsCompare: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
     req<DoctorComparison>(`/api/doctors/compare/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
   doctorsCompareDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/compare/${jobId}/download`),
+  doctorsList: () =>
+    req<{ job_id: string | null; doctors: { name: string; key: string; excluded: boolean }[] }>("/api/doctors/list"),
+  setDoctorsExcluded: (keys: string[]) =>
+    req<{ ok: boolean; doctors_excluded: string[] }>("/api/doctors/excluded", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys }),
+    }),
 
   getSettings: () => req<{ settings: any; defaults: any }>("/api/settings"),
   saveSettings: (settings: any) =>

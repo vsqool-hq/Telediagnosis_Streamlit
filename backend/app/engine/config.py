@@ -97,6 +97,9 @@ DEFAULT_CONFIG = {
     # (zachowane dla zgodności wstecznej — nieużywane w UI)
     "num_processes_verify": 4,
     "num_processes_billing": 5,
+
+    # Moduł lekarzy: klucze lekarzy (doctor_key) wyłączonych z rozliczenia lekarzy.
+    "doctors_excluded": [],
 }
 
 

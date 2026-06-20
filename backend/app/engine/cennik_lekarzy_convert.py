@@ -55,6 +55,19 @@ def _clean(value) -> str:
     return re.sub(r"\s+", " ", str(value)).strip()
 
 
+# Łatka na drobne literówki w kategoriach cennika lekarzy (np. "PLINE" → "PILNE").
+# Stosowana po obu stronach dopasowania (cennik i słownik), więc literówka po
+# którejkolwiek stronie nie psuje wyceny. Łatwo rozszerzyć o kolejne pary.
+_CATEGORY_TYPOS = {"PLINE": "PILNE"}
+_TYPO_RE = re.compile(r"\b(" + "|".join(_CATEGORY_TYPOS) + r")\b", re.IGNORECASE)
+
+
+def fix_category_typos(cat: str) -> str:
+    if not cat:
+        return cat
+    return _TYPO_RE.sub(lambda m: _CATEGORY_TYPOS[m.group(0).upper()], str(cat))
+
+
 def doctor_key(name) -> str:
     """
     Klucz dopasowania lekarza — niewrażliwy na:
@@ -170,6 +183,7 @@ def convert_workbook(path_or_bytes) -> dict:
             up = cat.upper()
             if up in SECTION_HEADERS or up in SKIP_EXACT or up.startswith(SKIP_PREFIX):
                 continue
+            cat = fix_category_typos(cat)  # łatka literówek (PLINE → PILNE)
             raw = r[price_col] if price_col < len(r) else None
             price, was_rep, original = _try_number(raw)
             if price is None:

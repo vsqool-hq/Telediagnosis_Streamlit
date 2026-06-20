@@ -146,6 +146,14 @@ def _resolve_job(job_id: str):
     return job, paths, slownik, cennik_lek
 
 
+def _excluded_keys() -> list:
+    """Klucze lekarzy wyłączonych z rozliczenia (z ustawień)."""
+    try:
+        return sorted(set(db.get_settings().get("doctors_excluded", []) or []))
+    except Exception:  # noqa: BLE001
+        return []
+
+
 @router.get("/billing/{job_id}")
 async def doctor_billing(job_id: str, recompute: bool = False, peek: bool = False):
     """
@@ -154,19 +162,22 @@ async def doctor_billing(job_id: str, recompute: bool = False, peek: bool = Fals
       • peek=true     → zwróć zapisany wynik albo {empty, reason:'not_computed'} BEZ liczenia,
       • recompute=true → policz od nowa i nadpisz zapis,
       • domyślnie      → zwróć zapis, a gdy go brak — policz i zapisz.
+    Cache jest unieważniany, gdy zmieni się lista wyłączonych lekarzy.
     """
     paths = job_paths(job_id)
+    excluded = _excluded_keys()
     cached = None if recompute else _load_cache(paths, "billing.json")
-    if cached is not None:
+    if cached is not None and cached.get("_excluded_keys", []) == excluded:
         return cached
     if peek:
         return {"empty": True, "reason": "not_computed", "computed_at": None}
 
     _job, paths, slownik, cennik_lek = _resolve_job(job_id)
     from app.engine.doctors import build_doctor_billing
-    result = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek)
+    result = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek, excluded_keys=excluded)
     if not result.get("empty"):
         result["computed_at"] = _now()
+        result["_excluded_keys"] = excluded
         _save_cache(paths, "billing.json", result)
     return result
 
@@ -207,14 +218,16 @@ def _xlsx_response(sheets: dict, filename: str) -> StreamingResponse:
 @router.get("/billing/{job_id}/download")
 async def doctor_billing_download(job_id: str):
     paths = job_paths(job_id)
+    excluded = _excluded_keys()
     res = _load_cache(paths, "billing.json")
-    if res is None:
+    if res is None or res.get("_excluded_keys", []) != excluded:
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
         from app.engine.doctors import build_doctor_billing
-        res = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek)
+        res = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek, excluded_keys=excluded)
         if res.get("empty"):
             raise HTTPException(400, res.get("reason", "Brak danych do rozliczenia lekarzy."))
         res["computed_at"] = _now()
+        res["_excluded_keys"] = excluded
         _save_cache(paths, "billing.json", res)
     return _xlsx_response(
         {"Per lekarz": res.get("by_doctor", []), "Lekarz i kategoria": res.get("rows", [])},
@@ -235,3 +248,52 @@ async def doctor_compare_download(job_id: str):
         res["computed_at"] = _now()
         _save_cache(paths, "compare.json", res)
     return _xlsx_response({"Marża per kategoria": res.get("rows", [])}, "Porownanie_lekarze_jednostki.xlsx")
+
+
+def _latest_full_job_id() -> str | None:
+    for j in db.list_jobs(limit=100):
+        if j["status"] == "done" and j["mode"] == "full":
+            return j["id"]
+    return None
+
+
+@router.get("/list")
+async def doctors_list(job_id: str | None = None):
+    """
+    Lista lekarzy (kolumna „Opisujący") znalezionych w danych zadania — domyślnie
+    z najnowszego pełnego rozliczenia. Każdy z kluczem dopasowania i flagą, czy jest
+    aktualnie wyłączony z rozliczenia. Służy do sekcji „Ustawienia lekarzy".
+    """
+    from app.engine.doctors import read_verified_studies, doctor_key, _norm, OPISUJACY_COL
+
+    jid = job_id or _latest_full_job_id()
+    if not jid:
+        return {"job_id": None, "doctors": []}
+    paths = job_paths(jid)
+    df = read_verified_studies(paths["sprawdzone"])
+    excluded = set(_excluded_keys())
+    seen, doctors = {}, []
+    if df is not None and OPISUJACY_COL in df.columns:
+        for val in df[OPISUJACY_COL].dropna().unique():
+            disp = _norm(val)
+            if not disp:
+                continue
+            k = doctor_key(disp)
+            if k in seen:
+                continue
+            seen[k] = True
+            doctors.append({"name": disp, "key": k, "excluded": k in excluded})
+    doctors.sort(key=lambda d: d["name"].lower())
+    return {"job_id": jid, "doctors": doctors}
+
+
+@router.put("/excluded")
+async def set_excluded(payload: dict):
+    """Zapisuje listę kluczy lekarzy wyłączonych z rozliczenia (w ustawieniach)."""
+    keys = payload.get("keys", [])
+    if not isinstance(keys, list):
+        raise HTTPException(400, "Pole 'keys' musi być listą.")
+    cfg = db.get_settings()
+    cfg["doctors_excluded"] = sorted({str(k) for k in keys if k})
+    db.save_settings(cfg)
+    return {"ok": True, "doctors_excluded": cfg["doctors_excluded"]}
