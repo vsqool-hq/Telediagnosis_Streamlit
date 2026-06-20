@@ -40,13 +40,18 @@ def _start_keepalive() -> threading.Event:
         if app_name:
             base = f"https://{app_name}.fly.dev"
     if not base:
-        return stop  # lokalnie — keep-alive niepotrzebny
+        # Lokalnie keep-alive niepotrzebny. Na Fly brak FLY_APP_NAME oznaczałby,
+        # że zamknięcie przeglądarki może uśpić maszynę — sygnalizujemy to w logu.
+        print("ℹ Keep-alive nieaktywny (brak TELEDIAG_PUBLIC_URL/FLY_APP_NAME).", flush=True)
+        return stop
 
     url = base + "/health"
+    interval = 20  # krótszy odstęp = większy margines przed uśpieniem przez Fly
+    print(f"✓ Keep-alive aktywny: pinguję {url} co {interval}s (maszyna nie uśnie w trakcie).", flush=True)
 
     def _loop():
         import urllib.request
-        while not stop.wait(50):
+        while not stop.wait(interval):
             try:
                 urllib.request.urlopen(url, timeout=10).read()
             except Exception:  # noqa: BLE001
