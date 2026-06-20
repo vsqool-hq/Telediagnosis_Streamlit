@@ -30,21 +30,21 @@ export default function DoctorsSettings() {
     return f ? docs.filter((d) => d.name.toLowerCase().includes(f)) : docs;
   }, [docs, filter]);
 
+  async function persist(next: Set<string>) {
+    setSaving(true); setErr(null); setMsg(null);
+    try {
+      await api.setDoctorsExcluded([...next]);
+      setMsg("Zapisano. Na zakładce „Rozliczenie lekarzy” kliknij „Przelicz ponownie”.");
+    } catch (e: any) { setErr(e.message); } finally { setSaving(false); }
+  }
+
   function toggle(key: string) {
-    setMsg(null);
     setExcluded((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
+      persist(next);   // auto-zapis przy każdej zmianie — nie trzeba klikać „Zapisz”
       return next;
     });
-  }
-
-  async function save() {
-    setSaving(true); setErr(null); setMsg(null);
-    try {
-      await api.setDoctorsExcluded([...excluded]);
-      setMsg("Zapisano. Na zakładce 'Rozliczenie lekarzy' kliknij 'Przelicz ponownie'.");
-    } catch (e: any) { setErr(e.message); } finally { setSaving(false); }
   }
 
   return (
@@ -71,9 +71,11 @@ export default function DoctorsSettings() {
                 value={filter} onChange={(e) => setFilter(e.target.value)} />
             </div>
             <span className="text-xs text-slate-400">Wyłączonych: {excluded.size} z {docs.length}</span>
-            <button className="btn-primary ml-auto" disabled={saving} onClick={save}>
-              {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} Zapisz
-            </button>
+            <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
+              {saving
+                ? <><Loader2 className="animate-spin" size={14} /> Zapisywanie…</>
+                : <><Save size={14} /> Zmiany zapisują się automatycznie</>}
+            </span>
           </div>
 
           {msg && <div className="mt-3 flex items-center gap-2 text-sm text-brand-accent2"><CheckCircle2 size={16} /> {msg}</div>}

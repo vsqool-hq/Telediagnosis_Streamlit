@@ -92,6 +92,22 @@ def pull_active_from_cloud(cloud: str, token: str) -> dict:
         except Exception as e:  # noqa: BLE001
             errors[kind] = str(e)
 
+    # Ustawienia silnika z chmury (priorytety, słowa kluczowe, WYŁĄCZENI LEKARZE…),
+    # żeby liczenie lokalne dało ten sam wynik co w chmurze. Nie nadpisujemy
+    # liczby rdzeni — wydajność jest cechą tej konkretnej maszyny.
+    try:
+        cloud_settings = json.loads(_fetch(f"{cloud}/api/settings", token)).get("settings", {})
+        if isinstance(cloud_settings, dict) and cloud_settings:
+            local_cfg = db.get_settings()
+            for k, v in cloud_settings.items():
+                if k in ("num_processes", "num_processes_verify", "num_processes_billing"):
+                    continue
+                local_cfg[k] = v
+            db.save_settings(local_cfg)
+            synced["settings"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        errors["settings"] = str(e)
+
     return {"synced": synced, "errors": errors}
 
 
