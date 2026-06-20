@@ -21,20 +21,25 @@ export default function RozliczeniePage() {
 
   useEffect(() => () => esRef.current?.close(), []);
 
-  // Po wejściu na stronę: jeśli z banera przyszedł ?job=ID, albo gdzieś trwa
-  // rozliczenie — podłącz się i wznów podgląd logów (odtwarzane z pliku).
+  // Po wejściu na stronę: ?job=ID z banera → pokaż to zadanie; w toku → wznów
+  // podgląd; w przeciwnym razie wczytaj OSTATNIE zadanie (logi, wyniki, nazwa pliku),
+  // żeby po powrocie na zakładkę nie było pusto.
   useEffect(() => {
     const qid = new URLSearchParams(window.location.search).get("job");
     if (qid) {
       attach(qid);
       return;
     }
+    const showLatest = () =>
+      api.listJobs().then((all) => { if (all.length) attach(all[0].id); }).catch(() => {});
     api.activeJob().then((j) => {
       if (j && (j.live_status === "running" || j.status === "running" ||
                 j.live_status === "queued" || j.status === "queued")) {
         attach(j.id);
+      } else {
+        showLatest();
       }
-    }).catch(() => {});
+    }).catch(showLatest);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -102,6 +107,11 @@ export default function RozliczeniePage() {
           <span className="text-sm">
             {file ? (
               <span className="font-semibold text-white">{file.name}</span>
+            ) : job ? (
+              <span className="text-slate-300">
+                Ostatni plik: <span className="font-semibold text-white">{job.input_name}</span>
+                <span className="text-slate-400"> — kliknij, aby wgrać nowy</span>
+              </span>
             ) : (
               <>Kliknij, aby wybrać plik <span className="text-slate-400">(.xlsx / .xls)</span></>
             )}
