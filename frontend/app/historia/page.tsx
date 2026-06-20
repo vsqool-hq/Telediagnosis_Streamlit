@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, Calendar, Receipt, BookText } from "lucide-react";
+import { Download, FileText, Calendar, Receipt, BookText, RefreshCw, Loader2 } from "lucide-react";
 import { api, Job, Version } from "@/lib/api";
 
 const MONTHS_PL = [
@@ -17,6 +17,19 @@ export default function HistoriaPage() {
   const [wzorcoweNames, setWzorcoweNames] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rerunning, setRerunning] = useState<string | null>(null);
+
+  async function rerun(jobId: string) {
+    setRerunning(jobId);
+    setError(null);
+    try {
+      const created = await api.rerunJob(jobId);
+      window.location.href = `/rozliczenie?job=${created.id}`;
+    } catch (e: any) {
+      setError(e.message);
+      setRerunning(null);
+    }
+  }
 
   useEffect(() => {
     // Same metadane z bazy — bez liczenia przychodu (natychmiast).
@@ -82,6 +95,11 @@ export default function HistoriaPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <button className="btn-secondary px-3 py-1.5 text-xs" disabled={rerunning === j.id}
+                    onClick={() => rerun(j.id)} title="Przelicz ponownie ten plik aktualnym silnikiem">
+                    {rerunning === j.id ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                    Przelicz ponownie
+                  </button>
                   <a className="btn-secondary px-3 py-1.5 text-xs" href={api.inputUrl(j.id)}>
                     <FileText size={14} /> Plik źródłowy
                   </a>

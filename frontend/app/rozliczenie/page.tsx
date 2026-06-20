@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet } from "lucide-react";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, RefreshCw } from "lucide-react";
 import { api, Job } from "@/lib/api";
 
 type Phase = "idle" | "running" | "done" | "error";
@@ -89,7 +89,23 @@ export default function RozliczeniePage() {
     }
   }
 
+  /** Ponowne przeliczenie na tym samym, wcześniej wgranym pliku (bez wgrywania). */
+  async function rerun(jobId: string) {
+    setPhase("running");
+    setLogs([]);
+    setError(null);
+    setJob(null);
+    try {
+      const created = await api.rerunJob(jobId);
+      attach(created.id);
+    } catch (e: any) {
+      setError(e.message);
+      setPhase("error");
+    }
+  }
+
   const busy = phase === "running";
+  const refJob = job;  // ostatnie/aktywne zadanie — do ponownego przeliczenia
 
   return (
     <div className="space-y-6">
@@ -134,6 +150,12 @@ export default function RozliczeniePage() {
             <Search size={18} />
             Tylko braki wzorca
           </button>
+          {refJob && !file && (
+            <button className="btn-secondary" disabled={busy} onClick={() => rerun(refJob.id)}>
+              {busy ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+              Przelicz ponownie ostatni plik
+            </button>
+          )}
 
           {phase === "done" && job && (
             <div className="ml-auto flex flex-wrap gap-2">

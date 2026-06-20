@@ -57,6 +57,22 @@ async def get_job(job_id: str):
     return job
 
 
+@router.post("/{job_id}/rerun")
+async def rerun_job(job_id: str):
+    """Przelicza ponownie na TYM SAMYM, wcześniej wgranym pliku (zapisanym przy
+    zadaniu) — bez wgrywania od nowa. Tworzy nowe zadanie z aktualnym silnikiem
+    oraz aktualnymi (aktywnymi) plikami wzorcowymi i cennikiem."""
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    path = os.path.join(job_paths(job_id)["jednostki"], job["input_name"])
+    if not os.path.isfile(path):
+        raise HTTPException(400, "Brak zapisanego pliku źródłowego tego zadania — wgraj plik ponownie.")
+    with open(path, "rb") as f:
+        content = f.read()
+    return runner.create_and_start_job(job["mode"], job["input_name"], content)
+
+
 @router.get("/{job_id}/logs")
 async def stream_logs(job_id: str):
     """Streamuje log zadania jako Server-Sent Events aż do zakończenia."""
