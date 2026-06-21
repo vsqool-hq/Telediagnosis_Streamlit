@@ -92,14 +92,21 @@ def main():
                 paths["jednostki"], paths["wzorcowe"], paths["cennik"],
                 paths["wynik"], paths["sprawdzone"],
             )
-            # Pre-warm cache podsumowania (Historia/Pulpit od razu szybkie, bez
-            # przeliczania plików przy wejściu na zakładkę).
+            # WŁAŚCIWE rozliczenie się powiodło → oznacz 'done' OD RAZU, zanim
+            # zaczniemy krok dodatkowy (podsumowanie). Inaczej, gdyby proces zginął
+            # przy budowaniu podsumowania, zadanie zostałoby błędnie wznowione.
+            status["status"] = "done"
+            status["finished_at"] = _now()
+            _write_status(paths["status"], status)
+
+            # Pre-warm cache podsumowania (Historia/Pulpit od razu szybkie) —
+            # krok NIEKRYTYCZNY, nie wpływa na status zadania.
             try:
                 from app.engine.revenue import cached_summary
                 print("Buduję podsumowanie do Historii/Pulpitu…", flush=True)
                 cached_summary(paths["base"], paths["wynik"], paths["cennik"])
             except Exception as e:  # noqa: BLE001
-                print(f"! Nie udało się zbudować podsumowania: {e}", flush=True)
+                print(f"! Nie udało się zbudować podsumowania (pomijam): {e}", flush=True)
         elif mode == "unmatched":
             billing.run_unmatched_only(
                 paths["jednostki"], paths["wzorcowe"], paths["sprawdzone"],

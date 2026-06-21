@@ -193,6 +193,14 @@ def mark_interrupted_jobs():
             continue
         job_id, mode = job["id"], job["mode"]
         paths = job_paths(job_id)
+
+        # Autorytatywny status z pliku procesu: proces mógł zdążyć zapisać
+        # 'done'/'error'/'cancelled' (np. ginąc dopiero przy kroku dodatkowym),
+        # mimo że baza pokazuje jeszcze 'running'. read_status synchronizuje bazę.
+        real = read_status(job_id).get("status")
+        if real not in ("queued", "running"):
+            continue  # faktycznie zakończone — NIE wznawiamy
+
         restarts = _read_restarts(paths)
 
         if restarts >= MAX_AUTO_RESUME:
