@@ -99,7 +99,9 @@ export default function PorownaniePage() {
           </div>
           {t.studies_without_category > 0 && (
             <p className="text-[13px] text-amber-300">
-              <AlertTriangle className="mb-0.5 inline" size={14} /> {t.studies_without_category} badań bez kategorii lekarskiej (pominięte w marży) — uzupełnij słownik.
+              <AlertTriangle className="mb-0.5 inline" size={14} /> Marża liczona na {t.studies_with_category ?? "—"} badaniach z kategorią lekarską.
+              Pominięto <b>{t.studies_without_category}</b> badań bez kategorii (brak w słowniku „Rodzaj procedury lekarz")
+              {t.przychod_jednostki_bez_kategorii ? ` — to przychód jednostek ${zl(t.przychod_jednostki_bez_kategorii)} nieujęty w marży` : ""}. Uzupełnij słownik.
             </p>
           )}
 

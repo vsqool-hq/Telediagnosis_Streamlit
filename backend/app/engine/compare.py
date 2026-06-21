@@ -93,14 +93,22 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     for c in ("ilosc", "przychod_jednostki", "koszt_lekarzy", "marza"):
         grp[c] = grp[c].round(2)
 
+    # Marżę liczymy na TYM SAMYM zbiorze po obu stronach — tylko badania z
+    # przypisaną kategorią lekarską (inaczej przychód jednostek obejmowałby badania
+    # bez policzonego kosztu lekarza i marża byłaby zawyżona). Badania bez kategorii
+    # raportujemy osobno (studies_without_category) wraz z ich przychodem jednostek.
+    cat = df[df["_kategoria"] != ""]
+    nocat = df[df["_kategoria"] == ""]
     return {
         "empty": False,
         "rows": grp.to_dict("records"),
         "totals": {
-            "przychod_jednostki": round(float(df["_units_rev"].sum()), 2),
-            "koszt_lekarzy": round(float(df["_doc_cost"].sum()), 2),
-            "marza": round(float(df["_units_rev"].sum() - df["_doc_cost"].sum()), 2),
+            "przychod_jednostki": round(float(cat["_units_rev"].sum()), 2),
+            "koszt_lekarzy": round(float(cat["_doc_cost"].sum()), 2),
+            "marza": round(float(cat["_units_rev"].sum() - cat["_doc_cost"].sum()), 2),
             "studies": int(len(df)),
-            "studies_without_category": int((df["_kategoria"] == "").sum()),
+            "studies_with_category": int(len(cat)),
+            "studies_without_category": int(len(nocat)),
+            "przychod_jednostki_bez_kategorii": round(float(nocat["_units_rev"].sum()), 2),
         },
     }

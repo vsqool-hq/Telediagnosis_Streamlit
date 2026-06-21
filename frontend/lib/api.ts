@@ -219,6 +219,7 @@ export interface DoctorComparison {
   totals?: {
     przychod_jednostki: number; koszt_lekarzy: number; marza: number;
     studies: number; studies_without_category: number;
+    studies_with_category?: number; przychod_jednostki_bez_kategorii?: number;
   };
 }
 
