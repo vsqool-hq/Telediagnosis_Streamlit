@@ -14,7 +14,7 @@ import json
 
 import pandas as pd
 
-from app.engine.billing import build_price_key, bill_extract_multiplier
+from app.engine.billing import build_price_key, bill_extract_multiplier, fill_price_with_base
 
 GROUPING_COLUMNS = [
     "Priorytet opisu", "Modalność", "Procedura",
@@ -74,6 +74,7 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
             right_on=["Jednostka", "BADANIE"],
             how="left",
         )
+        merged = fill_price_with_base(merged, prices)  # ONKO/ANGIO → cena bazowa, gdy 0/brak
         merged["Ilość"] = merged["#"] * merged["Mnożnik"]
         merged["Wartość"] = merged["Ilość"] * merged["Cena"].fillna(0)
         frames.append(merged[["Klient", "Modalność", "Ilość", "Wartość"]])
@@ -86,6 +87,8 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
 
 def _modality_norm(m) -> str:
     m = str(m).strip().upper()
+    if m.startswith("MAMMOGRAF"):
+        return "MMG"
     return m if m in {"RTG", "TK", "MR", "MMG"} else "INNE"
 
 

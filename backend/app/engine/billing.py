@@ -424,6 +424,48 @@ def build_price_key(row) -> str:
     return f"{modalnosc} {priorytet}"
 
 
+def base_price_key(badanie):
+    """
+    Klucz bazowy dla wariantu ONKO/ANGIO — używany, gdy stawka wariantu jest 0/pusta:
+      'TK CITO ONKO'            -> 'TK CITO'
+      'TK ANGIO CITO'           -> 'TK CITO'
+      'TK PORÓWNAWCZE CITO ANGIO'-> 'TK PORÓWNAWCZE CITO'
+      'MR PLANOWE inne angio'   -> 'MR PLANOWE inne'
+    Zwraca None, jeśli to już klucz bazowy (brak ONKO/ANGIO).
+    """
+    k = str(badanie).strip()
+    out = k.replace(" ONKO", "")
+    out = re.sub(r"^TK ANGIO ", "TK ", out)
+    out = out.replace(" ANGIO", "").replace(" angio", "")
+    out = re.sub(r"\s+", " ", out).strip()
+    return out if out != k else None
+
+
+def fill_price_with_base(merged, df_prices):
+    """
+    Dziedziczenie ceny bazowej: gdy stawka wariantu ONKO/ANGIO danej jednostki jest
+    pusta lub 0, bierzemy cenę klucza bazowego (ta sama jednostka). Procedury ONKO/ANGIO
+    są w cenniku często niewypełnione dla większości jednostek, choć bazowe TK/MR mają
+    stawki — bez tego ~12 tys. drogich badań trafiało na 0 zł. Modyfikuje 'merged'.
+    """
+    pmap = {(str(j).strip(), str(b).strip()): c
+            for j, b, c in zip(df_prices["Jednostka"], df_prices["BADANIE"], df_prices["Cena"])}
+
+    def _fp(row):
+        c = row.get("Cena")
+        if pd.notna(c) and c and c > 0:
+            return c
+        bk = base_price_key(row.get("CENA_KLUCZ", ""))
+        if bk:
+            bc = pmap.get((str(row.get("Klient", "")).strip(), bk))
+            if bc is not None and pd.notna(bc) and bc > 0:
+                return bc
+        return c
+
+    merged["Cena"] = merged.apply(_fp, axis=1)
+    return merged
+
+
 def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None):
     ws = workbook[sheet_name]
     priority_colors = PRIORITY_COLORS
@@ -702,6 +744,8 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             right_on=['Jednostka', 'BADANIE'],
             how='left'
         )
+        # Dziedziczenie ceny bazowej dla ONKO/ANGIO (gdy wariant ma 0/brak stawki).
+        merged = fill_price_with_base(merged, df_prices)
         merged.drop(columns=[c for c in ['Jednostka', 'BADANIE'] if c in merged.columns], inplace=True)
 
         if merged['Cena'].isna().any():
