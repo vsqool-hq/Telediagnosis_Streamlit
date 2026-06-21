@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, RefreshCw } from "lucide-react";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, RefreshCw, Square } from "lucide-react";
 import { api, Job } from "@/lib/api";
 
 type Phase = "idle" | "running" | "done" | "error";
@@ -104,6 +104,17 @@ export default function RozliczeniePage() {
     }
   }
 
+  /** Zatrzymuje trwające rozliczenie (przycisk STOP). */
+  async function stop() {
+    if (!job) return;
+    try {
+      await api.cancelJob(job.id);
+      setLogs((prev) => [...prev, "■ Zatrzymywanie…"]);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
   const busy = phase === "running";
   const refJob = job;  // ostatnie/aktywne zadanie — do ponownego przeliczenia
 
@@ -150,6 +161,11 @@ export default function RozliczeniePage() {
             <Search size={18} />
             Tylko braki wzorca
           </button>
+          {busy && job && (
+            <button className="btn-secondary !border-red-500/50 !text-red-300 hover:!border-red-400" onClick={stop}>
+              <Square size={16} /> Zatrzymaj
+            </button>
+          )}
           {refJob && !file && (
             <button className="btn-secondary" disabled={busy} onClick={() => rerun(refJob.id)}>
               {busy ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}

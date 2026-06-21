@@ -57,6 +57,15 @@ async def get_job(job_id: str):
     return job
 
 
+@router.post("/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """Zatrzymuje trwające rozliczenie (przycisk STOP)."""
+    job = runner.cancel_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    return job
+
+
 @router.post("/{job_id}/rerun")
 async def rerun_job(job_id: str):
     """Przelicza ponownie na TYM SAMYM, wcześniej wgranym pliku (zapisanym przy
@@ -103,7 +112,7 @@ async def stream_logs(job_id: str):
                 except (json.JSONDecodeError, OSError):
                     pass
 
-            if status in ("done", "error"):
+            if status in ("done", "error", "cancelled"):
                 runner.read_status(job_id)  # synchronizacja z bazą
                 yield f"event: end\ndata: {json.dumps({'status': status})}\n\n"
                 break

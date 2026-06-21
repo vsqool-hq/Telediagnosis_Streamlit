@@ -13,6 +13,7 @@ import sys
 import json
 import glob
 import uuid
+import signal
 import shutil
 import datetime
 import subprocess
@@ -50,9 +51,50 @@ def _spawn(job_id: str, mode: str, paths: dict):
         cwd=backend_root,
         stdout=err_log,
         stderr=subprocess.STDOUT,
+        start_new_session=True,  # własna grupa procesów → można ubić całe drzewo (workery) przy STOP
     )
     err_log.close()  # dziecko ma własną kopię deskryptora
     return proc
+
+
+def cancel_job(job_id: str):
+    """
+    Zatrzymuje trwające zadanie (przycisk STOP). Ubija całą grupę procesów
+    (proces liczący + workery multiprocessing) i oznacza zadanie jako anulowane.
+    Status 'cancelled' sprawia, że auto-wznawianie NIE podejmie go ponownie.
+    """
+    job = db.get_job(job_id)
+    if not job:
+        return None
+    if job["status"] not in ("queued", "running"):
+        return job  # już zakończone — nie ma czego zatrzymywać
+
+    paths = job_paths(job_id)
+    pid = job.get("pid")
+    if pid:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(os.getpgid(pid), sig)
+                break
+            except (ProcessLookupError, OSError):
+                try:
+                    os.kill(pid, sig)
+                    break
+                except OSError:
+                    pass
+
+    ts = _now()
+    msg = "Zatrzymane przez użytkownika."
+    try:
+        with open(paths["log"], "a", encoding="utf-8") as f:
+            f.write(f"\n■ {msg}\n")
+        with open(paths["status"], "w", encoding="utf-8") as f:
+            json.dump({"status": "cancelled", "started_at": job.get("started_at"),
+                       "finished_at": ts, "error": msg, "restarts": _read_restarts(paths)}, f, ensure_ascii=False)
+    except OSError:
+        pass
+    db.update_job(job_id, status="cancelled", error=msg, finished_at=ts)
+    return db.get_job(job_id)
 
 
 def create_and_start_job(mode: str, upload_filename: str, upload_bytes: bytes) -> dict:

@@ -266,6 +266,7 @@ export const api = {
   },
 
   rerunJob: (id: string) => req<Job>(`/api/jobs/${id}/rerun`, { method: "POST" }),
+  cancelJob: (id: string) => req<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),
   logsUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/logs`),
   resultUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/result`),
   inputUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/input`),
