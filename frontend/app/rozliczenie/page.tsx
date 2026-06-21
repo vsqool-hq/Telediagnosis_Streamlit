@@ -22,26 +22,35 @@ export default function RozliczeniePage() {
   useEffect(() => () => esRef.current?.close(), []);
 
   // Po wejściu na stronę: ?job=ID z banera → pokaż to zadanie; w toku → wznów
-  // podgląd; w przeciwnym razie wczytaj OSTATNIE zadanie (logi, wyniki, nazwa pliku),
-  // żeby po powrocie na zakładkę nie było pusto.
+  // podgląd logów na żywo. Gdy NIC nie trwa — log zostaje PUSTY (pokazujemy tylko
+  // nazwę ostatniego pliku i przyciski pobierania, bez odtwarzania starego logu).
   useEffect(() => {
     const qid = new URLSearchParams(window.location.search).get("job");
     if (qid) {
       attach(qid);
       return;
     }
-    const showLatest = () =>
-      api.listJobs().then((all) => { if (all.length) attach(all[0].id); }).catch(() => {});
+    const showLatestMeta = () =>
+      api.listJobs().then((all) => { if (all.length) loadJobMeta(all[0].id); }).catch(() => {});
     api.activeJob().then((j) => {
       if (j && (j.live_status === "running" || j.status === "running" ||
                 j.live_status === "queued" || j.status === "queued")) {
-        attach(j.id);
+        attach(j.id);  // tylko trwające zadanie odtwarza log na żywo
       } else {
-        showLatest();
+        showLatestMeta();
       }
-    }).catch(showLatest);
+    }).catch(showLatestMeta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Wczytuje SAME metadane zadania (nazwa pliku, wyniki) — bez logów. */
+  function loadJobMeta(jobId: string) {
+    api.getJob(jobId).then((j) => {
+      setJob(j);
+      setLogs([]);  // log pusty, gdy nic nie trwa
+      setPhase(j.status === "done" ? "done" : "idle");
+    }).catch(() => {});
+  }
 
   /** Otwiera strumień logów zadania (nowego lub już trwającego) i śledzi go do końca. */
   function attach(jobId: string) {
