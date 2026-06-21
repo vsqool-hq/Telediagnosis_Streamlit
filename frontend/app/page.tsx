@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid,
 } from "recharts";
-import { Building2, Layers, TrendingUp, Coins } from "lucide-react";
+import { Building2, Layers, TrendingUp, Coins, AlertTriangle } from "lucide-react";
 import { api, Overview, JobStats, TrendPoint } from "@/lib/api";
 
 const MOD_COLORS: Record<string, string> = {
@@ -89,6 +89,39 @@ export default function Dashboard() {
         <StatCard icon={<TrendingUp size={20} />} label="Średnio / klienta"
           value={avgPerClient} />
       </div>
+
+      {stats?.zero_clients && stats.zero_clients.length > 0 && (
+        <div className="card border-amber-400/40">
+          <h2 className="flex items-center gap-2 text-base font-bold text-amber-300">
+            <AlertTriangle size={18} /> Jednostki z 0 zł za cały miesiąc ({stats.zero_clients.length})
+          </h2>
+          <p className="mt-1 text-[13px] text-slate-400">
+            Te jednostki nie zostały wycenione — najczęściej nazwa w pliku miesięcznym różni się od
+            nazwy w cenniku (dokładne dopasowanie). Popraw nazwę w cenniku lub w pliku.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-slate-400">
+                <tr><th className="py-2 pr-4">Jednostka (z pliku)</th><th className="py-2 pr-4">Badań</th><th className="py-2 pr-4">W cenniku?</th><th className="py-2 pr-4">Podobne nazwy w cenniku</th></tr>
+              </thead>
+              <tbody>
+                {stats.zero_clients.map((z) => (
+                  <tr key={z.client} className="border-t border-white/10">
+                    <td className="py-2 pr-4 font-semibold">{z.client}</td>
+                    <td className="py-2 pr-4 text-slate-400">{z.studies}</td>
+                    <td className="py-2 pr-4">
+                      {z.in_cennik
+                        ? <span className="pill pill-muted">jest (sprawdź ceny/klucze)</span>
+                        : <span className="pill pill-warn">brak</span>}
+                    </td>
+                    <td className="py-2 pr-4 text-brand-accent2">{z.suggestions.join(", ") || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {trends.length > 1 && (
         <div className="card">

@@ -101,11 +101,40 @@ def summarize(wynik_dir: str, cennik_dir: str) -> dict:
         df.groupby("Klient").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum"))
         .sort_values("revenue", ascending=False).head(15).reset_index()
     )
+
+    # --- Diagnostyka: jednostki z 0 zł za cały miesiąc (z podpowiedzią z cennika) ---
+    prices = _load_prices(cennik_dir)
+    cennik_units = sorted(set(prices["Jednostka"].astype(str).str.strip())) if prices is not None else []
+    cennik_lower = {u.lower() for u in cennik_units}
+    per_client = df.groupby("Klient").agg(studies=("Ilość", "sum"), revenue=("Wartość", "sum"))
+
+    def _suggest(c: str):
+        cl = c.lower().strip()
+        out = []
+        for u in cennik_units:
+            ul = u.lower()
+            if ul == cl:
+                continue
+            if ul.startswith(cl[:5]) or cl.startswith(ul[:5]) or cl in ul or ul in cl:
+                out.append(u)
+        return out[:3]
+
+    zero_clients = []
+    for c, r in per_client[per_client["revenue"] == 0].sort_values("studies", ascending=False).iterrows():
+        in_cennik = str(c).strip().lower() in cennik_lower
+        zero_clients.append({
+            "client": str(c),
+            "studies": int(r["studies"]),
+            "in_cennik": in_cennik,
+            "suggestions": [] if in_cennik else _suggest(str(c)),
+        })
+
     return {
         "empty": False,
         "total_studies": int(df["Ilość"].sum()),
         "total_revenue": round(float(df["Wartość"].sum()), 2),
         "clients_count": int(df["Klient"].nunique()),
+        "zero_clients": zero_clients,
         "by_modality": [
             {"modality": r["Modalność"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
             for _, r in by_mod.iterrows()

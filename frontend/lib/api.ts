@@ -124,6 +124,7 @@ export interface JobStats {
   total_studies?: number;
   total_revenue?: number;
   clients_count?: number;
+  zero_clients?: { client: string; studies: number; in_cennik: boolean; suggestions: string[] }[];
   by_modality?: { modality: string; count: number; revenue: number }[];
   top_clients?: { client: string; count: number; revenue: number }[];
 }
