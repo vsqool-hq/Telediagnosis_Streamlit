@@ -248,6 +248,15 @@ export const api = {
       body: JSON.stringify({ cloud_base: CLOUD_BASE, token: getToken() }),
     }),
 
+  // Wyślij policzone lokalnie zadanie (wgrany plik + wyniki) do chmury — żeby było
+  // widoczne online. Wywoływane przez lokalny backend (transfer serwer→serwer).
+  pushToCloud: (jobId: string) =>
+    req("/api/sync/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cloud_base: CLOUD_BASE, token: getToken(), job_id: jobId }),
+    }),
+
   overview: () => req<Overview>("/api/stats/overview"),
   jobStats: (id: string) => req<JobStats>(`/api/stats/job/${id}`),
   trends: () => req<{ points: TrendPoint[] }>("/api/stats/trends"),

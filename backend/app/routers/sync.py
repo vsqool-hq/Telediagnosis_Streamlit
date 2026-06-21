@@ -10,15 +10,18 @@ przeglądarki (CORS/mixed-content). Token przekazywany jest do chmury w nagłów
 """
 
 import os
+import io
+import glob
 import json
 import uuid
+import zipfile
 import datetime
 import urllib.request
 
 from fastapi import APIRouter, HTTPException
 
 from app import db
-from app.storage import version_dir, ensure_dirs
+from app.storage import version_dir, ensure_dirs, job_paths
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
 
@@ -120,4 +123,64 @@ async def sync_from_cloud(payload: dict):
     if cloud.startswith(("http://localhost", "http://127.0.0.1")):
         raise HTTPException(400, "Adres chmury wskazuje na localhost — nie ma skąd synchronizować.")
     return pull_active_from_cloud(cloud, token)
+
+
+def _build_job_bundle(job_id: str) -> bytes:
+    """Pakuje katalog zadania (pliki wejściowe, wyniki, sprawdzone, lekarze, log,
+    status) + meta.json do ZIP-a — do wysłania na inny backend."""
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    paths = job_paths(job_id)
+    meta = {
+        "job_id": job_id,
+        "mode": job["mode"],
+        "input_name": job["input_name"],
+        "wzorcowe_version": job.get("wzorcowe_version"),
+        "cennik_version": job.get("cennik_version"),
+        "created_at": job.get("created_at"),
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False))
+        for sub in ("jednostki", "wynik", "sprawdzone", "lekarze"):
+            d = paths.get(sub) or os.path.join(paths["base"], sub)
+            if not os.path.isdir(d):
+                continue
+            for f in glob.glob(os.path.join(d, "*")):
+                if os.path.isfile(f) and not os.path.basename(f).startswith("~$"):
+                    zf.write(f, f"{sub}/{os.path.basename(f)}")
+        for key in ("log", "status"):
+            if os.path.isfile(paths[key]):
+                zf.write(paths[key], os.path.basename(paths[key]))
+    return buf.getvalue()
+
+
+@router.post("/push")
+async def push_to_cloud(payload: dict):
+    """
+    Wysyła policzone lokalnie zadanie (wgrany plik + wyniki) do chmury, żeby było
+    widoczne online. Wywoływane automatycznie po ukończeniu liczenia „na tym
+    komputerze". Transfer serwer→serwer (urllib), więc bez ograniczeń przeglądarki.
+    """
+    cloud = (payload.get("cloud_base") or "").rstrip("/")
+    token = payload.get("token") or ""
+    job_id = (payload.get("job_id") or "").strip()
+    if not cloud or not job_id:
+        raise HTTPException(400, "Brak cloud_base lub job_id.")
+    if cloud.startswith(("http://localhost", "http://127.0.0.1")):
+        raise HTTPException(400, "Adres chmury wskazuje na localhost — nie ma dokąd wysłać.")
+
+    data = _build_job_bundle(job_id)
+    headers = {"Content-Type": "application/zip"}
+    if token:
+        headers["X-API-Token"] = token
+    req = urllib.request.Request(f"{cloud}/api/jobs/import", data=data, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            return {"ok": True, "cloud": json.loads(resp.read())}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Nie udało się wysłać do chmury: {e}")
 

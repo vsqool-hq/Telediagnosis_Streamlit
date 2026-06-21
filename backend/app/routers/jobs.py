@@ -6,12 +6,12 @@ import json
 import asyncio
 import zipfile
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse, FileResponse
 
 from app import db
 from app.services import runner
-from app.storage import job_paths
+from app.storage import job_paths, ensure_dirs
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -32,6 +32,64 @@ async def create_job(file: UploadFile = File(...), mode: str = Form("full")):
 @router.get("")
 async def list_jobs():
     return db.list_jobs()
+
+
+@router.post("/import")
+async def import_job(request: Request):
+    """
+    Odbiera zadanie policzone na innym backendzie (np. lokalnym „Ten komputer")
+    i zapisuje je tutaj, żeby było widoczne online. Body = ZIP z katalogiem
+    zadania (jednostki/, wynik/, sprawdzone/, lekarze/, log.txt, status.json)
+    oraz meta.json. Idempotentne: ponowny import odświeża pliki tego samego zadania.
+    """
+    raw = await request.body()
+    if not raw:
+        raise HTTPException(400, "Puste żądanie.")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+        meta = json.loads(zf.read("meta.json"))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Nieprawidłowa paczka zadania: {e}")
+
+    job_id = str(meta.get("job_id") or "").strip()
+    if not job_id:
+        raise HTTPException(400, "Brak job_id w paczce.")
+
+    ensure_dirs()
+    paths = job_paths(job_id)
+    base = paths["base"]
+    os.makedirs(base, exist_ok=True)
+    for name in zf.namelist():
+        if name == "meta.json" or name.endswith("/"):
+            continue
+        if name.startswith("/") or ".." in name.split("/"):  # ochrona przed zip-slip
+            continue
+        target = os.path.join(base, name)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "wb") as f:
+            f.write(zf.read(name))
+
+    rec = {
+        "id": job_id,
+        "mode": meta.get("mode", "full"),
+        "status": "done",
+        "input_name": meta.get("input_name", ""),
+        "wzorcowe_version": meta.get("wzorcowe_version"),
+        "cennik_version": meta.get("cennik_version"),
+        "created_at": meta.get("created_at") or _now_iso(),
+    }
+    if not db.get_job(job_id):
+        db.create_job(rec)
+    db.update_job(job_id, status="done",
+                  started_at=meta.get("started_at"),
+                  finished_at=meta.get("finished_at") or _now_iso(),
+                  error=None)
+    return {"ok": True, "job_id": job_id}
+
+
+def _now_iso():
+    import datetime
+    return datetime.datetime.now().isoformat(timespec="seconds")
 
 
 @router.get("/active")

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, RefreshCw, Square } from "lucide-react";
-import { api, Job } from "@/lib/api";
+import { api, Job, isLocalBackend } from "@/lib/api";
 
 type Phase = "idle" | "running" | "done" | "error";
 
@@ -67,6 +67,15 @@ export default function RozliczeniePage() {
       const refreshed = await api.getJob(jobId).catch(() => null);
       if (refreshed) setJob(refreshed);
       setPhase(status === "done" ? "done" : "error");
+
+      // Liczenie „na tym komputerze" → automatycznie wyślij wynik do chmury,
+      // żeby zadanie i wgrany plik były później widoczne online.
+      if (status === "done" && isLocalBackend()) {
+        setLogs((prev) => [...prev, "☁ Wysyłam wynik do chmury…"]);
+        api.pushToCloud(jobId)
+          .then(() => setLogs((prev) => [...prev, "☁ Wysłano do chmury — widoczne online."]))
+          .catch((e) => setLogs((prev) => [...prev, "☁ Nie udało się wysłać do chmury: " + e.message]));
+      }
     });
     es.onerror = () => {
       es.close();
