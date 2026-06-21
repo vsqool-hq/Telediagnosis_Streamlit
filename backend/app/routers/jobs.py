@@ -92,6 +92,24 @@ def _now_iso():
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+def _elapsed_seconds(job: dict):
+    """Czas trwania zadania liczony od JEGO UTWORZENIA (created_at) — niezależnie od
+    automatycznych wznowień (wznowienie to to samo zadanie, więc created_at się nie
+    zmienia). Dla trwających: teraz − created_at; dla zakończonych: finished − created.
+    created_at i 'teraz' są w tym samym (serwerowym) zegarze, więc różnica jest poprawna."""
+    import datetime
+    try:
+        start = datetime.datetime.fromisoformat(job["created_at"])
+    except (ValueError, TypeError, KeyError):
+        return None
+    end_s = job.get("finished_at") if job.get("status") in ("done", "error", "cancelled") else None
+    try:
+        end = datetime.datetime.fromisoformat(end_s) if end_s else datetime.datetime.now()
+    except (ValueError, TypeError):
+        end = datetime.datetime.now()
+    return max(0, int((end - start).total_seconds()))
+
+
 @router.get("/active")
 async def active_job():
     """Najnowsze zadanie w toku (queued/running) wraz z aktualnym statusem, albo null.
@@ -100,6 +118,7 @@ async def active_job():
         status = runner.read_status(job["id"]).get("status", job["status"])
         if status in ("queued", "running"):
             job["live_status"] = status
+            job["elapsed_seconds"] = _elapsed_seconds(job)
             return job
     return None
 
@@ -111,6 +130,7 @@ async def get_job(job_id: str):
         raise HTTPException(404, "Nie znaleziono zadania.")
     status = runner.read_status(job_id)
     job["live_status"] = status.get("status", job["status"])
+    job["elapsed_seconds"] = _elapsed_seconds(job)
     job["files"] = [os.path.basename(p) for p in runner.result_files(job_id, job["mode"])]
     return job
 

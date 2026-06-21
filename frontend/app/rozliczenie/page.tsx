@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, RefreshCw, Square } from "lucide-react";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, RefreshCw, Square, Clock } from "lucide-react";
 import { api, Job, isLocalBackend } from "@/lib/api";
 
 type Phase = "idle" | "running" | "done" | "error";
+
+function fmtDuration(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+}
 
 export default function RozliczeniePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -12,6 +19,8 @@ export default function RozliczeniePage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
+  const startAnchor = useRef<number | null>(null);  // chwila startu zadania w zegarze klienta
   const logBoxRef = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
 
@@ -20,6 +29,18 @@ export default function RozliczeniePage() {
   }, [logs]);
 
   useEffect(() => () => esRef.current?.close(), []);
+
+  // Tykanie licznika co sekundę, tylko gdy trwa przeliczenie.
+  useEffect(() => {
+    if (phase !== "running") return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  // Ustaw „kotwicę" startu z czasu serwera (elapsed_seconds), unikając stref czasowych.
+  function anchorFrom(j: Job) {
+    if (j.elapsed_seconds != null) startAnchor.current = Date.now() - j.elapsed_seconds * 1000;
+  }
 
   // Po wejściu na stronę: ?job=ID z banera → pokaż to zadanie; w toku → wznów
   // podgląd logów na żywo. Gdy NIC nie trwa — log zostaje PUSTY (pokazujemy tylko
@@ -47,6 +68,7 @@ export default function RozliczeniePage() {
   function loadJobMeta(jobId: string) {
     api.getJob(jobId).then((j) => {
       setJob(j);
+      anchorFrom(j);
       setLogs([]);  // log pusty, gdy nic nie trwa
       setPhase(j.status === "done" ? "done" : "idle");
     }).catch(() => {});
@@ -58,7 +80,8 @@ export default function RozliczeniePage() {
     setPhase("running");
     setLogs([]);
     setError(null);
-    api.getJob(jobId).then(setJob).catch(() => {});
+    startAnchor.current = null;
+    api.getJob(jobId).then((j) => { setJob(j); anchorFrom(j); }).catch(() => {});
 
     const es = new EventSource(api.logsUrl(jobId));
     esRef.current = es;
@@ -217,6 +240,17 @@ export default function RozliczeniePage() {
             {phase === "done" && <CheckCircle2 className="text-brand-accent" size={18} />}
             {phase === "error" && <XCircle className="text-red-400" size={18} />}
             <h2 className="text-lg font-semibold">Logi procesu</h2>
+            {phase === "running" && startAnchor.current != null && (
+              <span className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-brand-accent/15 px-2.5 py-1 text-sm font-semibold text-brand-accent2"
+                title="Czas od początku tego przeliczenia (liczony też przez wznowienia)">
+                <Clock size={15} /> {fmtDuration((nowMs - startAnchor.current) / 1000)}
+              </span>
+            )}
+            {phase !== "running" && job?.elapsed_seconds != null && logs.length > 0 && (
+              <span className="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-400">
+                <Clock size={15} /> Czas liczenia: {fmtDuration(job.elapsed_seconds)}
+              </span>
+            )}
           </div>
           <div
             ref={logBoxRef}
