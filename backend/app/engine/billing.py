@@ -384,8 +384,13 @@ def build_price_key(row) -> str:
     if modalnosc == 'RTG':
         return f"RTG {priorytet}"
 
-    if modalnosc == 'MMG':
-        return "MMG SKRINING"
+    if modalnosc in ('MMG', 'MAMMOGRAFIA'):
+        # Skryning → "MMG SKRINING", pozostałe mammografie → "MMG".
+        # (W danych modalność bywa zapisana jako 'Mammografia' — obsługujemy oba.)
+        proc_l = procedura.lower()
+        if any(t in proc_l for t in ('skrin', 'skryn', 'skirin')):
+            return "MMG SKRINING"
+        return "MMG"
 
     if modalnosc == 'TK':
         type_suffix = TK_SUFFIX_MAP.get(rodzaj, '')
