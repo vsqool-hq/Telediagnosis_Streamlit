@@ -33,7 +33,7 @@ def _load_units_prices(units_cennik_dir: str):
 def build_comparison(sprawdzone_dir: str, slownik_path: str,
                      units_cennik_dir: str, doctor_cennik_csv: str) -> dict:
     import pandas as pd
-    from app.engine.billing import build_price_key, bill_extract_multiplier
+    from app.engine.billing import build_price_key, bill_extract_multiplier, base_price_key
     from app.engine.cennik_lekarzy_convert import doctor_key
     from app.engine.doctors import (
         read_verified_studies, load_lekarz_categories, load_doctor_prices,
@@ -53,7 +53,14 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
 
     df = df.copy()
     df["_mult"] = df["Procedura rozlicz."].map(bill_extract_multiplier)
-    df["_badanie"] = df.apply(build_price_key, axis=1)
+    # Klucz cenowy jednostki budujemy IDENTYCZNIE jak rozliczenie jednostek/Pulpit:
+    # bez flagi „Badania do porównania" (silnik przy grupowaniu zmienia nazwę tej
+    # kolumny, więc build_price_key jej nie widzi). Inaczej przychód jednostek w
+    # porównaniu byłby zaniżony (klucze „… PORÓWNAWCZE …").
+    _dk = df.copy()
+    if "Badania do porównania" in _dk.columns:
+        _dk["Badania do porównania"] = 0
+    df["_badanie"] = _dk.apply(build_price_key, axis=1)
     df["_kategoria"] = [
         resolve_category(r, cat_map.get((_key(r.get("Procedura")), _key(r.get("Rodzaj procedury rozlicz."))), ""))
         for _, r in df.iterrows()
@@ -61,7 +68,16 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     df["_lek_key"] = df["Opisujący"].map(doctor_key) if "Opisujący" in df.columns else ""
 
     def _unit_price(row):
-        return unit_prices.get((str(row.get("Klient", "")).strip(), row["_badanie"]))
+        klient = str(row.get("Klient", "")).strip()
+        c = unit_prices.get((klient, row["_badanie"]))
+        # Dziedziczenie ceny bazowej dla ONKO/ANGIO (spójnie z rozliczeniem jednostek).
+        if c is None or pd.isna(c) or c == 0:
+            bk = base_price_key(row["_badanie"])
+            if bk:
+                bc = unit_prices.get((klient, bk))
+                if bc is not None and not pd.isna(bc) and bc > 0:
+                    return bc
+        return c
 
     def _doc_price(row):
         if not row["_kategoria"]:
