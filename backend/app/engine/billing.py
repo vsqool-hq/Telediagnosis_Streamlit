@@ -441,28 +441,62 @@ def base_price_key(badanie):
     return out if out != k else None
 
 
+def _fallback_keys(badanie):
+    """
+    Klucze zastępcze (w kolejności prób), gdy stawka jednostki dla danego badania
+    jest 0/pusta:
+      • ONKO/ANGIO → klucz bazowy (base_price_key),
+      • MR CITO …  → MR PILNE …  (cennik jednostek nie ma MR CITO; CITO≈PILNE),
+        oraz baza tego klucza.
+    """
+    b = str(badanie).strip()
+    out = []
+    bk = base_price_key(b)
+    if bk:
+        out.append(bk)
+    if b.startswith("MR CITO"):
+        pilne = "MR PILNE" + b[len("MR CITO"):]
+        out.append(pilne)
+        bk2 = base_price_key(pilne)
+        if bk2:
+            out.append(bk2)
+    seen, res = set(), []
+    for k in out:
+        if k != b and k not in seen:
+            seen.add(k); res.append(k)
+    return res
+
+
+def resolve_unit_price(pmap, klient, badanie):
+    """
+    Stawka jednostki dla (klient, badanie) z dziedziczeniem: najpierw dokładny klucz
+    (jeśli >0), potem klucze zastępcze (ONKO/ANGIO→baza, MR CITO→MR PILNE).
+    pmap: {(jednostka, BADANIE): cena}. Zwraca cenę (może 0/None, gdy nic nie pasuje).
+    """
+    k = str(klient).strip()
+    c = pmap.get((k, str(badanie).strip()))
+    if c is not None and pd.notna(c) and c > 0:
+        return c
+    for fb in _fallback_keys(badanie):
+        bc = pmap.get((k, fb))
+        if bc is not None and pd.notna(bc) and bc > 0:
+            return bc
+    return c
+
+
 def fill_price_with_base(merged, df_prices):
     """
-    Dziedziczenie ceny bazowej: gdy stawka wariantu ONKO/ANGIO danej jednostki jest
-    pusta lub 0, bierzemy cenę klucza bazowego (ta sama jednostka). Procedury ONKO/ANGIO
-    są w cenniku często niewypełnione dla większości jednostek, choć bazowe TK/MR mają
-    stawki — bez tego ~12 tys. drogich badań trafiało na 0 zł. Modyfikuje 'merged'.
+    Dziedziczenie ceny: gdy stawka danej jednostki dla badania jest pusta/0, bierzemy
+    cenę klucza zastępczego (ONKO/ANGIO→baza, MR CITO→MR PILNE). Te warianty bywają w
+    cenniku niewypełnione, choć stawka bazowa istnieje — bez tego drogie badania
+    trafiały na 0 zł. Modyfikuje i zwraca 'merged'.
     """
     pmap = {(str(j).strip(), str(b).strip()): c
             for j, b, c in zip(df_prices["Jednostka"], df_prices["BADANIE"], df_prices["Cena"])}
-
-    def _fp(row):
-        c = row.get("Cena")
-        if pd.notna(c) and c and c > 0:
-            return c
-        bk = base_price_key(row.get("CENA_KLUCZ", ""))
-        if bk:
-            bc = pmap.get((str(row.get("Klient", "")).strip(), bk))
-            if bc is not None and pd.notna(bc) and bc > 0:
-                return bc
-        return c
-
-    merged["Cena"] = merged.apply(_fp, axis=1)
+    merged["Cena"] = [
+        resolve_unit_price(pmap, kl, key) if not (pd.notna(c) and c and c > 0) else c
+        for c, kl, key in zip(merged.get("Cena"), merged.get("Klient"), merged.get("CENA_KLUCZ"))
+    ]
     return merged
 
 
