@@ -625,9 +625,9 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None):
                         priority_prefix = col_str.replace(' Mnożnik', '')
                         hash_col = col_map.get(f'{priority_prefix} #')
                         if hash_col:
-                            cell.value = f'=IF({hash_col}{r_idx}>0,VALUE(LEFT($D{r_idx},1)),0)'
+                            cell.value = f'=IF({hash_col}{r_idx}>0,IFERROR(VALUE(LEFT($D{r_idx},1)),1),0)'
                         else:
-                            cell.value = f"=VALUE(LEFT($D{r_idx},1))"
+                            cell.value = f"=IFERROR(VALUE(LEFT($D{r_idx},1)),1)"
 
                     elif col_str.endswith(' Ilość'):
                         priority_prefix = col_str.replace(' Ilość', '')
@@ -775,9 +775,9 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                             priority_prefix = col_str.replace(' Mnożnik', '')
                             hash_col = col_map.get(f'{priority_prefix} #')
                             if hash_col:
-                                cell.value = f'=IF({hash_col}{r_idx}>0,VALUE(LEFT($D{r_idx},1)),0)'
+                                cell.value = f'=IF({hash_col}{r_idx}>0,IFERROR(VALUE(LEFT($D{r_idx},1)),1),0)'
                             else:
-                                cell.value = f"=VALUE(LEFT($D{r_idx},1))"
+                                cell.value = f"=IFERROR(VALUE(LEFT($D{r_idx},1)),1)"
 
                         elif col_str.endswith(' Ilość'):
                             priority_prefix = col_str.replace(' Ilość', '')
