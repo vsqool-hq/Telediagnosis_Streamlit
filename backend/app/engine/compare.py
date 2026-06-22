@@ -82,9 +82,23 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
             return None
         return doc_prices.get((row["_lek_key"], row["_kategoria"].upper()))
 
+    # Dopłata za badania porównawcze (osobna linia po stawce porównawczej) — tak jak
+    # w rozliczeniu jednostek/Pulpicie. Klucz porównawczy budujemy z flagą = 1; dopłatę
+    # naliczamy tylko gdy różni się od klucza pełnego (TK/MR; RTG/MMG nie mają wariantu).
+    _pk = df.copy()
+    _pk["Badania do porównania"] = 1
+    df["_porown_badanie"] = _pk.apply(build_price_key, axis=1)
+    df["_porown_flag"] = pd.to_numeric(df.get("Badania do porównania", 0), errors="coerce").fillna(0)
+
+    def _porown_rev(row):
+        if row["_porown_flag"] <= 0 or row["_porown_badanie"] == row["_badanie"]:
+            return 0.0
+        p = resolve_unit_price(unit_prices, row.get("Klient", ""), row["_porown_badanie"], adj_by_unit)
+        return float(row["_porown_flag"]) * float(p) if (p and p > 0) else 0.0
+
     df["_unit_price"] = df.apply(_unit_price, axis=1)
     df["_doc_price"] = df.apply(_doc_price, axis=1)
-    df["_units_rev"] = df["_mult"] * df["_unit_price"].fillna(0)
+    df["_units_rev"] = df["_mult"] * df["_unit_price"].fillna(0) + df.apply(_porown_rev, axis=1)
     df["_doc_cost"] = df["_mult"] * df["_doc_price"].fillna(0)
 
     grp = df[df["_kategoria"] != ""].groupby(["Modalność", "_kategoria"]).agg(

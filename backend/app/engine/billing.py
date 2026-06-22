@@ -460,6 +460,10 @@ def _fallback_keys(badanie):
         bk2 = base_price_key(pilne)
         if bk2:
             out.append(bk2)
+    if b.startswith("RTG CITO"):
+        # Cennik części jednostek nie ma „RTG CITO" (tylko PILNE/PLANOWE) — faktura
+        # liczy RTG CITO po stawce RTG PILNE (jak MR CITO → MR PILNE).
+        out.append("RTG PILNE" + b[len("RTG CITO"):])
     seen, res = set(), []
     for k in out:
         if k != b and k not in seen:
@@ -560,6 +564,41 @@ def fill_price_with_base(merged, df_prices):
         for c, kl, key in zip(merged.get("Cena"), merged.get("Klient"), merged.get("CENA_KLUCZ"))
     ]
     return merged
+
+
+def _prices_to_pmap(df_prices):
+    return {(str(j).strip(), str(b).strip()): c
+            for j, b, c in zip(df_prices["Jednostka"], df_prices["BADANIE"], df_prices["Cena"])}
+
+
+def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Porownawcze_Flag"):
+    """
+    Dopłata za badania porównawcze. Faktura nalicza KAŻDE badanie pełną stawką oraz
+    dodatkową, osobną linię „porównawcza" po stawce porównawczej z cennika — dla
+    badań oznaczonych „Badania do porównania". Liczba jest SUROWA (liczba oflagowanych
+    badań, bez mnożnika okolic) — zweryfikowane na fakturze co do złotówki (swk).
+
+    Dopłatę naliczamy tylko tam, gdzie istnieje odrębny klucz „… PORÓWNAWCZE …"
+    (TK/MR); dla RTG/MMG build_price_key nie tworzy wariantu porównawczego, więc
+    dopłaty nie ma. Stawkę porównawczą rozwiązujemy przez resolve_unit_price, więc
+    działają współczynniki (adjustmenty) oraz dziedziczenie ONKO/ANGIO→baza.
+
+    Zwraca (surcharge_series, porown_keys_series). Wymaga w `grouped` kolumn do
+    build_price_key oraz `flag_col` z SUROWĄ liczbą oflagowanych badań.
+    """
+    pmap = _prices_to_pmap(df_prices)
+    adj = prepare_adjustments(get_unit_adjustments())
+    full_keys = grouped.apply(build_price_key, axis=1)
+    porown_keys = grouped.assign(**{"Badania do porównania": 1}).apply(build_price_key, axis=1)
+    flags = pd.to_numeric(grouped.get(flag_col, 0), errors="coerce").fillna(0)
+    vals = []
+    for fk, pk, kl, pf in zip(full_keys, porown_keys, grouped[klient_col], flags):
+        if pk == fk or pf <= 0:
+            vals.append(0.0)
+            continue
+        price = resolve_unit_price(pmap, kl, pk, adj)
+        vals.append(float(pf) * float(price) if (price is not None and pd.notna(price) and price > 0) else 0.0)
+    return pd.Series(vals, index=grouped.index), porown_keys
 
 
 def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None):
@@ -827,10 +866,13 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         agg_functions = {'Nr badania': 'count', 'Badania do porównania': 'sum'}
 
         grouped = df_details.groupby(grouping_columns).agg(agg_functions).reset_index()
-        grouped.rename(columns={'Nr badania': '#', 'Badania do porównania': 'Porownawcze_Flag'}, inplace=True)
+        grouped.rename(columns={'Nr badania': '#', 'Badania do porównania': 'Porown_Raw'}, inplace=True)
 
         grouped['Mnożnik'] = grouped['Procedura rozlicz.'].apply(bill_extract_multiplier)
-        grouped['Porownawcze_Flag'] = grouped['Porownawcze_Flag'] * grouped['Mnożnik']
+        # Porown_Raw — SUROWA liczba oflagowanych badań (do dopłaty porównawczej, bez
+        # mnożnika). Porownawcze_Flag — wersja z mnożnikiem okolic (kolumna „w tym
+        # porównawcze" w raporcie).
+        grouped['Porownawcze_Flag'] = grouped['Porown_Raw'] * grouped['Mnożnik']
 
         grouped['CENA_KLUCZ'] = grouped.apply(build_price_key, axis=1)
 
@@ -846,6 +888,33 @@ def bill_process_single_file(excel_path, csv_path, output_path):
 
         if merged['Cena'].isna().any():
             logs.append(f"! OSTRZEŻENIE: Nie znaleziono cen dla {merged['Cena'].isna().sum()} pozycji (po dwóch próbach).")
+
+        # Dopłata za badania porównawcze — osobne wiersze po stawce porównawczej z
+        # cennika (faktura nalicza je oprócz pełnej stawki). Tylko tam, gdzie istnieje
+        # odrębny klucz „… PORÓWNAWCZE …" (TK/MR). Liczba SUROWA (Porown_Raw), mnożnik 1.
+        porown_keys = merged.assign(**{'Badania do porównania': 1}).apply(build_price_key, axis=1)
+        pmap = _prices_to_pmap(df_prices)
+        adj = prepare_adjustments(get_unit_adjustments())
+        mask = (pd.to_numeric(merged['Porown_Raw'], errors='coerce').fillna(0) > 0) & (porown_keys != merged['CENA_KLUCZ'])
+        if mask.any():
+            pr = merged[mask].copy()
+            pr['CENA_KLUCZ'] = porown_keys[mask]
+            pr['Cena'] = [resolve_unit_price(pmap, kl, k, adj) for kl, k in zip(pr['Klient'], pr['CENA_KLUCZ'])]
+            pr['Cena'] = pd.to_numeric(pr['Cena'], errors='coerce').fillna(0)
+            pr = pr[pr['Cena'] > 0].copy()
+            if not pr.empty:
+                pr['#'] = pd.to_numeric(pr['Porown_Raw'], errors='coerce').fillna(0)
+                pr['Mnożnik'] = 1
+                pr['Porownawcze_Flag'] = 0
+                pr['Porown_Raw'] = 0
+                pr['Rodzaj procedury rozlicz.'] = pr['Rodzaj procedury rozlicz.'].astype(str) + ' (porównawcze)'
+                pr['Procedura rozlicz.'] = 'Porównawcze'   # LEFT()→litera → mnożnik formuły = 1
+                pr = pr.groupby(
+                    ['Priorytet opisu', 'Modalność', 'Procedura', 'Rodzaj procedury rozlicz.',
+                     'Procedura rozlicz.', 'Klient', 'CENA_KLUCZ'], as_index=False
+                ).agg({'#': 'sum', 'Cena': 'first', 'Mnożnik': 'first',
+                       'Porownawcze_Flag': 'first', 'Porown_Raw': 'first'})
+                merged = pd.concat([merged, pr], ignore_index=True)
 
         merged['Ilość'] = merged['#'] * merged['Mnożnik']
         merged['Wartość'] = np.nan
