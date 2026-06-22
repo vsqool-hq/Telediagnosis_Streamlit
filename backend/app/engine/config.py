@@ -100,6 +100,16 @@ DEFAULT_CONFIG = {
 
     # Moduł lekarzy: klucze lekarzy (doctor_key) wyłączonych z rozliczenia lekarzy.
     "doctors_excluded": [],
+
+    # Współczynniki (adjustmenty) cen jednostek.
+    # Niektóre jednostki nie mają w cenniku własnej stawki dla danego badania —
+    # jest ona liczona jako stawka innego badania × współczynnik (np. wsswroclaw:
+    # „TK CITO ONKO" = stawka „TK CITO" × 1,25). Stawki wyliczane współczynnikiem
+    # mają pierwszeństwo przed heurystykami dziedziczenia ceny (ONKO/ANGIO→baza),
+    # ale NIE nadpisują bezpośredniej stawki z cennika (jeśli istnieje i jest >0).
+    # Struktura: { "jednostka": { "BADANIE": { "base": "BADANIE_BAZOWE", "factor": 1.25 } } }
+    # Dane startowe wczytywane z seed_data/unit_adjustments.json przy pierwszym uruchomieniu.
+    "unit_adjustments": {},
 }
 
 

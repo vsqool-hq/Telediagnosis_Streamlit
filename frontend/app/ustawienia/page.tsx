@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu, Sliders, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import BackendSwitcher from "@/components/BackendSwitcher";
 import DoctorsSettings from "@/components/DoctorsSettings";
 
 type MapPair = { from: string; to: string };
+type AdjRule = { base: string; factor: number };
+type AdjMap = Record<string, Record<string, AdjRule>>;
 
 /* ---------- Edytor mapowań (źródło → cel) ---------- */
 function MapEditor({
@@ -94,6 +96,145 @@ function ChipEditor({ items, setItems }: { items: string[]; setItems: (x: string
   );
 }
 
+/* ---------- Edytor współczynników cen jednostek (z filtrem jednostki) ---------- */
+function AdjustmentsEditor({
+  value, onChange, onReseed,
+}: {
+  value: AdjMap;
+  onChange: (v: AdjMap) => void;
+  onReseed: () => void;
+}) {
+  const units = useMemo(() => Object.keys(value).sort((a, b) => a.localeCompare(b, "pl")), [value]);
+  const [unit, setUnit] = useState<string>("");
+  const [newUnit, setNewUnit] = useState("");
+  const [exam, setExam] = useState("");
+  const [base, setBase] = useState("");
+  const [factor, setFactor] = useState("");
+
+  // Domyślnie pokaż pierwszą jednostkę; trzymaj wybór w granicach dostępnych.
+  useEffect(() => {
+    if (units.length && !units.includes(unit)) setUnit(units[0]);
+    if (!units.length) setUnit("");
+  }, [units, unit]);
+
+  const rules = (unit && value[unit]) || {};
+  const ruleKeys = Object.keys(rules).sort((a, b) => a.localeCompare(b, "pl"));
+  const total = Object.values(value).reduce((s, r) => s + Object.keys(r).length, 0);
+
+  function setRule(u: string, exKey: string, rule: AdjRule | null) {
+    const next: AdjMap = { ...value, [u]: { ...(value[u] || {}) } };
+    if (rule === null) delete next[u][exKey];
+    else next[u][exKey] = rule;
+    if (Object.keys(next[u]).length === 0) delete next[u];
+    onChange(next);
+  }
+
+  function addUnit() {
+    const u = newUnit.trim();
+    if (!u) return;
+    if (!value[u]) onChange({ ...value, [u]: {} });
+    setUnit(u);
+    setNewUnit("");
+  }
+
+  function addRule() {
+    const ex = exam.trim().replace(/\s+/g, " ");
+    const bs = base.trim().replace(/\s+/g, " ");
+    const f = parseFloat(factor.replace(",", "."));
+    if (!unit || !ex || !bs || !isFinite(f)) return;
+    setRule(unit, ex, { base: bs, factor: f });
+    setExam(""); setBase(""); setFactor("");
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="space-y-1.5">
+          <span className="text-[13px] font-semibold text-slate-200">Jednostka</span>
+          <select className="input min-w-[220px]" value={unit} onChange={(e) => setUnit(e.target.value)}>
+            {units.length === 0 && <option value="">brak jednostek ze współczynnikami</option>}
+            {units.map((u) => (
+              <option key={u} value={u}>{u} ({Object.keys(value[u]).length})</option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-end gap-2">
+          <label className="space-y-1.5">
+            <span className="text-[13px] font-semibold text-slate-200">Dodaj jednostkę</span>
+            <input className="input sm:max-w-[200px]" placeholder="np. wsswroclaw" value={newUnit}
+              onChange={(e) => setNewUnit(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addUnit()} />
+          </label>
+          <button className="btn-secondary" onClick={addUnit}><Plus size={16} /> Dodaj</button>
+        </div>
+        <span className="pill pill-muted ml-auto">{units.length} jednostek · {total} reguł</span>
+      </div>
+
+      {unit && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="px-2 py-1.5 text-left text-xs uppercase">Badanie</th>
+                  <th className="px-2 py-1.5 text-left text-xs uppercase">= Badanie bazowe</th>
+                  <th className="px-2 py-1.5 text-right text-xs uppercase">× Współczynnik</th>
+                  <th className="px-2 py-1.5"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {ruleKeys.length === 0 && (
+                  <tr><td colSpan={4} className="px-2 py-3 text-slate-500">Brak współczynników dla tej jednostki.</td></tr>
+                )}
+                {ruleKeys.map((ex) => (
+                  <tr key={ex} className="border-t border-white/10">
+                    <td className="px-2 py-1.5 font-semibold">{ex}</td>
+                    <td className="px-2 py-1.5">
+                      <input className="input !py-1" value={rules[ex].base}
+                        onChange={(e) => setRule(unit, ex, { ...rules[ex], base: e.target.value })} />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input className="input !py-1 w-24 text-right" type="number" step="0.01" value={rules[ex].factor}
+                        onChange={(e) => setRule(unit, ex, { ...rules[ex], factor: parseFloat(e.target.value) })} />
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      <button className="btn-secondary !px-2 !py-1.5" aria-label="Usuń"
+                        onClick={() => setRule(unit, ex, null)}><Trash2 size={15} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="soft flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-end">
+            <label className="flex-1 space-y-1">
+              <span className="text-xs text-slate-400">Badanie (klucz cennikowy)</span>
+              <input className="input !py-1.5" placeholder="np. TK CITO ONKO" value={exam}
+                onChange={(e) => setExam(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRule()} />
+            </label>
+            <label className="flex-1 space-y-1">
+              <span className="text-xs text-slate-400">Badanie bazowe</span>
+              <input className="input !py-1.5" placeholder="np. TK CITO" value={base}
+                onChange={(e) => setBase(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRule()} />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-slate-400">Współczynnik</span>
+              <input className="input !py-1.5 w-28" placeholder="np. 1.25" value={factor}
+                onChange={(e) => setFactor(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRule()} />
+            </label>
+            <button className="btn-secondary" onClick={addRule}><Plus size={16} /> Dodaj regułę</button>
+          </div>
+        </>
+      )}
+
+      <button className="btn-secondary" onClick={onReseed}>
+        <Download size={16} /> Wczytaj współczynniki startowe (z pliku)
+      </button>
+    </div>
+  );
+}
+
 const objToPairs = (o: Record<string, string> = {}) =>
   Object.entries(o).map(([from, to]) => ({ from, to }));
 const pairsToObj = (p: MapPair[]) =>
@@ -108,6 +249,7 @@ export default function UstawieniaPage() {
   const [tkSuffix, setTkSuffix] = useState<MapPair[]>([]);
   const [glkrg, setGlkrg] = useState<string[]>([]);
   const [stawy, setStawy] = useState<string[]>([]);
+  const [adjustments, setAdjustments] = useState<AdjMap>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,6 +260,7 @@ export default function UstawieniaPage() {
     setTkSuffix(objToPairs(s.tk_suffix_map));
     setGlkrg(s.mr_glkrg_keywords ?? []);
     setStawy(s.mr_stawy_keywords ?? []);
+    setAdjustments(s.unit_adjustments ?? {});
   }
 
   function load() {
@@ -135,6 +278,7 @@ export default function UstawieniaPage() {
       tk_suffix_map: pairsToObj(tkSuffix),
       mr_glkrg_keywords: glkrg,
       mr_stawy_keywords: stawy,
+      unit_adjustments: adjustments,
     };
     try {
       await api.saveSettings(payload);
@@ -151,6 +295,19 @@ export default function UstawieniaPage() {
       await api.resetSettings();
       load();
       setMsg("Przywrócono ustawienia domyślne.");
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function reseedAdjustments() {
+    if (!confirm("Wczytać współczynniki cen z pliku startowego? Nadpisze to bieżącą listę współczynników (pozostałe ustawienia bez zmian).")) return;
+    setMsg(null); setError(null);
+    try {
+      const { unit_adjustments } = await api.reseedAdjustments();
+      setAdjustments(unit_adjustments);
+      setSettings({ ...settings, unit_adjustments });
+      setMsg("Wczytano współczynniki startowe. (Zostały już zapisane.)");
     } catch (e: any) {
       setError(e.message);
     }
@@ -257,6 +414,21 @@ export default function UstawieniaPage() {
           </p>
           <ChipEditor items={stawy} setItems={setStawy} />
         </div>
+      </div>
+
+      {/* Współczynniki cen jednostek (adjustmenty) */}
+      <div className="card">
+        <h2 className="flex items-center gap-2 text-base font-bold">
+          <Sliders size={18} className="text-brand-accent" /> Współczynniki cen jednostek
+        </h2>
+        <p className="mb-4 mt-1 text-[13px] leading-relaxed text-slate-400">
+          Niektóre jednostki nie mają w cenniku własnej stawki dla danego badania — jest ona liczona
+          jako stawka <b className="text-slate-200">innego badania × współczynnik</b> (np. wsswroclaw:
+          „TK CITO ONKO" = stawka „TK CITO" × 1,25). Wybierz jednostkę, aby zobaczyć tylko jej reguły.
+          Współczynnik ma pierwszeństwo przed dziedziczeniem ceny bazowej, ale nie nadpisuje bezpośredniej
+          stawki z cennika.
+        </p>
+        <AdjustmentsEditor value={adjustments} onChange={setAdjustments} onReseed={reseedAdjustments} />
       </div>
 
       <div className="flex gap-3">

@@ -467,16 +467,76 @@ def _fallback_keys(badanie):
     return res
 
 
-def resolve_unit_price(pmap, klient, badanie):
+def _strip_diacritics(s: str) -> str:
+    import unicodedata
+    # ł/Ł nie mają rozkładu NFKD (litery z kreską), więc mapujemy je wprost.
+    s = str(s).replace('ł', 'l').replace('Ł', 'L')
+    return ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
+
+
+def _norm_unit(u) -> str:
+    """Klucz porównawczy nazwy jednostki — bez znaków diakrytycznych, małe litery.
+    Pozwala dopasować np. zakładkę „kosmowrocław" do jednostki „kosmowroclaw"."""
+    return _strip_diacritics(u).lower().strip()
+
+
+def get_unit_adjustments() -> dict:
     """
-    Stawka jednostki dla (klient, badanie) z dziedziczeniem: najpierw dokładny klucz
-    (jeśli >0), potem klucze zastępcze (ONKO/ANGIO→baza, MR CITO→MR PILNE).
-    pmap: {(jednostka, BADANIE): cena}. Zwraca cenę (może 0/None, gdy nic nie pasuje).
+    Współczynniki cen jednostek: { jednostka: { BADANIE: {base, factor} } }.
+    W procesie zadania (subprocess) bierzemy migawkę z CONFIG (plik TELEDIAG_CONFIG),
+    a w procesie API — z zapisanych ustawień w bazie (CONFIG jest tam domyślny/pusty).
+    """
+    adj = CONFIG.get("unit_adjustments")
+    if adj:
+        return adj
+    try:
+        from app import db
+        return db.get_settings().get("unit_adjustments", {}) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def prepare_adjustments(raw: dict | None) -> dict:
+    """Indeksuje współczynniki po znormalizowanej nazwie jednostki (do szybkiego dopasowania)."""
+    out = {}
+    for unit, rules in (raw or {}).items():
+        out[_norm_unit(unit)] = rules
+    return out
+
+
+def resolve_unit_price(pmap, klient, badanie, adj_by_unit=None, _seen=None):
+    """
+    Stawka jednostki dla (klient, badanie) z dziedziczeniem:
+      1. dokładny klucz z cennika (jeśli >0),
+      2. współczynnik (adjustment): stawka badania bazowego × factor — rekurencyjnie,
+      3. klucze zastępcze/heurystyki (ONKO/ANGIO→baza, MR CITO→MR PILNE).
+    pmap: {(jednostka, BADANIE): cena}. adj_by_unit: wynik prepare_adjustments
+    (gdy None — pobierany leniwie z ustawień). Zwraca cenę (może 0/None).
     """
     k = str(klient).strip()
-    c = pmap.get((k, str(badanie).strip()))
+    bk = str(badanie).strip()
+    c = pmap.get((k, bk))
     if c is not None and pd.notna(c) and c > 0:
         return c
+
+    # Współczynnik (adjustment) — stawka liczona z innego badania. Ma pierwszeństwo
+    # przed heurystykami, bo jest jawnie zapisaną regułą umowną dla tej jednostki.
+    if adj_by_unit is None:
+        adj_by_unit = prepare_adjustments(get_unit_adjustments())
+    rules = adj_by_unit.get(_norm_unit(k))
+    if rules:
+        rule = rules.get(bk)
+        if rule:
+            seen = _seen or set()
+            if bk not in seen:
+                seen.add(bk)
+                base_price = resolve_unit_price(pmap, klient, rule.get("base", ""), adj_by_unit, seen)
+                if base_price is not None and pd.notna(base_price) and base_price > 0:
+                    try:
+                        return round(float(base_price) * float(rule.get("factor", 1)), 2)
+                    except (TypeError, ValueError):
+                        pass
+
     for fb in _fallback_keys(badanie):
         bc = pmap.get((k, fb))
         if bc is not None and pd.notna(bc) and bc > 0:
@@ -487,14 +547,16 @@ def resolve_unit_price(pmap, klient, badanie):
 def fill_price_with_base(merged, df_prices):
     """
     Dziedziczenie ceny: gdy stawka danej jednostki dla badania jest pusta/0, bierzemy
-    cenę klucza zastępczego (ONKO/ANGIO→baza, MR CITO→MR PILNE). Te warianty bywają w
-    cenniku niewypełnione, choć stawka bazowa istnieje — bez tego drogie badania
-    trafiały na 0 zł. Modyfikuje i zwraca 'merged'.
+    najpierw stawkę z współczynnika (adjustment), a w dalszej kolejności cenę klucza
+    zastępczego (ONKO/ANGIO→baza, MR CITO→MR PILNE). Te warianty bywają w cenniku
+    niewypełnione, choć stawka bazowa istnieje — bez tego drogie badania trafiały na
+    0 zł. Modyfikuje i zwraca 'merged'.
     """
     pmap = {(str(j).strip(), str(b).strip()): c
             for j, b, c in zip(df_prices["Jednostka"], df_prices["BADANIE"], df_prices["Cena"])}
+    adj_by_unit = prepare_adjustments(get_unit_adjustments())
     merged["Cena"] = [
-        resolve_unit_price(pmap, kl, key) if not (pd.notna(c) and c and c > 0) else c
+        resolve_unit_price(pmap, kl, key, adj_by_unit) if not (pd.notna(c) and c and c > 0) else c
         for c, kl, key in zip(merged.get("Cena"), merged.get("Klient"), merged.get("CENA_KLUCZ"))
     ]
     return merged

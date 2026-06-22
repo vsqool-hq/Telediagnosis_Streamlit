@@ -350,4 +350,9 @@ export const api = {
       body: JSON.stringify({ settings }),
     }),
   resetSettings: () => req("/api/settings/reset", { method: "POST" }),
+  reseedAdjustments: () =>
+    req<{ ok: boolean; unit_adjustments: Record<string, Record<string, { base: string; factor: number }>> }>(
+      "/api/settings/adjustments/reseed",
+      { method: "POST" },
+    ),
 };

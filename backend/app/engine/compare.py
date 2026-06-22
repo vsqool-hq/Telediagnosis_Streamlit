@@ -33,7 +33,10 @@ def _load_units_prices(units_cennik_dir: str):
 def build_comparison(sprawdzone_dir: str, slownik_path: str,
                      units_cennik_dir: str, doctor_cennik_csv: str) -> dict:
     import pandas as pd
-    from app.engine.billing import build_price_key, bill_extract_multiplier, resolve_unit_price
+    from app.engine.billing import (
+        build_price_key, bill_extract_multiplier, resolve_unit_price,
+        prepare_adjustments, get_unit_adjustments,
+    )
     from app.engine.cennik_lekarzy_convert import doctor_key
     from app.engine.doctors import (
         read_verified_studies, load_lekarz_categories, load_doctor_prices,
@@ -67,10 +70,12 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     ]
     df["_lek_key"] = df["Opisujący"].map(doctor_key) if "Opisujący" in df.columns else ""
 
+    adj_by_unit = prepare_adjustments(get_unit_adjustments())
+
     def _unit_price(row):
-        # Wspólna logika z rozliczeniem jednostek: dziedziczenie ONKO/ANGIO→baza
-        # oraz MR CITO→MR PILNE.
-        return resolve_unit_price(unit_prices, row.get("Klient", ""), row["_badanie"])
+        # Wspólna logika z rozliczeniem jednostek: współczynniki (adjustmenty),
+        # dziedziczenie ONKO/ANGIO→baza oraz MR CITO→MR PILNE.
+        return resolve_unit_price(unit_prices, row.get("Klient", ""), row["_badanie"], adj_by_unit)
 
     def _doc_price(row):
         if not row["_kategoria"]:

@@ -1,0 +1,1872 @@
+{
+  "almed": {
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.4
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.4
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.4
+    },
+    "MR PLANOWE GŁ/KRG angio": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.4
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.4
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.4
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.4
+    },
+    "MR PLANOWE inne angio": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.25
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.4
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.4
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.4
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.4
+    },
+    "MR PLANOWE stawy angio": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.25
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.4
+    },
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.4
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.4
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.4
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.4
+    }
+  },
+  "dabrowatarnowska": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.2
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.2
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.3
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.2
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.2
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.2
+    }
+  },
+  "grupazdrowie": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.15
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.15
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.15
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.15
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.15
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.15
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.15
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.15
+    }
+  },
+  "komed": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.1
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.1
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.1
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.25
+    }
+  },
+  "poddebice": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.1
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.1
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.1
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.25
+    }
+  },
+  "puszczykowo": {
+    "MR PILNE GŁ/KRG ONKO": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.5
+    },
+    "MR PILNE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PILNE GŁ/KRG ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 0.5
+    },
+    "MR PILNE GŁ/KRG angio": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PILNE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG angio",
+      "factor": 0.5
+    },
+    "MR PILNE inne ONKO": {
+      "base": "MR PILNE inne",
+      "factor": 1.5
+    },
+    "MR PILNE inne ONKO PORÓW.": {
+      "base": "MR PILNE inne ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE inne PORÓWNAWCZE": {
+      "base": "MR PILNE inne",
+      "factor": 0.5
+    },
+    "MR PILNE inne angio": {
+      "base": "MR PILNE inne",
+      "factor": 1.25
+    },
+    "MR PILNE inne angio PORÓWNAWCZE": {
+      "base": "MR PILNE inne angio",
+      "factor": 0.5
+    },
+    "MR PILNE stawy ONKO": {
+      "base": "MR PILNE stawy",
+      "factor": 1.5
+    },
+    "MR PILNE stawy ONKO PORÓW.": {
+      "base": "MR PILNE stawy ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE stawy PORÓWNAWCZE": {
+      "base": "MR PILNE stawy",
+      "factor": 0.5
+    },
+    "MR PILNE stawy angio": {
+      "base": "MR PILNE stawy",
+      "factor": 1.25
+    },
+    "MR PILNE stawy angio PORÓWNAWCZE": {
+      "base": "MR PILNE stawy angio",
+      "factor": 0.5
+    },
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.5
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.5
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.5
+    },
+    "MR PLANOWE GŁ/KRG angio": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.5
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.5
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.5
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.5
+    },
+    "MR PLANOWE inne angio": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.25
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.5
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.5
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.5
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.5
+    },
+    "MR PLANOWE stawy angio": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.25
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.5
+    },
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.5
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.5
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.5
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.5
+    }
+  },
+  "rodamed": {
+    "MR PILNE GŁ/KRG ONKO": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.1
+    },
+    "MR PILNE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PILNE GŁ/KRG ONKO",
+      "factor": 0.1
+    },
+    "MR PILNE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 0.1
+    },
+    "MR PILNE GŁ/KRG angio": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.1
+    },
+    "MR PILNE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG angio",
+      "factor": 0.1
+    },
+    "MR PILNE inne ONKO": {
+      "base": "MR PILNE inne",
+      "factor": 1.1
+    },
+    "MR PILNE inne ONKO PORÓW.": {
+      "base": "MR PILNE inne ONKO",
+      "factor": 0.1
+    },
+    "MR PILNE inne PORÓWNAWCZE": {
+      "base": "MR PILNE inne",
+      "factor": 0.1
+    },
+    "MR PILNE inne angio": {
+      "base": "MR PILNE inne",
+      "factor": 1.1
+    },
+    "MR PILNE inne angio PORÓWNAWCZE": {
+      "base": "MR PILNE inne angio",
+      "factor": 0.1
+    },
+    "MR PILNE stawy ONKO": {
+      "base": "MR PILNE stawy",
+      "factor": 1.1
+    },
+    "MR PILNE stawy ONKO PORÓW.": {
+      "base": "MR PILNE stawy ONKO",
+      "factor": 0.1
+    },
+    "MR PILNE stawy PORÓWNAWCZE": {
+      "base": "MR PILNE stawy",
+      "factor": 0.1
+    },
+    "MR PILNE stawy angio": {
+      "base": "MR PILNE stawy",
+      "factor": 1.1
+    },
+    "MR PILNE stawy angio PORÓWNAWCZE": {
+      "base": "MR PILNE stawy angio",
+      "factor": 0.1
+    },
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.1
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.1
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.1
+    },
+    "MR PLANOWE GŁ/KRG angio": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.1
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.1
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.1
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.1
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.1
+    },
+    "MR PLANOWE inne angio": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.1
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.1
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.1
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.1
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.1
+    },
+    "MR PLANOWE stawy angio": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.1
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.1
+    },
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.1
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.1
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.1
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.1
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.1
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.1
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.1
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.1
+    }
+  },
+  "sm4gliwice": {
+    "MR PILNE GŁ/KRG ONKO": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.2
+    },
+    "MR PILNE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PILNE GŁ/KRG ONKO",
+      "factor": 0.2
+    },
+    "MR PILNE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 0.2
+    },
+    "MR PILNE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG angio",
+      "factor": 0.2
+    },
+    "MR PILNE inne ONKO": {
+      "base": "MR PILNE inne",
+      "factor": 1.2
+    },
+    "MR PILNE inne ONKO PORÓW.": {
+      "base": "MR PILNE inne ONKO",
+      "factor": 0.2
+    },
+    "MR PILNE inne PORÓWNAWCZE": {
+      "base": "MR PILNE inne",
+      "factor": 0.2
+    },
+    "MR PILNE inne angio PORÓWNAWCZE": {
+      "base": "MR PILNE inne angio",
+      "factor": 0.2
+    },
+    "MR PILNE stawy ONKO": {
+      "base": "MR PILNE stawy",
+      "factor": 1.2
+    },
+    "MR PILNE stawy ONKO PORÓW.": {
+      "base": "MR PILNE stawy ONKO",
+      "factor": 0.2
+    },
+    "MR PILNE stawy PORÓWNAWCZE": {
+      "base": "MR PILNE stawy",
+      "factor": 0.2
+    },
+    "MR PILNE stawy angio PORÓWNAWCZE": {
+      "base": "MR PILNE stawy angio",
+      "factor": 0.2
+    },
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.2
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.2
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.2
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.2
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.2
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.2
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.2
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.2
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.2
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.2
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.2
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.2
+    },
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.5
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.5
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.5
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.5
+    }
+  },
+  "spzozgrodzisk": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.2
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.2
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.2
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.4
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.4
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.4
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.4
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.4
+    }
+  },
+  "spzozswidnica": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.2
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.2
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.2
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.3
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.3
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.3
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.3
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.3
+    }
+  },
+  "szpitalrydygier": {
+    "MR PILNE GŁ/KRG ONKO": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.5
+    },
+    "MR PILNE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PILNE GŁ/KRG ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 0.5
+    },
+    "MR PILNE GŁ/KRG angio": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PILNE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG angio",
+      "factor": 0.5
+    },
+    "MR PILNE inne ONKO": {
+      "base": "MR PILNE inne",
+      "factor": 1.5
+    },
+    "MR PILNE inne ONKO PORÓW.": {
+      "base": "MR PILNE inne ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE inne PORÓWNAWCZE": {
+      "base": "MR PILNE inne",
+      "factor": 0.5
+    },
+    "MR PILNE inne angio": {
+      "base": "MR PILNE inne",
+      "factor": 1.25
+    },
+    "MR PILNE inne angio PORÓWNAWCZE": {
+      "base": "MR PILNE inne angio",
+      "factor": 0.5
+    },
+    "MR PILNE stawy ONKO": {
+      "base": "MR PILNE stawy",
+      "factor": 1.5
+    },
+    "MR PILNE stawy ONKO PORÓW.": {
+      "base": "MR PILNE stawy ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE stawy PORÓWNAWCZE": {
+      "base": "MR PILNE stawy",
+      "factor": 0.5
+    },
+    "MR PILNE stawy angio": {
+      "base": "MR PILNE stawy",
+      "factor": 1.25
+    },
+    "MR PILNE stawy angio PORÓWNAWCZE": {
+      "base": "MR PILNE stawy angio",
+      "factor": 0.5
+    },
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.2
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.2
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.2
+    },
+    "MR PLANOWE GŁ/KRG angio": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.1
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.2
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.2
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.2
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.2
+    },
+    "MR PLANOWE inne angio": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.1
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.2
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.2
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.2
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.2
+    },
+    "MR PLANOWE stawy angio": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.1
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.2
+    },
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.1
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.1
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.1
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.2
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.2
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.2
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.2
+    }
+  },
+  "tdmilicz": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.1
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.1
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.1
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.2
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.2
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.2
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.2
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.2
+    }
+  },
+  "tdsuchab": {
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.5
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.5
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.5
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 0.5
+    }
+  },
+  "tomograf": {
+    "MR PILNE GŁ/KRG ONKO": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.5
+    },
+    "MR PILNE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PILNE GŁ/KRG ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 0.5
+    },
+    "MR PILNE GŁ/KRG angio": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PILNE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG angio",
+      "factor": 0.5
+    },
+    "MR PILNE inne ONKO": {
+      "base": "MR PILNE inne",
+      "factor": 1.5
+    },
+    "MR PILNE inne ONKO PORÓW.": {
+      "base": "MR PILNE inne ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE inne PORÓWNAWCZE": {
+      "base": "MR PILNE inne",
+      "factor": 0.5
+    },
+    "MR PILNE inne angio": {
+      "base": "MR PILNE inne",
+      "factor": 1.25
+    },
+    "MR PILNE inne angio PORÓWNAWCZE": {
+      "base": "MR PILNE inne angio",
+      "factor": 0.5
+    },
+    "MR PILNE stawy ONKO": {
+      "base": "MR PILNE stawy",
+      "factor": 1.5
+    },
+    "MR PILNE stawy ONKO PORÓW.": {
+      "base": "MR PILNE stawy ONKO",
+      "factor": 0.5
+    },
+    "MR PILNE stawy PORÓWNAWCZE": {
+      "base": "MR PILNE stawy",
+      "factor": 0.5
+    },
+    "MR PILNE stawy angio": {
+      "base": "MR PILNE stawy",
+      "factor": 1.25
+    },
+    "MR PILNE stawy angio PORÓWNAWCZE": {
+      "base": "MR PILNE stawy angio",
+      "factor": 0.5
+    },
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.5
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.5
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.5
+    },
+    "MR PLANOWE GŁ/KRG angio": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.5
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.5
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.5
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.5
+    },
+    "MR PLANOWE inne angio": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.25
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.5
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.5
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.5
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.5
+    },
+    "MR PLANOWE stawy angio": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.25
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.5
+    },
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.5
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.5
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.5
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.5
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.5
+    }
+  },
+  "wsswroclaw": {
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.25
+    }
+  },
+  "wysmaz": {
+    "MR PILNE GŁ/KRG ONKO": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PILNE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PILNE GŁ/KRG ONKO",
+      "factor": 0.25
+    },
+    "MR PILNE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 0.25
+    },
+    "MR PILNE GŁ/KRG angio": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.1
+    },
+    "MR PILNE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG angio",
+      "factor": 0.25
+    },
+    "MR PILNE inne ONKO": {
+      "base": "MR PILNE inne",
+      "factor": 1.25
+    },
+    "MR PILNE inne ONKO PORÓW.": {
+      "base": "MR PILNE inne ONKO",
+      "factor": 0.25
+    },
+    "MR PILNE inne PORÓWNAWCZE": {
+      "base": "MR PILNE inne",
+      "factor": 0.25
+    },
+    "MR PILNE inne angio": {
+      "base": "MR PILNE inne",
+      "factor": 1.1
+    },
+    "MR PILNE inne angio PORÓWNAWCZE": {
+      "base": "MR PILNE inne angio",
+      "factor": 0.25
+    },
+    "MR PILNE stawy ONKO": {
+      "base": "MR PILNE stawy",
+      "factor": 1.25
+    },
+    "MR PILNE stawy ONKO PORÓW.": {
+      "base": "MR PILNE stawy ONKO",
+      "factor": 0.25
+    },
+    "MR PILNE stawy PORÓWNAWCZE": {
+      "base": "MR PILNE stawy",
+      "factor": 0.25
+    },
+    "MR PILNE stawy angio": {
+      "base": "MR PILNE stawy",
+      "factor": 1.1
+    },
+    "MR PILNE stawy angio PORÓWNAWCZE": {
+      "base": "MR PILNE stawy angio",
+      "factor": 0.25
+    },
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.25
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.25
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.25
+    },
+    "MR PLANOWE GŁ/KRG angio": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.1
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.25
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.25
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.25
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.25
+    },
+    "MR PLANOWE inne angio": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.1
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.25
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.25
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.25
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.25
+    },
+    "MR PLANOWE stawy angio": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.1
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.25
+    },
+    "TK ANGIO CITO": {
+      "base": "TK CITO",
+      "factor": 1.1
+    },
+    "TK ANGIO PILNE": {
+      "base": "TK PILNE",
+      "factor": 1.1
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.1
+    },
+    "TK CITO ONKO": {
+      "base": "TK CITO",
+      "factor": 1.25
+    },
+    "TK PILNE ONKO": {
+      "base": "TK PILNE",
+      "factor": 1.25
+    },
+    "TK PLANOWE ONKO": {
+      "base": "TK PLANOWE",
+      "factor": 1.25
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.25
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.25
+    }
+  },
+  "zozbol": {
+    "MR PILNE GŁ/KRG ONKO": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.8
+    },
+    "MR PILNE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PILNE GŁ/KRG ONKO",
+      "factor": 0.8
+    },
+    "MR PILNE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 0.8
+    },
+    "MR PILNE GŁ/KRG angio": {
+      "base": "MR PILNE GŁ/KRG",
+      "factor": 1.3
+    },
+    "MR PILNE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PILNE GŁ/KRG angio",
+      "factor": 0.8
+    },
+    "MR PILNE inne ONKO": {
+      "base": "MR PILNE inne",
+      "factor": 1.8
+    },
+    "MR PILNE inne ONKO PORÓW.": {
+      "base": "MR PILNE inne ONKO",
+      "factor": 0.8
+    },
+    "MR PILNE inne PORÓWNAWCZE": {
+      "base": "MR PILNE inne",
+      "factor": 0.8
+    },
+    "MR PILNE inne angio": {
+      "base": "MR PILNE inne",
+      "factor": 1.3
+    },
+    "MR PILNE inne angio PORÓWNAWCZE": {
+      "base": "MR PILNE inne angio",
+      "factor": 0.8
+    },
+    "MR PILNE stawy ONKO": {
+      "base": "MR PILNE stawy",
+      "factor": 1.8
+    },
+    "MR PILNE stawy ONKO PORÓW.": {
+      "base": "MR PILNE stawy ONKO",
+      "factor": 0.8
+    },
+    "MR PILNE stawy PORÓWNAWCZE": {
+      "base": "MR PILNE stawy",
+      "factor": 0.8
+    },
+    "MR PILNE stawy angio": {
+      "base": "MR PILNE stawy",
+      "factor": 1.3
+    },
+    "MR PILNE stawy angio PORÓWNAWCZE": {
+      "base": "MR PILNE stawy angio",
+      "factor": 0.8
+    },
+    "MR PLANOWE GŁ/KRG ONKO": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.8
+    },
+    "MR PLANOWE GŁ/KRG ONKO PORÓW.": {
+      "base": "MR PLANOWE GŁ/KRG ONKO",
+      "factor": 0.8
+    },
+    "MR PLANOWE GŁ/KRG PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 0.8
+    },
+    "MR PLANOWE GŁ/KRG angio": {
+      "base": "MR PLANOWE GŁ/KRG",
+      "factor": 1.3
+    },
+    "MR PLANOWE GŁ/KRG angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE GŁ/KRG angio",
+      "factor": 0.8
+    },
+    "MR PLANOWE inne ONKO": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.8
+    },
+    "MR PLANOWE inne ONKO PORÓW.": {
+      "base": "MR PLANOWE inne ONKO",
+      "factor": 0.8
+    },
+    "MR PLANOWE inne PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne",
+      "factor": 0.8
+    },
+    "MR PLANOWE inne angio": {
+      "base": "MR PLANOWE inne",
+      "factor": 1.3
+    },
+    "MR PLANOWE inne angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE inne angio",
+      "factor": 0.8
+    },
+    "MR PLANOWE stawy ONKO": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.8
+    },
+    "MR PLANOWE stawy ONKO PORÓW.": {
+      "base": "MR PLANOWE stawy ONKO",
+      "factor": 0.8
+    },
+    "MR PLANOWE stawy PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy",
+      "factor": 0.8
+    },
+    "MR PLANOWE stawy angio": {
+      "base": "MR PLANOWE stawy",
+      "factor": 1.3
+    },
+    "MR PLANOWE stawy angio PORÓWNAWCZE": {
+      "base": "MR PLANOWE stawy angio",
+      "factor": 0.8
+    },
+    "TK ANGIO PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 1.3
+    },
+    "TK PORÓWNAWCZE CITO": {
+      "base": "TK CITO",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE CITO ANGIO": {
+      "base": "TK ANGIO CITO",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE CITO ONKO": {
+      "base": "TK CITO ONKO",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE PILNE": {
+      "base": "TK PILNE",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE PILNE ANGIO": {
+      "base": "TK ANGIO PILNE",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE PILNE ONKO": {
+      "base": "TK PILNE ONKO",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE PLANOWE": {
+      "base": "TK PLANOWE",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE PLANOWE ANGIO": {
+      "base": "TK ANGIO PLANOWE",
+      "factor": 0.8
+    },
+    "TK PORÓWNAWCZE PLANOWE ONKO": {
+      "base": "TK PLANOWE ONKO",
+      "factor": 0.8
+    }
+  }
+}

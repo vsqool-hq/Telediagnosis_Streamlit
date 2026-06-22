@@ -41,3 +41,17 @@ async def update_settings(payload: dict):
 async def reset_settings():
     db.save_settings(dict(DEFAULT_CONFIG))
     return {"ok": True, "settings": DEFAULT_CONFIG}
+
+
+@router.post("/adjustments/reseed")
+async def reseed_adjustments():
+    """Przywraca współczynniki cen jednostek z pliku startowego (seed_data/unit_adjustments.json),
+    nadpisując bieżące. Pozostałe ustawienia bez zmian."""
+    from app.seed import load_seed_adjustments
+    seed = load_seed_adjustments()
+    if not seed:
+        raise HTTPException(404, "Brak pliku startowego ze współczynnikami.")
+    cfg = db.get_settings()
+    cfg["unit_adjustments"] = seed
+    db.save_settings(cfg)
+    return {"ok": True, "unit_adjustments": seed}
