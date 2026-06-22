@@ -14,7 +14,9 @@ import json
 
 import pandas as pd
 
-from app.engine.billing import build_price_key, bill_extract_multiplier, fill_price_with_base
+from app.engine.billing import (
+    build_price_key, bill_extract_multiplier, fill_price_with_base, porownawcze_surcharge,
+)
 
 GROUPING_COLUMNS = [
     "Priorytet opisu", "Modalność", "Procedura",
@@ -77,6 +79,10 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
         merged = fill_price_with_base(merged, prices)  # ONKO/ANGIO → cena bazowa, gdy 0/brak
         merged["Ilość"] = merged["#"] * merged["Mnożnik"]
         merged["Wartość"] = merged["Ilość"] * merged["Cena"].fillna(0)
+        # Dopłata za badania porównawcze (osobna linia po stawce porównawczej) —
+        # 'Porownawcze_Flag' tu to SUROWA liczba oflagowanych badań (bez mnożnika).
+        surcharge, _ = porownawcze_surcharge(merged, prices)
+        merged["Wartość"] = merged["Wartość"] + surcharge
         frames.append(merged[["Klient", "Modalność", "Ilość", "Wartość"]])
 
     if not frames:
