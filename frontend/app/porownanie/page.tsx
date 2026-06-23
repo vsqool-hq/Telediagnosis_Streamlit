@@ -220,16 +220,28 @@ export default function PorownaniePage() {
 
       {result && !result.empty && t && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="card"><p className="text-sm text-slate-400">Przychód (jednostki)</p><p className="mt-2 text-2xl font-extrabold">{zl(t.przychod_jednostki)}</p></div>
-            <div className="card"><p className="text-sm text-slate-400">Koszt (lekarze)</p><p className="mt-2 text-2xl font-extrabold">{zl(t.koszt_lekarzy)}</p></div>
-            <div className="card border-brand-accent/40"><p className="text-sm text-slate-400">Marża</p><p className="mt-2 text-2xl font-extrabold text-brand-accent2">{zl(t.marza)}</p></div>
+          {/* Pełny przychód jednostek — zgodny z rozliczeniem (Pulpit). */}
+          <div className="card border-brand-accent/40">
+            <p className="text-sm text-slate-400">Przychód jednostek — całość (jak w rozliczeniu)</p>
+            <p className="mt-1 text-3xl font-extrabold">{zl(t.przychod_jednostki_total ?? (t.przychod_jednostki + (t.przychod_jednostki_bez_kategorii ?? 0)))}</p>
+          </div>
+
+          {/* Rentowność — TYLKO badania z przypisaną kategorią lekarską (ten sam zbiór po obu stronach). */}
+          <div>
+            <p className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
+              Rentowność na badaniach z kategorią lekarską ({t.studies_with_category ?? "—"} z {t.studies})
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="card"><p className="text-sm text-slate-400">Przychód jednostek (z kategorią)</p><p className="mt-2 text-2xl font-extrabold">{zl(t.przychod_jednostki)}</p></div>
+              <div className="card"><p className="text-sm text-slate-400">Koszt lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(t.koszt_lekarzy)}</p></div>
+              <div className="card border-brand-accent/40"><p className="text-sm text-slate-400">Marża</p><p className="mt-2 text-2xl font-extrabold text-brand-accent2">{zl(t.marza)}</p></div>
+            </div>
           </div>
           {t.studies_without_category > 0 && (
             <p className="text-[13px] text-amber-300">
               <AlertTriangle className="mb-0.5 inline" size={14} /> Marża liczona na {t.studies_with_category ?? "—"} badaniach z kategorią lekarską.
-              Pominięto <b>{t.studies_without_category}</b> badań bez kategorii (brak w słowniku „Rodzaj procedury lekarz")
-              {t.przychod_jednostki_bez_kategorii ? ` — to przychód jednostek ${zl(t.przychod_jednostki_bez_kategorii)} nieujęty w marży` : ""}. Uzupełnij słownik.
+              Pozostałe <b>{t.studies_without_category}</b> badań nie ma kategorii (brak w słowniku „Rodzaj procedury lekarz")
+              {t.przychod_jednostki_bez_kategorii ? ` — ich przychód jednostek ${zl(t.przychod_jednostki_bez_kategorii)} jest w „całości", ale nieujęty w marży` : ""}. Uzupełnij słownik, by marża objęła wszystko.
             </p>
           )}
 
