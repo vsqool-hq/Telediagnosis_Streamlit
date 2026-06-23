@@ -165,6 +165,9 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
         "by_doctor": by_doctor,
         "by_unit": by_unit,
         "totals": {
+            # Pełny przychód jednostek (wszystkie badania) — zgodny z rozliczeniem/Pulpitem.
+            "przychod_jednostki_total": round(float(df["_units_rev"].sum()), 2),
+            # Marża liczona na badaniach Z kategorią lekarską (ten sam zbiór po obu stronach).
             "przychod_jednostki": round(float(cat["_units_rev"].sum()), 2),
             "koszt_lekarzy": round(float(cat["_doc_cost"].sum()), 2),
             "marza": round(float(cat["_units_rev"].sum() - cat["_doc_cost"].sum()), 2),
