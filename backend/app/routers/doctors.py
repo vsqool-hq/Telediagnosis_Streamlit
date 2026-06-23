@@ -281,7 +281,11 @@ async def doctor_compare_download(job_id: str):
             raise HTTPException(400, res.get("reason", "Brak danych do porównania."))
         res["computed_at"] = _now()
         _save_cache(paths, "compare.json", res)
-    return _xlsx_response({"Marża per kategoria": res.get("rows", [])}, "Porownanie_lekarze_jednostki.xlsx")
+    return _xlsx_response({
+        "Marża per kategoria": res.get("rows", []),
+        "Marża per lekarz": res.get("by_doctor", []),
+        "Marża per jednostka": res.get("by_unit", []),
+    }, "Porownanie_lekarze_jednostki.xlsx")
 
 
 def _latest_full_job_id() -> str | None:

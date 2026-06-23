@@ -116,11 +116,54 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     # przypisaną kategorią lekarską (inaczej przychód jednostek obejmowałby badania
     # bez policzonego kosztu lekarza i marża byłaby zawyżona). Badania bez kategorii
     # raportujemy osobno (studies_without_category) wraz z ich przychodem jednostek.
-    cat = df[df["_kategoria"] != ""]
+    cat = df[df["_kategoria"] != ""].copy()
     nocat = df[df["_kategoria"] == ""]
+
+    # Rentowność per lekarz / per jednostka — „ile jesteśmy do przodu" (marża) na tym
+    # samym zbiorze (badania z kategorią), więc spójne z totalem powyżej.
+    def _agg_margin(frame, by_col, out_name):
+        if frame.empty:
+            return []
+        g = frame.groupby(by_col).agg(
+            ilosc=("_mult", "sum"),
+            przychod_jednostki=("_units_rev", "sum"),
+            koszt_lekarzy=("_doc_cost", "sum"),
+        ).reset_index().rename(columns={by_col: out_name})
+        g["marza"] = g["przychod_jednostki"] - g["koszt_lekarzy"]
+        for c in ("ilosc", "przychod_jednostki", "koszt_lekarzy", "marza"):
+            g[c] = g[c].round(2)
+        g = g.sort_values("marza", ascending=False)
+        return g.to_dict("records")
+
+    # Per lekarz: grupujemy po znormalizowanym kluczu (scala warianty pisowni),
+    # a do wyświetlenia bierzemy najczęstszą formę „Opisujący".
+    cat["_lekarz"] = cat["Opisujący"].astype(str).str.strip() if "Opisujący" in cat.columns else ""
+    doc = cat[cat["_lek_key"].astype(str).str.strip() != ""].copy()
+    by_doctor = []
+    if not doc.empty:
+        names = (
+            doc.groupby(["_lek_key", "_lekarz"]).size().reset_index(name="n")
+            .sort_values("n", ascending=False).drop_duplicates("_lek_key").set_index("_lek_key")["_lekarz"]
+        )
+        gd = doc.groupby("_lek_key").agg(
+            ilosc=("_mult", "sum"),
+            przychod_jednostki=("_units_rev", "sum"),
+            koszt_lekarzy=("_doc_cost", "sum"),
+        ).reset_index()
+        gd["lekarz"] = gd["_lek_key"].map(names)
+        gd["marza"] = gd["przychod_jednostki"] - gd["koszt_lekarzy"]
+        for c in ("ilosc", "przychod_jednostki", "koszt_lekarzy", "marza"):
+            gd[c] = gd[c].round(2)
+        gd = gd.sort_values("marza", ascending=False)
+        by_doctor = gd[["lekarz", "ilosc", "przychod_jednostki", "koszt_lekarzy", "marza"]].to_dict("records")
+
+    by_unit = _agg_margin(cat, "Klient", "jednostka")
+
     return {
         "empty": False,
         "rows": grp.to_dict("records"),
+        "by_doctor": by_doctor,
+        "by_unit": by_unit,
         "totals": {
             "przychod_jednostki": round(float(cat["_units_rev"].sum()), 2),
             "koszt_lekarzy": round(float(cat["_doc_cost"].sum()), 2),
