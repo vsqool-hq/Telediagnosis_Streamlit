@@ -123,6 +123,10 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
+// Zapamiętujemy ostatnio wybrane zadanie, żeby po powrocie na kartę pokazać je
+// ponownie wraz z zapisanym (zcache'owanym) porównaniem — bez ponownego liczenia.
+const LS_JOB = "porownanie_job_id";
+
 export default function PorownaniePage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobId, setJobId] = useState<string>("");
@@ -135,13 +139,18 @@ export default function PorownaniePage() {
     api.listJobs().then((all) => {
       const done = all.filter((j) => j.status === "done" && j.mode === "full");
       setJobs(done);
-      if (done.length) setJobId(done[0].id);
+      if (done.length) {
+        // Przywróć ostatnio oglądane zadanie (jeśli wciąż istnieje), inaczej najnowsze.
+        const saved = typeof window !== "undefined" ? localStorage.getItem(LS_JOB) : null;
+        setJobId(saved && done.some((j) => j.id === saved) ? saved : done[0].id);
+      }
     }).catch((e) => setError(e.message));
   }, []);
 
-  // Wczytaj zapisane porównanie po wyborze zadania (bez liczenia).
+  // Wczytaj zapisane porównanie po wyborze zadania (bez liczenia) i zapamiętaj wybór.
   useEffect(() => {
     if (!jobId) { setResult(null); return; }
+    if (typeof window !== "undefined") localStorage.setItem(LS_JOB, jobId);
     setResult(null); setError(null);
     api.doctorsCompare(jobId, { peek: true })
       .then((r) => setResult(r && (r as any).reason === "not_computed" ? null : r))
