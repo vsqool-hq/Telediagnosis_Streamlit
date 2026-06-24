@@ -267,7 +267,18 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         if not lek_key:
             continue
         disp = _norm(sub[OPISUJACY_COL].iloc[0])
-        grouped, det = bill_make_grouped(sub.copy(), OPISUJACY_COL)
+        sub = sub.copy()
+        # LEKARZE: brak jakiegokolwiek podciągania — przywróć ORYGINALNY rodzaj
+        # procedury i liczbę okolic (kolumny zachowane w Etapie 1 w
+        # billing.process_client_data, przed korektami priorytetów/okolic).
+        if "Rodzaj procedury rozlicz. (oryg.)" in sub.columns:
+            sub["Rodzaj procedury rozlicz."] = sub["Rodzaj procedury rozlicz. (oryg.)"]
+        if "Procedura rozlicz. (oryg.)" in sub.columns:
+            sub["Procedura rozlicz."] = sub["Procedura rozlicz. (oryg.)"]
+        # „Bardzo pilny" rozliczamy razem z „Pilny" (ta sama stawka, jeden blok).
+        if "Priorytet opisu" in sub.columns:
+            sub["Priorytet opisu"] = sub["Priorytet opisu"].replace({"Bardzo pilny": "Pilny"})
+        grouped, det = bill_make_grouped(sub, OPISUJACY_COL)
 
         def _cena(r):
             base = cat_map.get((_key(r["Procedura"]), _key(r["Rodzaj procedury rozlicz."])), "")
@@ -281,7 +292,7 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         safe = _re.sub(r"[^\w\s-]", "", disp).strip().replace(" ", "_") or "lekarz"
         fname = f"Rozliczenie_lekarz_{safe}.xlsx"
         try:
-            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname))
+            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname), for_doctor=True)
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)
