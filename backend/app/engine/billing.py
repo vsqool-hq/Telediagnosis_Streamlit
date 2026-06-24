@@ -656,7 +656,10 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
                     ws.cell(row=r, column=c_idx).style = "accounting"
 
             if any(k in str(col_name) for k in SUMMABLE_KEYWORDS) and pd.api.types.is_numeric_dtype(billing_table.iloc[:, c_idx - 1]):
-                if 'Stawka' not in str(col_name) and 'Mnożnik' not in str(col_name):
+                # LEKARZE: nie sumujemy „… #" (ilość badań) — lekarz rozliczany jest
+                # od okolic/wartości, suma liczby badań tylko zaśmiecała raport.
+                skip_doctor_count = for_doctor and str(col_name).endswith(' #')
+                if 'Stawka' not in str(col_name) and 'Mnożnik' not in str(col_name) and not skip_doctor_count:
                     sum_cell = ws.cell(row=sum_row, column=c_idx)
                     # AGGREGATE(9, 6, …) = SUMA ignorująca błędy. Jeśli pojedyncza
                     # pozycja ma pustą liczbę okolic i jej formuła daje #ARG!/błąd,
@@ -865,7 +868,9 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
         ws.cell(row=total_row, column=1).value = "SUMA CAŁKOWITA"
         SUMMABLE_KEYWORDS = ['#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze']
         for c_idx, c_name in enumerate(billing_table.columns, 1):
-            if any(k in str(c_name) for k in SUMMABLE_KEYWORDS) and 'Mnożnik' not in str(c_name):
+            # LEKARZE: pomijamy sumę całkowitą „… #" (ilość badań) — jak w sumach modalności.
+            skip_doctor_count = for_doctor and str(c_name).endswith(' #')
+            if any(k in str(c_name) for k in SUMMABLE_KEYWORDS) and 'Mnożnik' not in str(c_name) and not skip_doctor_count:
                 col_letter = get_column_letter(c_idx)
                 formula_parts = [f"{col_letter}{r}" for r in subtotal_rows]
                 if formula_parts:
