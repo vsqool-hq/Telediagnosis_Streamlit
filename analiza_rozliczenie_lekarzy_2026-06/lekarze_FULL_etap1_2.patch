@@ -1,0 +1,151 @@
+--- a/backend/app/engine/billing.py	2026-06-23 06:57:23.000000000 +0000
++++ b/backend/app/engine/billing.py	2026-06-24 16:21:47.433081663 +0000
+@@ -190,6 +190,12 @@
+                 logs.append(f"! OSTRZEŻENIE: Pomijam klienta {client_name} z powodu braku wymaganych kolumn: {missing}.")
+                 return None, logs
+ 
++            # LEKARZE: zachowaj ORYGINALNE wartości sprzed jakichkolwiek korekt.
++            # Rozliczenie lekarzy nie podciąga ani rodzaju procedury, ani liczby okolic
++            # (patrz engine/doctors.py) — te kolumny pozwalają odtworzyć stan oryginalny.
++            df['Rodzaj procedury rozlicz. (oryg.)'] = df[col_map['rodzaj_procedury_rozlicz']]
++            df['Procedura rozlicz. (oryg.)'] = df[col_map['procedura_rozlicz']]
++
+             type_corrections, type_corrected_rows = self.correct_procedure_types(df, col_map)
+ 
+             if type_corrections:
+@@ -601,7 +607,7 @@
+     return pd.Series(vals, index=grouped.index), porown_keys
+ 
+ 
+-def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None):
++def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False):
+     ws = workbook[sheet_name]
+     priority_colors = PRIORITY_COLORS
+     procedure_type_colors = PROCEDURE_TYPE_COLORS
+@@ -655,7 +661,9 @@
+                     # AGGREGATE(9, 6, …) = SUMA ignorująca błędy. Jeśli pojedyncza
+                     # pozycja ma pustą liczbę okolic i jej formuła daje #ARG!/błąd,
+                     # suma kolumny (a przez to całość szpitala) i tak się policzy.
+-                    sum_cell.value = f"=AGGREGATE(9,6,{col_letter}{data_start_row}:{col_letter}{data_end_row})"
++                    # SUBTOTAL(9,…) = suma częściowa (Excel PL: SUMY.CZĘŚCIOWE). AGGREGATE
++                    # bywa nierozpoznawane w starszych / polskich wersjach Excela.
++                    sum_cell.value = f"=SUBTOTAL(9,{col_letter}{data_start_row}:{col_letter}{data_end_row})"
+                     if is_currency:
+                         sum_cell.style = "accounting"
+ 
+@@ -691,21 +699,40 @@
+             cell.font = bold_font
+             cell.fill = medium_blue_fill
+ 
+-        qty_row = last_row + 3
+-        ws.cell(row=qty_row, column=1).value = "RAZEM ILOŚĆ OKOLIC (CAŁOŚĆ):"
+-        ws.cell(row=qty_row, column=1).font = bold_font
+-
+-        qty_formula_parts = []
+-        for c_idx, col_name in enumerate(data_sections[0]['data'].columns, 1):
+-            if str(col_name).endswith("Ilość"):
+-                col_letter = get_column_letter(c_idx)
+-                qty_formula_parts.append(f"{col_letter}{total_row}")
+-
+-        if qty_formula_parts:
+-            cell = ws.cell(row=qty_row, column=2)
+-            cell.value = f"={'+'.join(qty_formula_parts)}"
+-            cell.font = bold_font
+-            cell.fill = medium_blue_fill
++        if for_doctor:
++            # LEKARZE: zamiast „RAZEM ILOŚĆ OKOLIC" — GOTOWOŚĆ (wpisywana ręcznie)
++            # oraz SUMA = RAZEM WARTOŚĆ + GOTOWOŚĆ.
++            got_row = last_row + 3
++            ws.cell(row=got_row, column=1).value = "GOTOWOŚĆ"
++            ws.cell(row=got_row, column=1).font = bold_font
++            got_cell = ws.cell(row=got_row, column=2)  # puste — do ręcznego uzupełnienia
++            got_cell.style = "accounting"
++            got_cell.fill = medium_blue_fill
++
++            suma_row = last_row + 4
++            ws.cell(row=suma_row, column=1).value = "SUMA"
++            ws.cell(row=suma_row, column=1).font = bold_font
++            suma_cell = ws.cell(row=suma_row, column=2)
++            suma_cell.value = f"=B{value_row}+B{got_row}"
++            suma_cell.style = "accounting"
++            suma_cell.font = bold_font
++            suma_cell.fill = medium_blue_fill
++        else:
++            qty_row = last_row + 3
++            ws.cell(row=qty_row, column=1).value = "RAZEM ILOŚĆ OKOLIC (CAŁOŚĆ):"
++            ws.cell(row=qty_row, column=1).font = bold_font
++
++            qty_formula_parts = []
++            for c_idx, col_name in enumerate(data_sections[0]['data'].columns, 1):
++                if str(col_name).endswith("Ilość"):
++                    col_letter = get_column_letter(c_idx)
++                    qty_formula_parts.append(f"{col_letter}{total_row}")
++
++            if qty_formula_parts:
++                cell = ws.cell(row=qty_row, column=2)
++                cell.value = f"={'+'.join(qty_formula_parts)}"
++                cell.font = bold_font
++                cell.fill = medium_blue_fill
+ 
+     for column in ws.columns:
+         max_len = max((len(str(cell.value)) for cell in column if cell.value), default=0)
+@@ -734,7 +761,7 @@
+     return grouped, df_details
+ 
+ 
+-def bill_finalize_to_excel(merged, df_details, output_path, logs=None):
++def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False):
+     """
+     Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
+     „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
+@@ -769,6 +796,10 @@
+     num_cols = [c for c in billing_table.columns if any(k in c for k in ['Stawka', '#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze'])]
+     billing_table[num_cols] = billing_table[num_cols].fillna(0)
+ 
++    if for_doctor:
++        # LEKARZE: nie pokazujemy kolumn „… w tym porównawcze".
++        billing_table = billing_table[[c for c in billing_table.columns if 'w tym porównawcze' not in str(c)]]
++
+     df_details_modified = df_details.copy()
+ 
+     def transform_comparative_studies(row):
+@@ -839,7 +870,7 @@
+                 formula_parts = [f"{col_letter}{r}" for r in subtotal_rows]
+                 if formula_parts:
+                     ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
+-        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True)
++        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True, for_doctor=for_doctor)
+     return logs
+ 
+ 
+--- a/backend/app/engine/doctors.py	2026-06-23 06:57:23.000000000 +0000
++++ b/backend/app/engine/doctors.py	2026-06-24 16:21:52.345081955 +0000
+@@ -267,7 +267,18 @@
+         if not lek_key:
+             continue
+         disp = _norm(sub[OPISUJACY_COL].iloc[0])
+-        grouped, det = bill_make_grouped(sub.copy(), OPISUJACY_COL)
++        sub = sub.copy()
++        # LEKARZE: brak jakiegokolwiek podciągania — przywróć ORYGINALNY rodzaj
++        # procedury i liczbę okolic (kolumny zachowane w Etapie 1 w
++        # billing.process_client_data, przed korektami priorytetów/okolic).
++        if "Rodzaj procedury rozlicz. (oryg.)" in sub.columns:
++            sub["Rodzaj procedury rozlicz."] = sub["Rodzaj procedury rozlicz. (oryg.)"]
++        if "Procedura rozlicz. (oryg.)" in sub.columns:
++            sub["Procedura rozlicz."] = sub["Procedura rozlicz. (oryg.)"]
++        # „Bardzo pilny" rozliczamy razem z „Pilny" (ta sama stawka, jeden blok).
++        if "Priorytet opisu" in sub.columns:
++            sub["Priorytet opisu"] = sub["Priorytet opisu"].replace({"Bardzo pilny": "Pilny"})
++        grouped, det = bill_make_grouped(sub, OPISUJACY_COL)
+ 
+         def _cena(r):
+             base = cat_map.get((_key(r["Procedura"]), _key(r["Rodzaj procedury rozlicz."])), "")
+@@ -281,7 +292,7 @@
+         safe = _re.sub(r"[^\w\s-]", "", disp).strip().replace(" ", "_") or "lekarz"
+         fname = f"Rozliczenie_lekarz_{safe}.xlsx"
+         try:
+-            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname))
++            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname), for_doctor=True)
+             files.append(fname)
+         except Exception as e:  # noqa: BLE001
+             print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)
