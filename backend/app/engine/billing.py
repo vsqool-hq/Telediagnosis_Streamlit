@@ -190,6 +190,12 @@ class MedicalVerificationAgent:
                 logs.append(f"! OSTRZEŻENIE: Pomijam klienta {client_name} z powodu braku wymaganych kolumn: {missing}.")
                 return None, logs
 
+            # LEKARZE: zachowaj ORYGINALNE wartości sprzed jakichkolwiek korekt.
+            # Rozliczenie lekarzy nie podciąga ani rodzaju procedury, ani liczby okolic
+            # (patrz engine/doctors.py) — te kolumny pozwalają odtworzyć stan oryginalny.
+            df['Rodzaj procedury rozlicz. (oryg.)'] = df[col_map['rodzaj_procedury_rozlicz']]
+            df['Procedura rozlicz. (oryg.)'] = df[col_map['procedura_rozlicz']]
+
             type_corrections, type_corrected_rows = self.correct_procedure_types(df, col_map)
 
             if type_corrections:
@@ -601,7 +607,7 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
     return pd.Series(vals, index=grouped.index), porown_keys
 
 
-def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None):
+def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False):
     ws = workbook[sheet_name]
     priority_colors = PRIORITY_COLORS
     procedure_type_colors = PROCEDURE_TYPE_COLORS
@@ -650,12 +656,17 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
                     ws.cell(row=r, column=c_idx).style = "accounting"
 
             if any(k in str(col_name) for k in SUMMABLE_KEYWORDS) and pd.api.types.is_numeric_dtype(billing_table.iloc[:, c_idx - 1]):
-                if 'Stawka' not in str(col_name) and 'Mnożnik' not in str(col_name):
+                # LEKARZE: nie sumujemy „… #" (ilość badań) — lekarz rozliczany jest
+                # od okolic/wartości, suma liczby badań tylko zaśmiecała raport.
+                skip_doctor_count = for_doctor and str(col_name).endswith(' #')
+                if 'Stawka' not in str(col_name) and 'Mnożnik' not in str(col_name) and not skip_doctor_count:
                     sum_cell = ws.cell(row=sum_row, column=c_idx)
                     # AGGREGATE(9, 6, …) = SUMA ignorująca błędy. Jeśli pojedyncza
                     # pozycja ma pustą liczbę okolic i jej formuła daje #ARG!/błąd,
                     # suma kolumny (a przez to całość szpitala) i tak się policzy.
-                    sum_cell.value = f"=AGGREGATE(9,6,{col_letter}{data_start_row}:{col_letter}{data_end_row})"
+                    # SUBTOTAL(9,…) = suma częściowa (Excel PL: SUMY.CZĘŚCIOWE). AGGREGATE
+                    # bywa nierozpoznawane w starszych / polskich wersjach Excela.
+                    sum_cell.value = f"=SUBTOTAL(9,{col_letter}{data_start_row}:{col_letter}{data_end_row})"
                     if is_currency:
                         sum_cell.style = "accounting"
 
@@ -691,21 +702,40 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
             cell.font = bold_font
             cell.fill = medium_blue_fill
 
-        qty_row = last_row + 3
-        ws.cell(row=qty_row, column=1).value = "RAZEM ILOŚĆ OKOLIC (CAŁOŚĆ):"
-        ws.cell(row=qty_row, column=1).font = bold_font
+        if for_doctor:
+            # LEKARZE: zamiast „RAZEM ILOŚĆ OKOLIC" — GOTOWOŚĆ (wpisywana ręcznie)
+            # oraz SUMA = RAZEM WARTOŚĆ + GOTOWOŚĆ.
+            got_row = last_row + 3
+            ws.cell(row=got_row, column=1).value = "GOTOWOŚĆ"
+            ws.cell(row=got_row, column=1).font = bold_font
+            got_cell = ws.cell(row=got_row, column=2)  # puste — do ręcznego uzupełnienia
+            got_cell.style = "accounting"
+            got_cell.fill = medium_blue_fill
 
-        qty_formula_parts = []
-        for c_idx, col_name in enumerate(data_sections[0]['data'].columns, 1):
-            if str(col_name).endswith("Ilość"):
-                col_letter = get_column_letter(c_idx)
-                qty_formula_parts.append(f"{col_letter}{total_row}")
+            suma_row = last_row + 4
+            ws.cell(row=suma_row, column=1).value = "SUMA"
+            ws.cell(row=suma_row, column=1).font = bold_font
+            suma_cell = ws.cell(row=suma_row, column=2)
+            suma_cell.value = f"=B{value_row}+B{got_row}"
+            suma_cell.style = "accounting"
+            suma_cell.font = bold_font
+            suma_cell.fill = medium_blue_fill
+        else:
+            qty_row = last_row + 3
+            ws.cell(row=qty_row, column=1).value = "RAZEM ILOŚĆ OKOLIC (CAŁOŚĆ):"
+            ws.cell(row=qty_row, column=1).font = bold_font
 
-        if qty_formula_parts:
-            cell = ws.cell(row=qty_row, column=2)
-            cell.value = f"={'+'.join(qty_formula_parts)}"
-            cell.font = bold_font
-            cell.fill = medium_blue_fill
+            qty_formula_parts = []
+            for c_idx, col_name in enumerate(data_sections[0]['data'].columns, 1):
+                if str(col_name).endswith("Ilość"):
+                    col_letter = get_column_letter(c_idx)
+                    qty_formula_parts.append(f"{col_letter}{total_row}")
+
+            if qty_formula_parts:
+                cell = ws.cell(row=qty_row, column=2)
+                cell.value = f"={'+'.join(qty_formula_parts)}"
+                cell.font = bold_font
+                cell.fill = medium_blue_fill
 
     for column in ws.columns:
         max_len = max((len(str(cell.value)) for cell in column if cell.value), default=0)
@@ -734,7 +764,7 @@ def bill_make_grouped(df_details, entity_col):
     return grouped, df_details
 
 
-def bill_finalize_to_excel(merged, df_details, output_path, logs=None):
+def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False):
     """
     Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
     „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
@@ -768,6 +798,10 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None):
     billing_table = billing_table[[c for c in ordered_cols if c in billing_table.columns]]
     num_cols = [c for c in billing_table.columns if any(k in c for k in ['Stawka', '#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze'])]
     billing_table[num_cols] = billing_table[num_cols].fillna(0)
+
+    if for_doctor:
+        # LEKARZE: nie pokazujemy kolumn „… w tym porównawcze".
+        billing_table = billing_table[[c for c in billing_table.columns if 'w tym porównawcze' not in str(c)]]
 
     df_details_modified = df_details.copy()
 
@@ -834,12 +868,14 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None):
         ws.cell(row=total_row, column=1).value = "SUMA CAŁKOWITA"
         SUMMABLE_KEYWORDS = ['#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze']
         for c_idx, c_name in enumerate(billing_table.columns, 1):
-            if any(k in str(c_name) for k in SUMMABLE_KEYWORDS) and 'Mnożnik' not in str(c_name):
+            # LEKARZE: pomijamy sumę całkowitą „… #" (ilość badań) — jak w sumach modalności.
+            skip_doctor_count = for_doctor and str(c_name).endswith(' #')
+            if any(k in str(c_name) for k in SUMMABLE_KEYWORDS) and 'Mnożnik' not in str(c_name) and not skip_doctor_count:
                 col_letter = get_column_letter(c_idx)
                 formula_parts = [f"{col_letter}{r}" for r in subtotal_rows]
                 if formula_parts:
                     ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
-        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True)
+        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True, for_doctor=for_doctor)
     return logs
 
 
