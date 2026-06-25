@@ -159,9 +159,24 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
 
     by_unit = _agg_margin(cat, "Klient", "jednostka")
 
+    # Wariant „kategorie badań JEDNOSTEK": to samo, ale grupowane po
+    # „Rodzaj procedury rozlicz." (klasyfikacja jednostkowa) zamiast kategorii
+    # lekarskiej. Liczone na tym samym zbiorze (badania z kategorią lekarską),
+    # więc marża jest spójna z resztą.
+    grp_u = cat.groupby(["Modalność", "Rodzaj procedury rozlicz."]).agg(
+        ilosc=("_mult", "sum"),
+        przychod_jednostki=("_units_rev", "sum"),
+        koszt_lekarzy=("_doc_cost", "sum"),
+    ).reset_index().rename(columns={"Rodzaj procedury rozlicz.": "kategoria"})
+    grp_u["marza"] = grp_u["przychod_jednostki"] - grp_u["koszt_lekarzy"]
+    grp_u = grp_u.sort_values("marza", ascending=False)
+    for c in ("ilosc", "przychod_jednostki", "koszt_lekarzy", "marza"):
+        grp_u[c] = grp_u[c].round(2)
+
     return {
         "empty": False,
         "rows": grp.to_dict("records"),
+        "rows_units": grp_u.to_dict("records"),
         "by_doctor": by_doctor,
         "by_unit": by_unit,
         "totals": {

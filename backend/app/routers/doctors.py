@@ -208,10 +208,12 @@ async def doctor_compare(job_id: str, recompute: bool = False, peek: bool = Fals
     """Porównanie (marża) dla zadania — z takim samym zapisem/odczytem jak rozliczenie."""
     paths = job_paths(job_id)
     cached = None if recompute else _load_cache(paths, "compare.json")
-    if cached is not None:
-        return cached
+    # Peek nigdy nie liczy — zwraca zapis (nawet stary, bez „rows_units") lub „brak".
     if peek:
-        return {"empty": True, "reason": "not_computed", "computed_at": None}
+        return cached if cached is not None else {"empty": True, "reason": "not_computed", "computed_at": None}
+    # Przelicz, gdy brak cache LUB stary cache bez „rows_units" (kategorie jednostek).
+    if cached is not None and (cached.get("empty") or "rows_units" in cached):
+        return cached
 
     _job, paths, slownik, cennik_lek = _resolve_job(job_id)
     from app.engine.compare import build_comparison

@@ -216,6 +216,10 @@ export interface DoctorComparison {
     "Modalność": string; kategoria: string; ilosc: number;
     przychod_jednostki: number; koszt_lekarzy: number; marza: number;
   }[];
+  rows_units?: {
+    "Modalność": string; kategoria: string; ilosc: number;
+    przychod_jednostki: number; koszt_lekarzy: number; marza: number;
+  }[];
   by_doctor?: {
     lekarz: string; ilosc: number;
     przychod_jednostki: number; koszt_lekarzy: number; marza: number;

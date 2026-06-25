@@ -10,6 +10,13 @@ import { api, Job, DoctorComparison } from "@/lib/api";
 const zl = (n: number) =>
   n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
 
+// Marża procentowa = marża / przychód danej pozycji (× 100). Baza to przychód
+// jednostek — pokazuje, jaki % przychodu zostaje jako zysk. „—" gdy brak przychodu.
+const pct = (marza: number, base: number) =>
+  base > 0
+    ? (marza / base * 100).toLocaleString("pl-PL", { maximumFractionDigits: 1 }) + "%"
+    : "—";
+
 const TOOLTIP_STYLE = { background: "#0e3b49", border: "1px solid #214652", borderRadius: 12 };
 const POS = "#1dab5a";
 const NEG = "#ef6a6a";
@@ -58,7 +65,8 @@ function MarginView({ rows, nameLabel }: { rows: MarginRow[]; nameLabel: string 
         </div>
         <span className="text-[13px] text-slate-400">
           {filtered.length} {nameLabel} · marża{" "}
-          <b className={sum.marza >= 0 ? "text-brand-accent2" : "text-red-300"}>{zl(sum.marza)}</b>
+          <b className={sum.marza >= 0 ? "text-brand-accent2" : "text-red-300"}>{zl(sum.marza)}</b>{" "}
+          <span className="text-slate-500">({pct(sum.marza, sum.przychod)})</span>
         </span>
       </div>
 
@@ -93,11 +101,12 @@ function MarginView({ rows, nameLabel }: { rows: MarginRow[]; nameLabel: string 
                 <th className="px-3 py-2 text-right text-xs uppercase">Jednostki</th>
                 <th className="px-3 py-2 text-right text-xs uppercase">Lekarze</th>
                 <th className="px-3 py-2 text-right text-xs uppercase">Marża</th>
+                <th className="px-3 py-2 text-right text-xs uppercase">Marża %</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={5} className="px-3 py-4 text-slate-500">Brak pozycji dla filtra.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-4 text-slate-500">Brak pozycji dla filtra.</td></tr>
               )}
               {filtered.map((r, i) => (
                 <tr key={i} className="border-t border-white/10">
@@ -106,6 +115,7 @@ function MarginView({ rows, nameLabel }: { rows: MarginRow[]; nameLabel: string 
                   <td className="px-3 py-2 text-right">{zl(r.przychod_jednostki)}</td>
                   <td className="px-3 py-2 text-right">{zl(r.koszt_lekarzy)}</td>
                   <td className={`px-3 py-2 text-right font-semibold ${r.marza >= 0 ? "text-brand-accent2" : "text-red-300"}`}>{zl(r.marza)}</td>
+                  <td className={`px-3 py-2 text-right ${r.marza >= 0 ? "text-brand-accent2" : "text-red-300"}`}>{pct(r.marza, r.przychod_jednostki)}</td>
                 </tr>
               ))}
             </tbody>
@@ -134,6 +144,7 @@ export default function PorownaniePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("kategoria");
+  const [catSource, setCatSource] = useState<"doctor" | "unit">("doctor");
 
   useEffect(() => {
     api.listJobs().then((all) => {
@@ -234,7 +245,7 @@ export default function PorownaniePage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="card"><p className="text-sm text-slate-400">Przychód jednostek (z kategorią)</p><p className="mt-2 text-2xl font-extrabold">{zl(t.przychod_jednostki)}</p></div>
               <div className="card"><p className="text-sm text-slate-400">Koszt lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(t.koszt_lekarzy)}</p></div>
-              <div className="card border-brand-accent/40"><p className="text-sm text-slate-400">Marża</p><p className="mt-2 text-2xl font-extrabold text-brand-accent2">{zl(t.marza)}</p></div>
+              <div className="card border-brand-accent/40"><p className="text-sm text-slate-400">Marża</p><p className="mt-2 text-2xl font-extrabold text-brand-accent2">{zl(t.marza)} <span className="text-base font-bold text-slate-400">({pct(t.marza, t.przychod_jednostki)})</span></p></div>
             </div>
           </div>
           {t.studies_without_category > 0 && (
@@ -254,37 +265,67 @@ export default function PorownaniePage() {
             ))}
           </div>
 
-          {tab === "kategoria" && (
+          {tab === "kategoria" && (() => {
+            const catRows = catSource === "unit" ? result.rows_units : result.rows;
+            return (
             <div className="card">
-              <h2 className="mb-3 text-base font-bold">Marża per kategoria</h2>
-              <div className="max-h-[28rem] overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-brand-surface text-slate-400">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs uppercase">Modalność</th>
-                      <th className="px-3 py-2 text-left text-xs uppercase">Kategoria</th>
-                      <th className="px-3 py-2 text-right text-xs uppercase">Ilość</th>
-                      <th className="px-3 py-2 text-right text-xs uppercase">Jednostki</th>
-                      <th className="px-3 py-2 text-right text-xs uppercase">Lekarze</th>
-                      <th className="px-3 py-2 text-right text-xs uppercase">Marża</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.rows!.map((r, i) => (
-                      <tr key={i} className="border-t border-white/10">
-                        <td className="px-3 py-2 text-slate-400">{r["Modalność"]}</td>
-                        <td className="px-3 py-2">{r.kategoria}</td>
-                        <td className="px-3 py-2 text-right text-slate-400">{r.ilosc}</td>
-                        <td className="px-3 py-2 text-right">{zl(r.przychod_jednostki)}</td>
-                        <td className="px-3 py-2 text-right">{zl(r.koszt_lekarzy)}</td>
-                        <td className={`px-3 py-2 text-right font-semibold ${r.marza >= 0 ? "text-brand-accent2" : "text-red-300"}`}>{zl(r.marza)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-base font-bold">Marża per kategoria</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCatSource("doctor")}
+                    className={`px-3 py-1.5 text-xs ${catSource === "doctor" ? "btn-primary" : "btn-secondary"}`}
+                  >
+                    Kategorie lekarzy
+                  </button>
+                  <button
+                    onClick={() => setCatSource("unit")}
+                    className={`px-3 py-1.5 text-xs ${catSource === "unit" ? "btn-primary" : "btn-secondary"}`}
+                  >
+                    Kategorie jednostek
+                  </button>
+                </div>
               </div>
+              {catSource === "unit" && !result.rows_units ? (
+                <p className="text-[13px] text-amber-300">
+                  <AlertTriangle className="mb-0.5 inline" size={14} /> Kategorie jednostek dostępne po
+                  ponownym przeliczeniu — kliknij „Przelicz ponownie".
+                </p>
+              ) : (
+                <div className="max-h-[28rem] overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-brand-surface text-slate-400">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs uppercase">Modalność</th>
+                        <th className="px-3 py-2 text-left text-xs uppercase">
+                          {catSource === "unit" ? "Kategoria (jednostki)" : "Kategoria (lekarze)"}
+                        </th>
+                        <th className="px-3 py-2 text-right text-xs uppercase">Ilość</th>
+                        <th className="px-3 py-2 text-right text-xs uppercase">Jednostki</th>
+                        <th className="px-3 py-2 text-right text-xs uppercase">Lekarze</th>
+                        <th className="px-3 py-2 text-right text-xs uppercase">Marża</th>
+                        <th className="px-3 py-2 text-right text-xs uppercase">Marża %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(catRows ?? []).map((r, i) => (
+                        <tr key={i} className="border-t border-white/10">
+                          <td className="px-3 py-2 text-slate-400">{r["Modalność"]}</td>
+                          <td className="px-3 py-2">{r.kategoria}</td>
+                          <td className="px-3 py-2 text-right text-slate-400">{r.ilosc}</td>
+                          <td className="px-3 py-2 text-right">{zl(r.przychod_jednostki)}</td>
+                          <td className="px-3 py-2 text-right">{zl(r.koszt_lekarzy)}</td>
+                          <td className={`px-3 py-2 text-right font-semibold ${r.marza >= 0 ? "text-brand-accent2" : "text-red-300"}`}>{zl(r.marza)}</td>
+                          <td className={`px-3 py-2 text-right ${r.marza >= 0 ? "text-brand-accent2" : "text-red-300"}`}>{pct(r.marza, r.przychod_jednostki)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {tab === "lekarz" && <MarginView rows={docRows} nameLabel="lekarzy" />}
           {tab === "jednostka" && <MarginView rows={unitRows} nameLabel="jednostek" />}
