@@ -124,7 +124,7 @@ export default function RozliczenieLekarzyPage() {
               </a>
             )}
             <a className="btn-secondary" href={api.doctorsBillingDownloadUrl(jobId)}>
-              <Download size={18} /> Zbiorczy (Excel)
+              <Download size={18} /> Podsumowanie badań (Excel)
             </a>
             <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
               <RefreshCw size={18} /> Przelicz ponownie

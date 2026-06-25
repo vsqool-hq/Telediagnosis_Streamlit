@@ -210,10 +210,23 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
         .sort_values("wartosc", ascending=False)
     )
 
+    # Podsumowanie ilościowe: liczba WYKONANYCH badań per lekarz i kategoria
+    # (kategoria w formacie cennika lekarzy). Liczymy ze WSZYSTKICH badań mających
+    # kategorię — niezależnie od tego, czy cennik ma dla niej stawkę (to licznik
+    # badań, nie wartość). Badania bez kategorii są raportowane osobno
+    # (studies_without_category) i tu się nie pojawiają.
+    cat_counts = (
+        priced.groupby(["_lek_disp", "_kategoria"]).size()
+        .reset_index(name="ilosc")
+        .rename(columns={"_lek_disp": "lekarz", "_kategoria": "kategoria"})
+        .sort_values(["lekarz", "kategoria"])
+    )
+
     return {
         "empty": False,
         "rows": by_cat.to_dict("records"),
         "by_doctor": by_doctor.to_dict("records"),
+        "category_counts": cat_counts.to_dict("records"),
         "validation": {
             "total_studies": int(len(df)),
             "priced_studies": int(len(ok)),

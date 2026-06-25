@@ -241,18 +241,31 @@ async def doctor_billing_download(job_id: str):
     paths = job_paths(job_id)
     excluded = _excluded_keys()
     res = _load_cache(paths, "billing.json")
-    if res is None or res.get("_excluded_keys", []) != excluded:
+    need_full = res is None or res.get("_excluded_keys", []) != excluded
+    if need_full or "category_counts" not in res:
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
         from app.engine.doctors import build_doctor_billing
-        res = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek, excluded_keys=excluded)
-        if res.get("empty"):
-            raise HTTPException(400, res.get("reason", "Brak danych do rozliczenia lekarzy."))
-        res["computed_at"] = _now()
-        res["_excluded_keys"] = excluded
+        fresh = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek, excluded_keys=excluded)
+        if fresh.get("empty"):
+            raise HTTPException(400, fresh.get("reason", "Brak danych do rozliczenia lekarzy."))
+        if need_full:
+            res = fresh
+            res["computed_at"] = _now()
+            res["_excluded_keys"] = excluded
+        else:
+            # stary cache bez podsumowania — dołóż je, zachowując files_count itp.
+            res["category_counts"] = fresh.get("category_counts", [])
         _save_cache(paths, "billing.json", res)
+
+    # Arkusz „Podsumowanie": A=Lekarz, B=Kategoria (z cennika lekarzy),
+    # C=Ilość wykonanych badań w tej kategorii.
+    summary = [
+        {"Lekarz": r.get("lekarz"), "Kategoria": r.get("kategoria"), "Ilość badań": r.get("ilosc")}
+        for r in res.get("category_counts", [])
+    ]
     return _xlsx_response(
-        {"Per lekarz": res.get("by_doctor", []), "Lekarz i kategoria": res.get("rows", [])},
-        "Rozliczenie_lekarzy.xlsx",
+        {"Podsumowanie": summary},
+        "Podsumowanie_badan_lekarze.xlsx",
     )
 
 
