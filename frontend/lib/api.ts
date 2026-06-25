@@ -286,7 +286,8 @@ export const api = {
     return req<Job>("/api/jobs", { method: "POST", body: fd });
   },
 
-  rerunJob: (id: string) => req<Job>(`/api/jobs/${id}/rerun`, { method: "POST" }),
+  rerunJob: (id: string, mode?: "full" | "unmatched") =>
+    req<Job>(`/api/jobs/${id}/rerun${mode ? `?mode=${mode}` : ""}`, { method: "POST" }),
   cancelJob: (id: string) => req<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),
   logsUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/logs`),
   resultUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/result`),

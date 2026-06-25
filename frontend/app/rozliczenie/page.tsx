@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, RefreshCw, Square, Clock } from "lucide-react";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock } from "lucide-react";
 import { api, Job, isLocalBackend } from "@/lib/api";
 
 type Phase = "idle" | "running" | "done" | "error";
@@ -130,19 +130,28 @@ export default function RozliczeniePage() {
     }
   }
 
-  /** Ponowne przeliczenie na tym samym, wcześniej wgranym pliku (bez wgrywania). */
-  async function rerun(jobId: string) {
+  /** Ponowne przeliczenie na tym samym, wcześniej wgranym pliku (bez wgrywania).
+   * Tryb jest wybierany jawnie, więc z ostatniego pliku można uruchomić zarówno
+   * pełny proces, jak i same braki wzorca — niezależnie od trybu pierwotnego. */
+  async function rerun(jobId: string, mode: "full" | "unmatched") {
     setPhase("running");
     setLogs([]);
     setError(null);
     setJob(null);
     try {
-      const created = await api.rerunJob(jobId);
+      const created = await api.rerunJob(jobId, mode);
       attach(created.id);
     } catch (e: any) {
       setError(e.message);
       setPhase("error");
     }
+  }
+
+  /** Uruchamia dany tryb na ŚWIEŻO wybranym pliku, a gdy go nie ma — na ostatnim
+   * wgranym (rerun). Dzięki temu oba tryby są dostępne zawsze. */
+  function start(mode: "full" | "unmatched") {
+    if (file) return run(mode);
+    if (job) return rerun(job.id, mode);
   }
 
   /** Zatrzymuje trwające rozliczenie (przycisk STOP). */
@@ -157,7 +166,6 @@ export default function RozliczeniePage() {
   }
 
   const busy = phase === "running";
-  const refJob = job;  // ostatnie/aktywne zadanie — do ponownego przeliczenia
 
   return (
     <div className="space-y-6">
@@ -194,23 +202,17 @@ export default function RozliczeniePage() {
         </label>
 
         <div className="mt-5 flex flex-wrap gap-3">
-          <button className="btn-primary" disabled={!file || busy} onClick={() => run("full")}>
+          <button className="btn-primary" disabled={(!file && !job) || busy} onClick={() => start("full")}>
             {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
-            Uruchom pełny proces
+            {file ? "Uruchom pełny proces" : "Pełny proces (ostatni plik)"}
           </button>
-          <button className="btn-secondary" disabled={!file || busy} onClick={() => run("unmatched")}>
+          <button className="btn-secondary" disabled={(!file && !job) || busy} onClick={() => start("unmatched")}>
             <Search size={18} />
-            Tylko braki wzorca
+            {file ? "Tylko braki wzorca" : "Braki wzorca (ostatni plik)"}
           </button>
           {busy && job && (
             <button className="btn-secondary !border-red-500/50 !text-red-300 hover:!border-red-400" onClick={stop}>
               <Square size={16} /> Zatrzymaj
-            </button>
-          )}
-          {refJob && !file && (
-            <button className="btn-secondary" disabled={busy} onClick={() => rerun(refJob.id)}>
-              {busy ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
-              Przelicz ponownie ostatni plik
             </button>
           )}
 

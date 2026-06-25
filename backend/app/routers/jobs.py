@@ -145,19 +145,26 @@ async def cancel_job(job_id: str):
 
 
 @router.post("/{job_id}/rerun")
-async def rerun_job(job_id: str):
+async def rerun_job(job_id: str, mode: str | None = None):
     """Przelicza ponownie na TYM SAMYM, wcześniej wgranym pliku (zapisanym przy
     zadaniu) — bez wgrywania od nowa. Tworzy nowe zadanie z aktualnym silnikiem
-    oraz aktualnymi (aktywnymi) plikami wzorcowymi i cennikiem."""
+    oraz aktualnymi (aktywnymi) plikami wzorcowymi i cennikiem.
+
+    `mode` (opcjonalny) pozwala przeliczyć w INNYM trybie niż pierwotny — dzięki
+    temu z tego samego pliku można zrobić zarówno pełny proces, jak i same braki
+    wzorca, niezależnie od tego, co wybrano wcześniej. Domyślnie tryb pierwotny."""
     job = db.get_job(job_id)
     if not job:
         raise HTTPException(404, "Nie znaleziono zadania.")
+    run_mode = mode or job["mode"]
+    if run_mode not in ALLOWED_MODES:
+        raise HTTPException(400, f"Nieprawidłowy tryb: {run_mode}")
     path = os.path.join(job_paths(job_id)["jednostki"], job["input_name"])
     if not os.path.isfile(path):
         raise HTTPException(400, "Brak zapisanego pliku źródłowego tego zadania — wgraj plik ponownie.")
     with open(path, "rb") as f:
         content = f.read()
-    return runner.create_and_start_job(job["mode"], job["input_name"], content)
+    return runner.create_and_start_job(run_mode, job["input_name"], content)
 
 
 @router.get("/{job_id}/logs")
