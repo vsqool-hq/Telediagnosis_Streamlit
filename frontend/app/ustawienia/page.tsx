@@ -64,7 +64,9 @@ function MapEditor({
 }
 
 /* ---------- Edytor tagów (słowa kluczowe) ---------- */
-function ChipEditor({ items, setItems }: { items: string[]; setItems: (x: string[]) => void }) {
+function ChipEditor({
+  items, setItems, placeholder = "dodaj słowo…", emptyText = "Brak słów.",
+}: { items: string[]; setItems: (x: string[]) => void; placeholder?: string; emptyText?: string }) {
   const [val, setVal] = useState("");
   function add() {
     const v = val.trim();
@@ -75,7 +77,7 @@ function ChipEditor({ items, setItems }: { items: string[]; setItems: (x: string
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {items.length === 0 && <p className="text-sm text-slate-500">Brak słów.</p>}
+        {items.length === 0 && <p className="text-sm text-slate-500">{emptyText}</p>}
         {items.map((w, i) => (
           <span key={i} className="chip">
             {w}
@@ -87,10 +89,52 @@ function ChipEditor({ items, setItems }: { items: string[]; setItems: (x: string
         ))}
       </div>
       <div className="flex gap-2">
-        <input className="input" placeholder="dodaj słowo…" value={val}
+        <input className="input" placeholder={placeholder} value={val}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()} />
         <button className="btn-secondary" onClick={add}><Plus size={16} /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Edytor grup jednostek (łączenie na Pulpicie/Porównaniu) ---------- */
+type UnitGroup = { name: string; units: string[] };
+
+function GroupsEditor({ groups, setGroups }: { groups: UnitGroup[]; setGroups: (g: UnitGroup[]) => void }) {
+  const [newName, setNewName] = useState("");
+  function addGroup() {
+    const n = newName.trim();
+    if (!n || groups.some((g) => g.name.toLowerCase() === n.toLowerCase())) { setNewName(""); return; }
+    setGroups([...groups, { name: n, units: [] }]);
+    setNewName("");
+  }
+  const update = (i: number, g: UnitGroup) => setGroups(groups.map((x, j) => (j === i ? g : x)));
+  const remove = (i: number) => setGroups(groups.filter((_, j) => j !== i));
+  return (
+    <div className="space-y-4">
+      {groups.length === 0 && <p className="text-sm text-slate-500">Brak grup. Dodaj pierwszą poniżej.</p>}
+      {groups.map((g, i) => (
+        <div key={i} className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="flex items-center gap-2">
+            <input className="input flex-1 font-semibold" value={g.name} placeholder="Nazwa grupy"
+              onChange={(e) => update(i, { ...g, name: e.target.value })} />
+            <button className="btn-secondary hover:border-red-500 hover:text-red-300"
+              onClick={() => remove(i)} aria-label="Usuń grupę"><Trash2 size={16} /></button>
+          </div>
+          <ChipEditor
+            items={g.units}
+            setItems={(u) => update(i, { ...g, units: u })}
+            placeholder="dodaj jednostkę (np. wsswroclaw)…"
+            emptyText="Brak jednostek w tej grupie."
+          />
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <input className="input" placeholder="nazwa nowej grupy…" value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addGroup()} />
+        <button className="btn-secondary" onClick={addGroup}><Plus size={16} /> Dodaj grupę</button>
       </div>
     </div>
   );
@@ -250,6 +294,7 @@ export default function UstawieniaPage() {
   const [glkrg, setGlkrg] = useState<string[]>([]);
   const [stawy, setStawy] = useState<string[]>([]);
   const [adjustments, setAdjustments] = useState<AdjMap>({});
+  const [groups, setGroups] = useState<UnitGroup[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -261,6 +306,7 @@ export default function UstawieniaPage() {
     setGlkrg(s.mr_glkrg_keywords ?? []);
     setStawy(s.mr_stawy_keywords ?? []);
     setAdjustments(s.unit_adjustments ?? {});
+    setGroups(s.unit_groups ?? []);
   }
 
   function load() {
@@ -279,6 +325,7 @@ export default function UstawieniaPage() {
       mr_glkrg_keywords: glkrg,
       mr_stawy_keywords: stawy,
       unit_adjustments: adjustments,
+      unit_groups: groups,
     };
     try {
       await api.saveSettings(payload);
@@ -350,6 +397,22 @@ export default function UstawieniaPage() {
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}
 
       <BackendSwitcher />
+
+      {/* Grupy jednostek */}
+      <div className="card">
+        <h2 className="flex items-center gap-2 text-base font-bold">
+          <Sliders size={18} className="text-brand-accent" /> Grupy jednostek
+        </h2>
+        <p className="mt-1 text-[13px] leading-relaxed text-slate-400">
+          Połącz wybrane jednostki w jedną pozycję na <b className="text-slate-200">Pulpicie</b> (top jednostki)
+          i w <b className="text-slate-200">Porównaniu</b> (marża per jednostka). Wpisz nazwę grupy i dodaj
+          jednostki po identyfikatorze „Klient" (jak w cenniku, np. <code>wsswroclaw</code>). To tylko widok —
+          <b className="text-slate-200"> nie wpływa na rozliczenia ani ceny</b>. Zmiana działa od razu po zapisie.
+        </p>
+        <div className="mt-4">
+          <GroupsEditor groups={groups} setGroups={setGroups} />
+        </div>
+      </div>
 
       {/* Wydajność */}
       <div className="card">

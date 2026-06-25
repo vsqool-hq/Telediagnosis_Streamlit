@@ -30,6 +30,30 @@ def _load_units_prices(units_cennik_dir: str):
     return out
 
 
+def regroup_by_unit(rows, group_map):
+    """Łączy jednostki w `by_unit` wg mapy grup (sumuje ilość/przychód/koszt/marżę).
+    Czysto wizualne — wołane przy odczycie, nie modyfikuje zapisanego porównania."""
+    if not group_map or not rows:
+        return rows
+    agg = {}
+    for r in rows:
+        label = group_map.get(str(r.get("jednostka", "")).strip().lower(), r.get("jednostka"))
+        a = agg.setdefault(label, {
+            "jednostka": label, "ilosc": 0,
+            "przychod_jednostki": 0.0, "koszt_lekarzy": 0.0, "marza": 0.0,
+        })
+        a["ilosc"] += r.get("ilosc", 0) or 0
+        a["przychod_jednostki"] += r.get("przychod_jednostki", 0.0) or 0.0
+        a["koszt_lekarzy"] += r.get("koszt_lekarzy", 0.0) or 0.0
+        a["marza"] += r.get("marza", 0.0) or 0.0
+    out = list(agg.values())
+    for a in out:
+        for k in ("przychod_jednostki", "koszt_lekarzy", "marza"):
+            a[k] = round(a[k], 2)
+    out.sort(key=lambda x: x["marza"], reverse=True)
+    return out
+
+
 def build_comparison(sprawdzone_dir: str, slownik_path: str,
                      units_cennik_dir: str, doctor_cennik_csv: str) -> dict:
     import pandas as pd

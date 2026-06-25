@@ -110,7 +110,33 @@ DEFAULT_CONFIG = {
     # Struktura: { "jednostka": { "BADANIE": { "base": "BADANIE_BAZOWE", "factor": 1.25 } } }
     # Dane startowe wczytywane z seed_data/unit_adjustments.json przy pierwszym uruchomieniu.
     "unit_adjustments": {},
+
+    # Grupy jednostek — łączą wybrane jednostki w jeden wiersz na PODGLĄDACH
+    # (Pulpit, Porównanie). Czysto wizualne: nie wpływa na rozliczenia ani ceny.
+    # Struktura: [{ "name": "Szpitale Wrocław", "units": ["wsswroclaw", "wss5wroclaw"] }]
+    "unit_groups": [],
 }
+
+
+def build_unit_group_map(groups) -> dict:
+    """[{name, units:[...]}] → {jednostka_znormalizowana: nazwa_grupy}."""
+    mapping = {}
+    for g in (groups or []):
+        if not isinstance(g, dict):
+            continue
+        name = str(g.get("name", "")).strip()
+        if not name:
+            continue
+        for u in (g.get("units") or []):
+            key = str(u).strip().lower()
+            if key:
+                mapping[key] = name
+    return mapping
+
+
+def group_label(klient, group_map) -> str:
+    """Zwraca nazwę grupy dla jednostki (jeśli należy) albo samą jednostkę."""
+    return group_map.get(str(klient).strip().lower(), str(klient)) if group_map else str(klient)
 
 
 def deep_merge(base: dict, override: dict) -> dict:

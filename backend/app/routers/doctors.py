@@ -210,18 +210,27 @@ async def doctor_compare(job_id: str, recompute: bool = False, peek: bool = Fals
     cached = None if recompute else _load_cache(paths, "compare.json")
     # Peek nigdy nie liczy — zwraca zapis (nawet stary, bez „rows_units") lub „brak".
     if peek:
-        return cached if cached is not None else {"empty": True, "reason": "not_computed", "computed_at": None}
+        out = cached if cached is not None else {"empty": True, "reason": "not_computed", "computed_at": None}
     # Przelicz, gdy brak cache LUB stary cache bez „rows_units" (kategorie jednostek).
-    if cached is not None and (cached.get("empty") or "rows_units" in cached):
-        return cached
+    elif cached is not None and (cached.get("empty") or "rows_units" in cached):
+        out = cached
+    else:
+        _job, paths, slownik, cennik_lek = _resolve_job(job_id)
+        from app.engine.compare import build_comparison
+        out = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
+        if not out.get("empty"):
+            out["computed_at"] = _now()
+            _save_cache(paths, "compare.json", out)  # zapis ZAWSZE bez grupowania
 
-    _job, paths, slownik, cennik_lek = _resolve_job(job_id)
-    from app.engine.compare import build_comparison
-    result = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
-    if not result.get("empty"):
-        result["computed_at"] = _now()
-        _save_cache(paths, "compare.json", result)
-    return result
+    # Grupy jednostek (widok) — nakładane przy odczycie na świeżej kopii, bez zapisu,
+    # żeby zmiana grupowania w Ustawieniach działała od razu (bez przeliczania).
+    if isinstance(out, dict) and not out.get("empty") and out.get("by_unit"):
+        from app.engine.config import load_config, build_unit_group_map
+        from app.engine.compare import regroup_by_unit
+        gmap = build_unit_group_map(load_config().get("unit_groups", []))
+        if gmap:
+            out = {**out, "by_unit": regroup_by_unit(out["by_unit"], gmap)}
+    return out
 
 
 def _xlsx_response(sheets: dict, filename: str) -> StreamingResponse:

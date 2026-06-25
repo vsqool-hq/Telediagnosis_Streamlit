@@ -33,6 +33,20 @@ async def update_settings(payload: dict):
                 cfg[key] = max(1, int(cfg[key]))
             except (ValueError, TypeError):
                 raise HTTPException(400, f"Pole {key} musi być liczbą całkowitą.")
+    # Grupy jednostek: lista {name, units:[...]} — odrzucamy puste nazwy/jednostki.
+    if "unit_groups" in cfg:
+        groups = cfg["unit_groups"]
+        if not isinstance(groups, list):
+            raise HTTPException(400, "Pole unit_groups musi być listą grup.")
+        clean = []
+        for g in groups:
+            if not isinstance(g, dict):
+                continue
+            name = str(g.get("name", "")).strip()
+            units = [str(u).strip() for u in (g.get("units") or []) if str(u).strip()]
+            if name and units:
+                clean.append({"name": name, "units": units})
+        cfg["unit_groups"] = clean
     db.save_settings(cfg)
     return {"ok": True, "settings": cfg}
 

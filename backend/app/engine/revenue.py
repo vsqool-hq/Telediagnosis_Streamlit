@@ -106,8 +106,14 @@ def summarize(wynik_dir: str, cennik_dir: str) -> dict:
     df = df.copy()
     df["Modalność"] = df["Modalność"].map(_modality_norm)
     by_mod = df.groupby("Modalność").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum")).reset_index()
+
+    # Grupy jednostek (czysto wizualne) — łączą wybrane jednostki w jeden wiersz
+    # w „top jednostkach". clients_count zostaje surowy (liczba fizycznych jednostek).
+    from app.engine.config import load_config, build_unit_group_map, group_label
+    gmap = build_unit_group_map(load_config().get("unit_groups", []))
+    df["_klient_grp"] = df["Klient"].map(lambda c: group_label(c, gmap))
     by_client = (
-        df.groupby("Klient").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum"))
+        df.groupby("_klient_grp").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum"))
         .sort_values("revenue", ascending=False).head(15).reset_index()
     )
 
@@ -149,7 +155,7 @@ def summarize(wynik_dir: str, cennik_dir: str) -> dict:
             for _, r in by_mod.iterrows()
         ],
         "top_clients": [
-            {"client": r["Klient"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
+            {"client": r["_klient_grp"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
             for _, r in by_client.iterrows()
         ],
     }
@@ -161,14 +167,21 @@ def cached_summary(base_dir: str, wynik_dir: str, cennik_dir: str) -> dict:
     RAZ — wyniki zadania są niezmienne, więc cache nigdy się nie dezaktualizuje.
     Dzięki temu Historia/Pulpit nie przeliczają wszystkich plików przy każdym wejściu.
     """
+    from app.engine.config import load_config
+    # Sygnatura grup jednostek — gdy zmienisz grupowanie w Ustawieniach, podsumowanie
+    # (top jednostki) przelicza się; reszta wyniku zadania jest niezmienna.
+    sig = json.dumps(load_config().get("unit_groups", []), ensure_ascii=False, sort_keys=True)
     cache = os.path.join(base_dir, "stats.json")
     if os.path.isfile(cache):
         try:
             with open(cache, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            if data.get("_groups_sig") == sig:
+                return data
         except (OSError, ValueError):
             pass
     summary = summarize(wynik_dir, cennik_dir)
+    summary["_groups_sig"] = sig
     try:
         with open(cache, "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False)
