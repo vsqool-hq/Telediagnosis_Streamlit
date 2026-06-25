@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock, FileText, History } from "lucide-react";
 import { api, Job, isLocalBackend } from "@/lib/api";
+import { invalidateCache } from "@/lib/cache";
 
 type Phase = "idle" | "running" | "done" | "error";
 
@@ -117,6 +118,7 @@ export default function RozliczeniePage() {
       if (refreshed) setJob(refreshed);
       setPhase(status === "done" ? "done" : "error");
       loadJobs();  // nowo wgrany/policzony plik pojawia się w historii
+      invalidateCache();  // świeże wyniki zastępują zapamiętane (Pulpit, Historia, ...)
 
       // Liczenie „na tym komputerze" → automatycznie wyślij wynik do chmury,
       // żeby zadanie i wgrany plik były później widoczne online.

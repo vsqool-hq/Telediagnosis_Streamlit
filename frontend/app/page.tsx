@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid,
 } from "recharts";
 import { Building2, Layers, TrendingUp, Coins, AlertTriangle } from "lucide-react";
 import { api, Overview, JobStats, TrendPoint } from "@/lib/api";
+import { useCachedData } from "@/lib/cache";
 
 const MOD_COLORS: Record<string, string> = {
   RTG: "#1dab5a",
@@ -37,22 +37,15 @@ function StatCard({
 }
 
 export default function Dashboard() {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [stats, setStats] = useState<JobStats | null>(null);
-  const [trends, setTrends] = useState<TrendPoint[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.overview()
-      .then((ov) => {
-        setOverview(ov);
-        if (ov.last_job && ov.last_job.status === "done" && ov.last_job.mode === "full") {
-          api.jobStats(ov.last_job.id).then(setStats).catch(() => {});
-        }
-      })
-      .catch((e) => setError(e.message));
-    api.trends().then((t) => setTrends(t.points)).catch(() => {});
-  }, []);
+  // Cache po stronie przeglądarki: powrót na Pulpit pokazuje liczby od razu,
+  // odświeżenie leci w tle.
+  const { data: overview, error } = useCachedData<Overview>("overview", () => api.overview());
+  const lastJob = overview?.last_job;
+  const statsKey =
+    lastJob && lastJob.status === "done" && lastJob.mode === "full" ? `jobStats:${lastJob.id}` : null;
+  const { data: stats } = useCachedData<JobStats>(statsKey, () => api.jobStats(lastJob!.id));
+  const { data: trendsData } = useCachedData<{ points: TrendPoint[] }>("trends", () => api.trends());
+  const trends: TrendPoint[] = trendsData?.points ?? [];
 
   const avgPerClient =
     stats && !stats.empty && stats.clients_count

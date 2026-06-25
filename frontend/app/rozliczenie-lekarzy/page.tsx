@@ -1,35 +1,38 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw } from "lucide-react";
 import { api, Job, DoctorBilling, DoctorCoverage } from "@/lib/api";
+import { useCachedData } from "@/lib/cache";
 
 const zl = (n: number) =>
   n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
 
 export default function RozliczenieLekarzyPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
   const [jobId, setJobId] = useState<string>("");
-  const [coverage, setCoverage] = useState<DoctorCoverage | null>(null);
   const [result, setResult] = useState<DoctorBilling | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Aktywne odpytywanie (gdy liczenie biegnie w tle) — id interwału do sprzątania.
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Cache: coverage i lista zadań pojawiają się od razu po powrocie na zakładkę.
+  const { data: coverage } = useCachedData<DoctorCoverage>("doctorsCoverage", () => api.doctorsCoverage());
+  const { data: allJobs } = useCachedData<Job[]>("jobs", () => api.listJobs());
+  const jobs = useMemo(
+    () => (allJobs ?? []).filter((j) => j.status === "done" && j.mode === "full"),
+    [allJobs],
+  );
+
   function stopPolling() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   }
   useEffect(() => stopPolling, []);
 
+  // Domyślnie wybierz najnowsze zadanie, gdy lista się pojawi.
   useEffect(() => {
-    api.doctorsCoverage().then(setCoverage).catch(() => {});
-    api.listJobs().then((all) => {
-      const done = all.filter((j) => j.status === "done" && j.mode === "full");
-      setJobs(done);
-      if (done.length) setJobId(done[0].id);
-    }).catch((e) => setError(e.message));
-  }, []);
+    if (!jobId && jobs.length) setJobId(jobs[0].id);
+  }, [jobs, jobId]);
 
   // Po wyborze zadania: zatrzymaj ewentualne odpytywanie i wczytaj ZAPISANY wynik
   // (bez liczenia) — dzięki temu po powrocie na zakładkę rozliczenie jest od razu.

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, FileText, Calendar, Receipt, BookText, RefreshCw, Loader2 } from "lucide-react";
 import { api, Job, Version } from "@/lib/api";
+import { useCachedData } from "@/lib/cache";
 
 const MONTHS_PL = [
   "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
@@ -12,12 +13,34 @@ const monthLabel = (iso: string) => { const d = new Date(iso); return `${MONTHS_
 const monthKey = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
 export default function HistoriaPage() {
-  const [entries, setEntries] = useState<Job[]>([]);
-  const [cennikNames, setCennikNames] = useState<Record<string, string>>({});
-  const [wzorcoweNames, setWzorcoweNames] = useState<Record<string, string>>({});
-  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState<string | null>(null);
+
+  // Cache: powrót na Historię pokazuje listę od razu, odświeżenie leci w tle.
+  const { data: jobsData, loading: jobsLoading } = useCachedData<Job[]>("jobs", () => api.listJobs());
+  const { data: cennikVs } = useCachedData<Version[]>("versions:cennik", () => api.listVersions("cennik"));
+  const { data: wzorVs } = useCachedData<Version[]>("versions:wzorcowe", () => api.listVersions("wzorcowe"));
+  const loaded = !jobsLoading;
+
+  const entries = useMemo<Job[]>(() => {
+    const done = (jobsData ?? []).filter((j) => j.status === "done" && j.mode === "full");
+    // Lista z bazy jest malejąco wg daty → pierwszy w miesiącu = najnowszy (finalny).
+    const map = new Map<string, Job>();
+    for (const j of done) {
+      const k = monthKey(j.finished_at || j.created_at);
+      if (!map.has(k)) map.set(k, j);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      monthKey(b.finished_at || b.created_at).localeCompare(monthKey(a.finished_at || a.created_at)));
+  }, [jobsData]);
+  const cennikNames = useMemo(
+    () => Object.fromEntries((cennikVs ?? []).map((v) => [v.id, v.original_name])),
+    [cennikVs],
+  );
+  const wzorcoweNames = useMemo(
+    () => Object.fromEntries((wzorVs ?? []).map((v) => [v.id, v.original_name])),
+    [wzorVs],
+  );
 
   async function rerun(jobId: string) {
     setRerunning(jobId);
@@ -31,28 +54,6 @@ export default function HistoriaPage() {
     }
   }
 
-  useEffect(() => {
-    // Same metadane z bazy — bez liczenia przychodu (natychmiast).
-    api.listJobs()
-      .then((jobs) => {
-        const done = jobs.filter((j) => j.status === "done" && j.mode === "full");
-        // Lista z bazy jest malejąco wg daty → pierwszy w miesiącu = najnowszy (finalny).
-        const map = new Map<string, Job>();
-        for (const j of done) {
-          const k = monthKey(j.finished_at || j.created_at);
-          if (!map.has(k)) map.set(k, j);
-        }
-        setEntries(Array.from(map.values()).sort((a, b) =>
-          monthKey(b.finished_at || b.created_at).localeCompare(monthKey(a.finished_at || a.created_at))));
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoaded(true));
-
-    api.listVersions("cennik").then((vs: Version[]) =>
-      setCennikNames(Object.fromEntries(vs.map((v) => [v.id, v.original_name])))).catch(() => {});
-    api.listVersions("wzorcowe").then((vs: Version[]) =>
-      setWzorcoweNames(Object.fromEntries(vs.map((v) => [v.id, v.original_name])))).catch(() => {});
-  }, []);
 
   return (
     <div className="space-y-6">
