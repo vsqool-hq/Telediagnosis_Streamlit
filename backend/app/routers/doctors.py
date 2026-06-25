@@ -158,11 +158,12 @@ def _excluded_keys() -> list:
 @router.get("/billing/{job_id}")
 async def doctor_billing(job_id: str, recompute: bool = False, peek: bool = False):
     """
-    Rozliczenie lekarzy dla zadania. Wynik jest ZAPISYWANY na dysku (lekarze/billing.json),
-    więc po zmianie zakładki / restarcie wczytuje się od razu, bez ponownego liczenia.
-      • peek=true     → zwróć zapisany wynik albo {empty, reason:'not_computed'} BEZ liczenia,
-      • recompute=true → policz od nowa i nadpisz zapis,
-      • domyślnie      → zwróć zapis, a gdy go brak — policz i zapisz.
+    Zwraca ZAPISANY wynik rozliczenia lekarzy (cache lekarze/billing.json). NIE liczy
+    w wątku serwera — ciężkie liczenie biegnie w osobnym procesie (patrz /billing/{id}/run
+    + /billing/{id}/status), żeby nie blokować pętli async i nie zrywać długich żądań.
+
+      • peek=true / domyślnie → zwróć cache albo {empty, reason:'not_computed'},
+      • recompute=true        → wystartuj liczenie w tle i zwróć {empty, reason:'computing'}.
     Cache jest unieważniany, gdy zmieni się lista wyłączonych lekarzy.
     """
     paths = job_paths(job_id)
@@ -173,24 +174,33 @@ async def doctor_billing(job_id: str, recompute: bool = False, peek: bool = Fals
     if peek:
         return {"empty": True, "reason": "not_computed", "computed_at": None}
 
-    _job, paths, slownik, cennik_lek = _resolve_job(job_id)
-    from app.engine.doctors import build_doctor_billing, generate_doctor_billing_files
-    result = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek, excluded_keys=excluded)
-    if not result.get("empty"):
-        # Per-lekarz pliki Excel (układ jak jednostki) — gotowe do pobrania.
-        try:
-            gen = generate_doctor_billing_files(
-                paths["sprawdzone"], slownik, cennik_lek,
-                os.path.join(_lekarze_dir(paths), "pliki"), excluded_keys=excluded,
-            )
-            result["files_count"] = gen["count"]
-        except Exception as e:  # noqa: BLE001
-            result["files_count"] = 0
-            result["files_error"] = str(e)
-        result["computed_at"] = _now()
-        result["_excluded_keys"] = excluded
-        _save_cache(paths, "billing.json", result)
-    return result
+    # Zgodność wstecz: stare wywołanie z recompute=true uruchamia teraz zadanie w tle.
+    if recompute:
+        _resolve_job(job_id)  # walidacja (cennik/słownik) — szybki błąd, zanim wystartujemy
+        from app.services import doctors_job
+        doctors_job.start(job_id, recompute=True)
+    return {"empty": True, "reason": "computing", "computed_at": None}
+
+
+@router.post("/billing/{job_id}/run")
+async def doctor_billing_run(job_id: str, recompute: bool = False):
+    """Startuje rozliczenie lekarzy w tle (osobny proces). Zwraca {status}."""
+    _resolve_job(job_id)  # walidacja wejść (cennik lekarzy / słownik) — szybki błąd
+    from app.services import doctors_job
+    return doctors_job.start(job_id, recompute=recompute)
+
+
+@router.get("/billing/{job_id}/status")
+async def doctor_billing_status(job_id: str):
+    """Status liczenia w tle do odpytywania przez front: idle|running|done|error."""
+    db.get_job(job_id) or _raise_no_job()
+    from app.services import doctors_job
+    return doctors_job.status(job_id)
+
+
+def _raise_no_job():
+    raise HTTPException(404, "Nie znaleziono zadania.")
+
 
 
 @router.get("/compare/{job_id}")

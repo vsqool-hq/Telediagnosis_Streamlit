@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw } from "lucide-react";
 import { api, Job, DoctorBilling, DoctorCoverage } from "@/lib/api";
 
@@ -14,6 +14,13 @@ export default function RozliczenieLekarzyPage() {
   const [result, setResult] = useState<DoctorBilling | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Aktywne odpytywanie (gdy liczenie biegnie w tle) — id interwału do sprzątania.
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function stopPolling() {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  }
+  useEffect(() => stopPolling, []);
 
   useEffect(() => {
     api.doctorsCoverage().then(setCoverage).catch(() => {});
@@ -24,9 +31,10 @@ export default function RozliczenieLekarzyPage() {
     }).catch((e) => setError(e.message));
   }, []);
 
-  // Po wyborze zadania wczytaj ZAPISANY wynik (bez liczenia) — dzięki temu po
-  // powrocie na zakładkę rozliczenie jest od razu, nie znika.
+  // Po wyborze zadania: zatrzymaj ewentualne odpytywanie i wczytaj ZAPISANY wynik
+  // (bez liczenia) — dzięki temu po powrocie na zakładkę rozliczenie jest od razu.
   useEffect(() => {
+    stopPolling(); setBusy(false);
     if (!jobId) { setResult(null); return; }
     setResult(null); setError(null);
     api.doctorsBilling(jobId, { peek: true })
@@ -34,12 +42,38 @@ export default function RozliczenieLekarzyPage() {
       .catch(() => {});
   }, [jobId]);
 
+  // Liczenie biegnie w OSOBNYM procesie (jak główne rozliczenie). Start → odpytywanie
+  // o status → po „done" wczytanie zapisanego wyniku. Brak długiego żądania = brak
+  // „failed to fetch" przy większych danych / scale-to-zero.
   async function run(recompute = false) {
     if (!jobId) return;
+    stopPolling();
     setBusy(true); setError(null); setResult(null);
     try {
-      setResult(await api.doctorsBilling(jobId, { recompute }));
-    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
+      const started = await api.doctorsBillingRun(jobId, recompute);
+      if (started.status === "done") {
+        const r = await api.doctorsBilling(jobId, { peek: true });
+        setResult(r && (r as any).reason === "not_computed" ? null : r);
+        setBusy(false);
+        return;
+      }
+      const id = jobId;
+      pollRef.current = setInterval(async () => {
+        try {
+          const st = await api.doctorsBillingStatus(id);
+          if (st.status === "running") return;
+          stopPolling();
+          if (st.status === "error") { setError(st.error || "Liczenie nie powiodło się."); setBusy(false); return; }
+          const r = await api.doctorsBilling(id, { peek: true });
+          setResult(r && (r as any).reason === "not_computed" ? null : r);
+          setBusy(false);
+        } catch {
+          // Pojedynczy nieudany ping nie przerywa — maszyna mogła się budzić.
+        }
+      }, 2500);
+    } catch (e: any) {
+      stopPolling(); setError(e.message); setBusy(false);
+    }
   }
 
   return (
@@ -103,6 +137,14 @@ export default function RozliczenieLekarzyPage() {
           </>
         )}
       </div>
+
+      {busy && (
+        <div className="card flex items-center gap-3 border-brand-accent/40 text-sm text-slate-300">
+          <Loader2 className="animate-spin text-brand-accent2" size={18} />
+          Liczę rozliczenie lekarzy w tle (osobny proces — możesz zostawić tę zakładkę otwartą).
+          Generowanie plików per lekarz może potrwać przy większej liczbie badań.
+        </div>
+      )}
 
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}
 
