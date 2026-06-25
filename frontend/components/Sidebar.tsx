@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Plus, LogOut, Cloud, Laptop } from "lucide-react";
+import { LogOut, Cloud, Laptop } from "lucide-react";
 import { clearToken, getToken, isLocalBackend } from "@/lib/api";
 import { NAV, isActive } from "@/components/nav";
 
@@ -15,9 +15,8 @@ export default function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-black/20 px-4 py-6 md:flex">
       <div className="mb-8 flex items-center gap-3 px-2">
-        <div className="flex h-11 w-11 items-center justify-center rounded-[13px] bg-gradient-to-b from-brand-accent2 to-brand-accent text-[#04130b]">
-          <Plus size={24} strokeWidth={2.6} />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Telediagnosis" className="h-11 w-11 rounded-[13px]" />
         <div>
           <p className="font-extrabold leading-tight">Telediagnosis</p>
           <p className="text-xs text-slate-400">Rozliczenia</p>

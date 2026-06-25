@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lock, LogIn, Plus, Loader2 } from "lucide-react";
+import { Lock, LogIn, Loader2 } from "lucide-react";
 import { api, setToken, clearToken } from "@/lib/api";
 import BackendSwitcher from "@/components/BackendSwitcher";
 
@@ -49,9 +49,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen items-center justify-center px-4">
         <form onSubmit={login} className="card w-full max-w-sm space-y-5">
           <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-b from-brand-accent2 to-brand-accent text-[#04130b]">
-              <Plus size={26} strokeWidth={2.6} />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Telediagnosis" className="h-14 w-14 rounded-2xl" />
             <div>
               <h1 className="text-xl font-extrabold tracking-tight">Automatyzator Rozliczeń</h1>
               <p className="text-sm text-slate-400">Telediagnosis · panel wewnętrzny</p>
