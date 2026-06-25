@@ -737,9 +737,11 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
                 cell.font = bold_font
                 cell.fill = medium_blue_fill
 
+    # LEKARZE: węższe kolumny (mniejszy raport). Jednostki bez zmian.
+    pad, cap = (1, 26) if for_doctor else (2, 50)
     for column in ws.columns:
         max_len = max((len(str(cell.value)) for cell in column if cell.value), default=0)
-        ws.column_dimensions[get_column_letter(column[0].column)].width = min(max_len + 2, 50)
+        ws.column_dimensions[get_column_letter(column[0].column)].width = min(max_len + pad, cap)
 
 
 def bill_make_grouped(df_details, entity_col):
@@ -764,11 +766,16 @@ def bill_make_grouped(df_details, entity_col):
     return grouped, df_details
 
 
-def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False):
+def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False, rate_resolver=None):
     """
     Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
     „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
     jak rozliczenie jednostek — używany też dla rozliczeń lekarzy (inne źródło 'Cena').
+
+    for_doctor=True (raport lekarza): „Rozliczenie" jest pierwszym/aktywnym arkuszem,
+    a `rate_resolver(procedura, rodzaj, priorytet)` (opcjonalny) uzupełnia stawkę w
+    KAŻDEJ kolumnie priorytetu — także tam, gdzie badania nie było (ilość/wartość=0),
+    żeby lekarz widział obowiązującą stawkę i nie pytał „czemu nie policzone".
     """
     logs = logs if logs is not None else []
     merged['Ilość'] = merged['#'] * merged['Mnożnik']
@@ -802,6 +809,25 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
     if for_doctor:
         # LEKARZE: nie pokazujemy kolumn „… w tym porównawcze".
         billing_table = billing_table[[c for c in billing_table.columns if 'w tym porównawcze' not in str(c)]]
+
+        # LEKARZE: pokaż stawkę w KAŻDEJ kolumnie priorytetu — także tam, gdzie
+        # badania nie było (#=0 → wartość=0). Inaczej puste „0" wygląda jak brak
+        # wyceny i generuje pytania. Stawkę bierzemy z cennika dla danej procedury.
+        if rate_resolver is not None:
+            for p in priorities_for_this_report:
+                scol = f"{p} Stawka"
+                if scol not in billing_table.columns:
+                    continue
+                for idx in billing_table.index:
+                    cur = billing_table.at[idx, scol]
+                    if pd.isna(cur) or cur == 0:
+                        rate = rate_resolver(
+                            billing_table.at[idx, 'Procedura'],
+                            billing_table.at[idx, 'Rodzaj procedury rozlicz.'],
+                            p,
+                        )
+                        if pd.notna(rate):
+                            billing_table.at[idx, scol] = rate
 
     df_details_modified = df_details.copy()
 
@@ -876,6 +902,15 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
                 if formula_parts:
                     ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
         bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True, for_doctor=for_doctor)
+
+        if for_doctor and 'Rozliczenie' in wb.sheetnames:
+            # LEKARZE: „Rozliczenie" jako pierwszy i domyślnie otwarty arkusz
+            # (Szczegółowe schodzi na drugą pozycję) — prościej dla mniej technicznych.
+            wb.move_sheet('Rozliczenie', offset=-(wb.sheetnames.index('Rozliczenie')))
+            idx = wb.sheetnames.index('Rozliczenie')
+            wb.active = idx
+            for i, sh in enumerate(wb.worksheets):
+                sh.sheet_view.tabSelected = (i == idx)
     return logs
 
 

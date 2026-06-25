@@ -241,6 +241,28 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
     }
 
 
+def _surname_first(name: str) -> str:
+    """„Imię Nazwisko" → „Nazwisko Imię" (np. 'Tomasz Bujalski' → 'Bujalski Tomasz')."""
+    toks = _norm(name).split()
+    return " ".join(toks[1:] + toks[:1]) if len(toks) >= 2 else _norm(name)
+
+
+def _safe_filename(s: str) -> str:
+    """Usuwa znaki niedozwolone w nazwach plików; zachowuje spacje i myślniki."""
+    return re.sub(r'[\\/:*?"<>|]+', "", s).strip()
+
+
+def _period_mmyyyy(frame) -> str:
+    """Okres rozliczenia jako MMRRRR — z daty zatwierdzenia opisu (fallback: data badania)."""
+    import pandas as pd
+    for col in ("Data 1. zatwierdzenia", "Data badania (UTC)"):
+        if col in frame.columns:
+            dt = pd.to_datetime(frame[col], errors="coerce").dropna()
+            if not dt.empty:
+                return dt.dt.strftime("%m%Y").mode().iloc[0]
+    return ""
+
+
 def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
                                   out_dir: str, excluded_keys=None) -> dict:
     """
@@ -253,7 +275,6 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
     lekarze pomijani. Zwraca listę utworzonych plików.
     """
     import os as _os
-    import re as _re
     import shutil
     import numpy as np
     from app.engine.billing import bill_make_grouped, bill_finalize_to_excel
@@ -280,6 +301,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         if not lek_key:
             continue
         disp = _norm(sub[OPISUJACY_COL].iloc[0])
+        if not disp or disp.lower() in ("nan", "none"):
+            continue  # puste/nieznane nazwisko — nie twórz pliku „nan"
         sub = sub.copy()
         # LEKARZE: brak jakiegokolwiek podciągania — przywróć ORYGINALNY rodzaj
         # procedury i liczbę okolic (kolumny zachowane w Etapie 1 w
@@ -302,10 +325,21 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
 
         grouped["Cena"] = grouped.apply(_cena, axis=1)
 
-        safe = _re.sub(r"[^\w\s-]", "", disp).strip().replace(" ", "_") or "lekarz"
-        fname = f"Rozliczenie_lekarz_{safe}.xlsx"
+        # Stawka dla DOWOLNEGO priorytetu danej procedury (także bez badań w tym
+        # priorytecie) — żeby w raporcie stawka była wszędzie, nawet gdy ilość=0.
+        def _rate(procedura, rodzaj, priorytet, _lk=lek_key):
+            base = cat_map.get((_key(procedura), _key(rodzaj)), "")
+            category = resolve_category({"Priorytet opisu": priorytet}, base)
+            if not category:
+                return np.nan
+            return prices.get((_lk, category.upper()), np.nan)
+
+        # Nazwa pliku wg szablonu: „MMRRRR dr Nazwisko Imię" (np. „052026 dr Bujalski Tomasz").
+        period = _period_mmyyyy(sub)
+        fname = (_safe_filename(f"{period} dr {_surname_first(disp)}") or "dr lekarz") + ".xlsx"
         try:
-            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname), for_doctor=True)
+            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
+                                   for_doctor=True, rate_resolver=_rate)
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)
