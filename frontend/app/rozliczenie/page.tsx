@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock } from "lucide-react";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock, FileText, History } from "lucide-react";
 import { api, Job, isLocalBackend } from "@/lib/api";
 
 type Phase = "idle" | "running" | "done" | "error";
@@ -18,6 +18,7 @@ export default function RozliczeniePage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [logs, setLogs] = useState<string[]>([]);
   const [job, setJob] = useState<Job | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);   // historia ostatnio wgranych plików
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
   const startAnchor = useRef<number | null>(null);  // chwila startu zadania w zegarze klienta
@@ -46,6 +47,7 @@ export default function RozliczeniePage() {
   // podgląd logów na żywo. Gdy NIC nie trwa — log zostaje PUSTY (pokazujemy tylko
   // nazwę ostatniego pliku i przyciski pobierania, bez odtwarzania starego logu).
   useEffect(() => {
+    loadJobs();
     const qid = new URLSearchParams(window.location.search).get("job");
     if (qid) {
       attach(qid);
@@ -74,6 +76,21 @@ export default function RozliczeniePage() {
     }).catch(() => {});
   }
 
+  /** Odświeża historię ostatnio wgranych plików (lista zadań, malejąco wg daty). */
+  function loadJobs() {
+    api.listJobs().then(setJobs).catch(() => {});
+  }
+
+  /** Wybiera plik z historii — staje się „ostatnim plikiem" do przeliczenia.
+   * Czyści świeżo wybrany plik, żeby przyciski działały na tym z historii. */
+  function selectJob(jobId: string) {
+    if (phase === "running") return;
+    esRef.current?.close();
+    setFile(null);
+    setError(null);
+    loadJobMeta(jobId);
+  }
+
   /** Otwiera strumień logów zadania (nowego lub już trwającego) i śledzi go do końca. */
   function attach(jobId: string) {
     esRef.current?.close();
@@ -99,6 +116,7 @@ export default function RozliczeniePage() {
       const refreshed = await api.getJob(jobId).catch(() => null);
       if (refreshed) setJob(refreshed);
       setPhase(status === "done" ? "done" : "error");
+      loadJobs();  // nowo wgrany/policzony plik pojawia się w historii
 
       // Liczenie „na tym komputerze" → automatycznie wyślij wynik do chmury,
       // żeby zadanie i wgrany plik były później widoczne online.
@@ -232,6 +250,58 @@ export default function RozliczeniePage() {
           )}
         </div>
       </div>
+
+      {jobs.length > 0 && (
+        <div className="card">
+          <div className="mb-3 flex items-center gap-2">
+            <History size={18} className="text-brand-accent" />
+            <h2 className="text-lg font-semibold">Ostatnio wgrane pliki</h2>
+            <span className="text-xs text-slate-400">({jobs.length})</span>
+          </div>
+          <div className="space-y-2">
+            {jobs.slice(0, 12).map((j) => {
+              const selected = job?.id === j.id;
+              const st = j.status === "done" ? "Gotowe" : j.status === "error" ? "Błąd" : "W toku";
+              return (
+                <div
+                  key={j.id}
+                  className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+                    selected ? "border-brand-accent/50 bg-brand-accent/10" : "border-white/10 bg-white/[0.02]"
+                  }`}
+                >
+                  <FileText size={18} className="shrink-0 text-slate-400" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-semibold">{j.input_name}</span>
+                      {selected && <span className="pill pill-ok"><CheckCircle2 size={12} /> Wybrany</span>}
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      {new Date(j.created_at).toLocaleString("pl-PL")} ·{" "}
+                      {j.mode === "full" ? "Pełny proces" : "Braki wzorca"} · {st}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="btn-secondary px-3 py-1.5 text-xs"
+                      disabled={busy || selected}
+                      onClick={() => selectJob(j.id)}
+                    >
+                      Wybierz
+                    </button>
+                    <a
+                      className="btn-secondary px-3 py-1.5 text-xs"
+                      href={api.inputUrl(j.id)}
+                      title="Pobierz plik źródłowy"
+                    >
+                      <Download size={14} />
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}
 
