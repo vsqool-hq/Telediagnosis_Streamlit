@@ -337,6 +337,13 @@ export const api = {
   doctorsCoverage: () => req<DoctorCoverage>("/api/doctors/coverage"),
   doctorsBilling: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
     req<DoctorBilling>(`/api/doctors/billing/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
+  // Liczenie biegnie w tle (osobny proces) — start + odpytywanie o status.
+  doctorsBillingRun: (jobId: string, recompute = false) =>
+    req<{ status: "running" | "done"; computed_at?: string | null }>(
+      `/api/doctors/billing/${jobId}/run?recompute=${recompute}`, { method: "POST" }),
+  doctorsBillingStatus: (jobId: string) =>
+    req<{ status: "idle" | "running" | "done" | "error"; error?: string; computed_at?: string | null }>(
+      `/api/doctors/billing/${jobId}/status`),
   doctorsBillingDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/download`),
   doctorsBillingFilesUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/files`),
   doctorsCompare: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>

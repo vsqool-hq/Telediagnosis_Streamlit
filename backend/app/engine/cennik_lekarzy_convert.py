@@ -62,10 +62,19 @@ _CATEGORY_TYPOS = {"PLINE": "PILNE"}
 _TYPO_RE = re.compile(r"\b(" + "|".join(_CATEGORY_TYPOS) + r")\b", re.IGNORECASE)
 
 
+# „MMG ZWYKŁA"/„MMG ZWYKŁE" to ta sama pozycja rozliczeniowa co goła „MMG"
+# (słownik mapuje całą mammografię na kategorię „MMG"). Część lekarzy ma w cenniku
+# wariant „ZWYKŁA" — sprowadzamy go do „MMG", by stawka się dopasowała.
+_MMG_ZWYKLA_RE = re.compile(r"^MMG\s+ZWYK[ŁL][A-ZĄĘ]*$", re.IGNORECASE)
+
+
 def fix_category_typos(cat: str) -> str:
     if not cat:
         return cat
-    return _TYPO_RE.sub(lambda m: _CATEGORY_TYPOS[m.group(0).upper()], str(cat))
+    cat = _TYPO_RE.sub(lambda m: _CATEGORY_TYPOS[m.group(0).upper()], str(cat))
+    if _MMG_ZWYKLA_RE.match(_clean(cat)):
+        return "MMG"
+    return cat
 
 
 def doctor_key(name) -> str:
@@ -181,13 +190,19 @@ def convert_workbook(path_or_bytes) -> dict:
             if not cat:
                 continue
             up = cat.upper()
-            if up in SECTION_HEADERS or up in SKIP_EXACT or up.startswith(SKIP_PREFIX):
+            if up in SKIP_EXACT or up.startswith(SKIP_PREFIX):
                 continue
-            cat = fix_category_typos(cat)  # łatka literówek (PLINE → PILNE)
             raw = r[price_col] if price_col < len(r) else None
             price, was_rep, original = _try_number(raw)
+            # Nagłówek sekcji (RTG/TK/MR/MMG) pomijamy TYLKO gdy nie ma przy nim ceny.
+            # Pozycja rozliczeniowa o tej samej nazwie co nagłówek — np. osobny wiersz
+            # „MMG" ze stawką 40 zł, pod nagłówkiem „MMG" — JEST realną pozycją i nie
+            # wolno jej zgubić (była przyczyną braku MMG w cenniku).
+            if up in SECTION_HEADERS and price is None:
+                continue
             if price is None:
                 continue
+            cat = fix_category_typos(cat)  # literówki (PLINE→PILNE) + MMG ZWYKŁA→MMG
             if cat in seen_cats:   # ten sam lekarz+kategoria w bloku — bierzemy pierwsze
                 continue
             seen_cats.add(cat)
