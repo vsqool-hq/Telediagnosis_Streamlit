@@ -71,8 +71,11 @@ _MMG_ZWYKLA_RE = re.compile(r"^MMG\s+ZWYK[ŁL][A-ZĄĘ]*$", re.IGNORECASE)
 def fix_category_typos(cat: str) -> str:
     if not cat:
         return cat
-    cat = _TYPO_RE.sub(lambda m: _CATEGORY_TYPOS[m.group(0).upper()], str(cat))
-    if _MMG_ZWYKLA_RE.match(_clean(cat)):
+    # Wyprostuj nazwę: zwiń wielokrotne spacje i przytnij brzegi
+    # (np. „MR PLANOWE  B" → „MR PLANOWE B"), żeby dopasowanie i rozpoznawanie działało.
+    cat = _clean(cat)
+    cat = _TYPO_RE.sub(lambda m: _CATEGORY_TYPOS[m.group(0).upper()], cat)
+    if _MMG_ZWYKLA_RE.match(cat):
         return "MMG"
     return cat
 
@@ -94,7 +97,7 @@ def doctor_key(name) -> str:
 
 
 def is_standard_category(cat: str) -> bool:
-    c = cat.upper()
+    c = _clean(cat).upper()  # zwiń wielokrotne spacje przed dopasowaniem wzorca
     return any(p.match(c) for p in _STD_PATTERNS)
 
 
