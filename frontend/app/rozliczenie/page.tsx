@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock, FileText, History } from "lucide-react";
 import { api, Job, isLocalBackend } from "@/lib/api";
 import { invalidateCache } from "@/lib/cache";
-import FilePreview from "@/components/FilePreview";
+import ReferenceImage from "@/components/ReferenceImage";
 
 type Phase = "idle" | "running" | "done" | "error";
 
@@ -254,19 +254,13 @@ export default function RozliczeniePage() {
         </div>
       </div>
 
-      {job && !file && (
-        <div className="card space-y-2">
-          <h2 className="font-semibold">Podgląd ostatniego pliku ({job.input_name})</h2>
-          <p className="text-[13px] text-slate-400">
-            Tak wygląda plik wgrywany w tym miejscu — kliknij miniaturkę, aby powiększyć na cały ekran.
-          </p>
-          <FilePreview
-            cacheKey={`preview:input:${job.id}`}
-            load={() => api.jobInputPreview(job.id)}
-            title={job.input_name}
-          />
-        </div>
-      )}
+      <div className="card space-y-2">
+        <h2 className="font-semibold">Wzór pliku miesięcznego</h2>
+        <p className="text-[13px] text-slate-400">
+          Wgraj obrazek-przykład, jaki plik wgrywać tutaj — kliknij miniaturkę, aby powiększyć na cały ekran.
+        </p>
+        <ReferenceImage slot="rozliczenie" title="Wzór: plik miesięczny" />
+      </div>
 
       {jobs.length > 0 && (
         <div className="card">

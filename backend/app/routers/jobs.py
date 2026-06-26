@@ -241,16 +241,6 @@ async def download_single(job_id: str, filename: str):
     raise HTTPException(404, "Nie znaleziono pliku.")
 
 
-@router.get("/{job_id}/input/preview")
-async def preview_input(job_id: str):
-    """Podgląd zawartości wgranego pliku wejściowego (pierwsze wiersze) — miniaturka."""
-    job = db.get_job(job_id)
-    if not job:
-        raise HTTPException(404, "Nie znaleziono zadania.")
-    from app.engine.preview import file_preview
-    return file_preview(os.path.join(job_paths(job_id)["jednostki"], job["input_name"]))
-
-
 @router.get("/{job_id}/input")
 async def download_input(job_id: str):
     """Pobranie oryginalnego, wgranego pliku wejściowego (Jednostki) danego zadania."""

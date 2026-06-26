@@ -86,16 +86,6 @@ async def download_version(kind: str, version_id: str):
     return FileResponse(path, filename=v["original_name"])
 
 
-@router.get("/{kind}/{version_id}/preview")
-async def preview_version(kind: str, version_id: str):
-    """Podgląd zawartości wersji (pierwsze wiersze/kolumny) — do miniaturki."""
-    v = db.get_version(version_id)
-    if not v or v["kind"] != kind:
-        raise HTTPException(404, "Nie znaleziono wersji.")
-    from app.engine.preview import file_preview
-    return file_preview(os.path.join(version_dir(kind, version_id), v["filename"]))
-
-
 @router.delete("/{kind}/{version_id}")
 async def delete_version(kind: str, version_id: str):
     v = db.get_version(version_id)

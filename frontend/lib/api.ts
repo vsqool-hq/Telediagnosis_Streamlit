@@ -237,15 +237,6 @@ export interface DoctorComparison {
   };
 }
 
-export interface FilePreviewData {
-  empty: boolean;
-  reason?: string;
-  sheet?: string | null;
-  columns: string[];
-  rows: string[][];
-  more_cols?: number;
-}
-
 export interface TrendPoint {
   job_id: string;
   date: string;
@@ -318,9 +309,16 @@ export const api = {
     req(`/api/versions/${kind}/${id}/activate`, { method: "POST" }),
   deleteVersion: (kind: string, id: string) =>
     req(`/api/versions/${kind}/${id}`, { method: "DELETE" }),
-  versionPreview: (kind: string, id: string) =>
-    req<FilePreviewData>(`/api/versions/${kind}/${id}/preview`),
-  jobInputPreview: (id: string) => req<FilePreviewData>(`/api/jobs/${id}/input/preview`),
+  // Obrazki-wzory dla miejsc wgrywania (slot: wzorcowe/cennik/cennik_lekarzy/rozliczenie).
+  referenceImageUrl: (slot: string, v = 0) =>
+    withToken(`${API_BASE}/api/reference-image/${slot}?v=${v}`),
+  uploadReferenceImage: (slot: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return req<{ ok: boolean; ext: string }>(`/api/reference-image/${slot}`, { method: "POST", body: fd });
+  },
+  deleteReferenceImage: (slot: string) =>
+    req(`/api/reference-image/${slot}`, { method: "DELETE" }),
   versionDownloadUrl: (kind: string, id: string) =>
     withToken(`${API_BASE}/api/versions/${kind}/${id}/download`),
 

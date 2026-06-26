@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
-from app.routers import jobs, files, settings, stats, cennik, cennik_lekarzy, doctors, sync
+from app.routers import jobs, files, settings, stats, cennik, cennik_lekarzy, doctors, sync, reference
 
 app = FastAPI(title="Automatyzator Rozliczeń Medycznych", version="0.1.0")
 
@@ -86,3 +86,4 @@ app.include_router(cennik.router)
 app.include_router(cennik_lekarzy.router)
 app.include_router(doctors.router)
 app.include_router(sync.router)
+app.include_router(reference.router)

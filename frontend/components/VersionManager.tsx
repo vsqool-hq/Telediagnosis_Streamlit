@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { UploadCloud, CheckCircle2, Download, Trash2, Star } from "lucide-react";
 import { api, Version } from "@/lib/api";
-import FilePreview from "@/components/FilePreview";
+import ReferenceImage from "@/components/ReferenceImage";
 
 function fmtSize(bytes: number) {
   if (bytes > 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
@@ -90,23 +90,14 @@ export default function VersionManager({
         </div>
       </div>
 
-      {(() => {
-        const active = versions.find((v) => v.is_active === 1);
-        return active ? (
-          <div className="card space-y-2">
-            <h2 className="font-semibold">Tak wygląda plik, który tu wgrywasz</h2>
-            <p className="text-[13px] text-slate-400">
-              Podgląd aktywnego pliku (<span className="text-slate-200">{active.original_name}</span>) —
-              kliknij miniaturkę, aby powiększyć na cały ekran i upewnić się, że wgrywasz właściwy plik.
-            </p>
-            <FilePreview
-              cacheKey={`preview:${kind}:${active.id}`}
-              load={() => api.versionPreview(kind, active.id)}
-              title={active.original_name}
-            />
-          </div>
-        ) : null;
-      })()}
+      <div className="card space-y-2">
+        <h2 className="font-semibold">Wzór pliku w tym miejscu</h2>
+        <p className="text-[13px] text-slate-400">
+          Wgraj obrazek-przykład (zrzut ekranu), jaki plik tu wgrywać — osoba zastępująca kliknie
+          miniaturkę, powiększy ją na cały ekran i od razu będzie wiedzieć, co tu wgrać.
+        </p>
+        <ReferenceImage slot={kind} title={`Wzór: ${title}`} />
+      </div>
 
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}
 
