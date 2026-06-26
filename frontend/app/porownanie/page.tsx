@@ -147,14 +147,19 @@ export default function PorownaniePage() {
   const [catSource, setCatSource] = useState<"doctor" | "unit">("doctor");
 
   useEffect(() => {
-    api.listJobs().then((all) => {
+    api.listJobs().then(async (all) => {
       const done = all.filter((j) => j.status === "done" && j.mode === "full");
       setJobs(done);
-      if (done.length) {
-        // Przywróć ostatnio oglądane zadanie (jeśli wciąż istnieje), inaczej najnowsze.
-        const saved = typeof window !== "undefined" ? localStorage.getItem(LS_JOB) : null;
-        setJobId(saved && done.some((j) => j.id === saved) ? saved : done[0].id);
-      }
+      if (!done.length) return;
+      // 1) Jeśli mamy zapamiętany wybór — przywróć go.
+      const saved = typeof window !== "undefined" ? localStorage.getItem(LS_JOB) : null;
+      if (saved && done.some((j) => j.id === saved)) { setJobId(saved); return; }
+      // 2) Inaczej pokaż OSTATNIO PRZELICZONE porównanie (bez klikania „Policz").
+      const latest = await api.doctorsCompareLatest().catch(() => null);
+      // Wybór zadania uruchomi peek (efekt na jobId), który wczyta zapisane porównanie.
+      setJobId(latest && !latest.empty && latest.job_id && done.some((j) => j.id === latest.job_id)
+        ? latest.job_id
+        : done[0].id);
     }).catch((e) => setError(e.message));
   }, []);
 

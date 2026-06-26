@@ -203,6 +203,32 @@ def _raise_no_job():
 
 
 
+@router.get("/compare/latest")
+async def doctor_compare_latest():
+    """Najnowsze ZAPISANE porównanie (wg computed_at) spośród wszystkich zadań —
+    żeby na Porównaniu od razu pokazać ostatnio przeliczone wyniki. Musi być
+    zadeklarowane PRZED /compare/{job_id} (inaczej „latest" złapie się jako job_id)."""
+    best = None  # (computed_at, job_id, result)
+    for j in db.list_jobs(limit=100):
+        if j.get("status") != "done" or j.get("mode") != "full":
+            continue
+        c = _load_cache(job_paths(j["id"]), "compare.json")
+        if c and not c.get("empty") and c.get("computed_at"):
+            if best is None or c["computed_at"] > best[0]:
+                best = (c["computed_at"], j["id"], c)
+    if best is None:
+        return {"empty": True, "reason": "not_computed"}
+    _, job_id, out = best
+    # Grupy jednostek (widok) — tak jak w /compare/{job_id}.
+    if out.get("by_unit"):
+        from app.engine.config import load_config, build_unit_group_map
+        from app.engine.compare import regroup_by_unit
+        gmap = build_unit_group_map(load_config().get("unit_groups", []))
+        if gmap:
+            out = {**out, "by_unit": regroup_by_unit(out["by_unit"], gmap)}
+    return {**out, "job_id": job_id}
+
+
 @router.get("/compare/{job_id}")
 async def doctor_compare(job_id: str, recompute: bool = False, peek: bool = False):
     """Porównanie (marża) dla zadania — z takim samym zapisem/odczytem jak rozliczenie."""
