@@ -237,6 +237,15 @@ export interface DoctorComparison {
   };
 }
 
+export interface FilePreviewData {
+  empty: boolean;
+  reason?: string;
+  sheet?: string | null;
+  columns: string[];
+  rows: string[][];
+  more_cols?: number;
+}
+
 export interface TrendPoint {
   job_id: string;
   date: string;
@@ -309,6 +318,9 @@ export const api = {
     req(`/api/versions/${kind}/${id}/activate`, { method: "POST" }),
   deleteVersion: (kind: string, id: string) =>
     req(`/api/versions/${kind}/${id}`, { method: "DELETE" }),
+  versionPreview: (kind: string, id: string) =>
+    req<FilePreviewData>(`/api/versions/${kind}/${id}/preview`),
+  jobInputPreview: (id: string) => req<FilePreviewData>(`/api/jobs/${id}/input/preview`),
   versionDownloadUrl: (kind: string, id: string) =>
     withToken(`${API_BASE}/api/versions/${kind}/${id}/download`),
 
