@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu, Sliders, Download } from "lucide-react";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import BackendSwitcher from "@/components/BackendSwitcher";
 import DoctorsSettings from "@/components/DoctorsSettings";
 
@@ -331,8 +332,10 @@ export default function UstawieniaPage() {
       await api.saveSettings(payload);
       setSettings(payload);
       setMsg("Zapisano ustawienia.");
+      toast("Zapisano ustawienia.");
     } catch (e: any) {
       setError(e.message);
+      toast("Nie udało się zapisać ustawień.", "error");
     }
   }
 

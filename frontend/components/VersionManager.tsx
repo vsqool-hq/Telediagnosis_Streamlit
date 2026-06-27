@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { UploadCloud, CheckCircle2, Download, Trash2, Star } from "lucide-react";
 import { api, Version } from "@/lib/api";
 import ReferenceImage from "@/components/ReferenceImage";
+import { toast } from "@/lib/toast";
 
 function fmtSize(bytes: number) {
   if (bytes > 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
@@ -45,6 +46,7 @@ export default function VersionManager({
       setLabel("");
       if (fileRef.current) fileRef.current.value = "";
       refresh();
+      toast("Wgrano nową wersję.");
     } catch (e: any) {
       setError(e.message);
     } finally {

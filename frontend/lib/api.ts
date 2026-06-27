@@ -121,6 +121,8 @@ export interface Overview {
 
 export interface JobStats {
   empty: boolean;
+  period?: string;
+  job_id?: string;
   total_studies?: number;
   total_revenue?: number;
   clients_count?: number;
@@ -276,6 +278,7 @@ export const api = {
 
   overview: () => req<Overview>("/api/stats/overview"),
   jobStats: (id: string) => req<JobStats>(`/api/stats/job/${id}`),
+  statsCurrent: () => req<JobStats>("/api/stats/current"),
   trends: () => req<{ points: TrendPoint[] }>("/api/stats/trends"),
   importExportUrl: (id: string, fmt: "csv" | "xlsx") =>
     withToken(`${API_BASE}/api/jobs/${id}/import-export?fmt=${fmt}`),

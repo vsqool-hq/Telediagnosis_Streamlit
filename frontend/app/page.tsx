@@ -7,6 +7,8 @@ import {
 import { Building2, Layers, TrendingUp, Coins, AlertTriangle } from "lucide-react";
 import { api, Overview, JobStats, TrendPoint } from "@/lib/api";
 import { useCachedData } from "@/lib/cache";
+import CountUp from "@/components/CountUp";
+import Skeleton from "@/components/Skeleton";
 
 const MOD_COLORS: Record<string, string> = {
   RTG: "#1dab5a",
@@ -23,7 +25,7 @@ const zl = (n?: number) =>
 
 function StatCard({
   icon, label, value, sub,
-}: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+}: { icon: React.ReactNode; label: string; value: React.ReactNode; sub?: string }) {
   return (
     <div className="card">
       <div className="flex items-center justify-between">
@@ -40,17 +42,17 @@ export default function Dashboard() {
   // Cache po stronie przeglądarki: powrót na Pulpit pokazuje liczby od razu,
   // odświeżenie leci w tle.
   const { data: overview, error } = useCachedData<Overview>("overview", () => api.overview());
-  const lastJob = overview?.last_job;
-  const statsKey =
-    lastJob && lastJob.status === "done" && lastJob.mode === "full" ? `jobStats:${lastJob.id}` : null;
-  const { data: stats } = useCachedData<JobStats>(statsKey, () => api.jobStats(lastJob!.id));
+  // KPI z NAJLEPSZEGO (najwyższy przychód) przeliczenia najnowszego miesiąca,
+  // a nie z ostatniego uruchomienia — odporne na błędne re-runy (np. niepełny plik).
+  const { data: stats } = useCachedData<JobStats>("statsCurrent", () => api.statsCurrent());
   const { data: trendsData } = useCachedData<{ points: TrendPoint[] }>("trends", () => api.trends());
   const trends: TrendPoint[] = trendsData?.points ?? [];
 
-  const avgPerClient =
-    stats && !stats.empty && stats.clients_count
-      ? zl(Math.round((stats.total_revenue ?? 0) / stats.clients_count))
-      : "—";
+  const hasStats = !!stats && !stats.empty;
+  const avgNum =
+    hasStats && stats!.clients_count
+      ? Math.round((stats!.total_revenue ?? 0) / stats!.clients_count!)
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -70,18 +72,29 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={<Coins size={20} />} label="Wartość ost. rozliczenia"
-          value={zl(stats?.total_revenue)} />
-        <StatCard icon={<Layers size={20} />} label="Pozycji rozliczonych"
-          value={stats?.total_studies?.toLocaleString("pl-PL") ?? "—"}
-          sub={stats?.clients_count ? `w ${stats.clients_count} jednostkach` : undefined} />
-        <StatCard icon={<Building2 size={20} />} label="Klientów"
-          value={stats?.clients_count?.toString() ?? "—"}
-          sub={overview ? `wykonano ${overview.jobs_done}/${overview.jobs_total} rozliczeń` : undefined} />
-        <StatCard icon={<TrendingUp size={20} />} label="Średnio / klienta"
-          value={avgPerClient} />
-      </div>
+      {!stats ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="card space-y-3">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-8 w-32" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard icon={<Coins size={20} />} label="Wartość rozliczenia (najwyższe w m-cu)"
+            value={<CountUp value={stats.total_revenue ?? 0} format={(n) => zl(n)} />} />
+          <StatCard icon={<Layers size={20} />} label="Pozycji rozliczonych"
+            value={<CountUp value={stats.total_studies ?? 0} />}
+            sub={stats.clients_count ? `w ${stats.clients_count} jednostkach` : undefined} />
+          <StatCard icon={<Building2 size={20} />} label="Klientów"
+            value={<CountUp value={stats.clients_count ?? 0} />}
+            sub={overview ? `wykonano ${overview.jobs_done}/${overview.jobs_total} rozliczeń` : undefined} />
+          <StatCard icon={<TrendingUp size={20} />} label="Średnio / klienta"
+            value={<CountUp value={avgNum} format={(n) => zl(n)} />} />
+        </div>
+      )}
 
       {stats?.zero_clients && stats.zero_clients.length > 0 && (
         <div className="card border-amber-400/40">

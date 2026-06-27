@@ -208,17 +208,16 @@ async def doctor_compare_latest():
     """Najnowsze ZAPISANE porównanie (wg computed_at) spośród wszystkich zadań —
     żeby na Porównaniu od razu pokazać ostatnio przeliczone wyniki. Musi być
     zadeklarowane PRZED /compare/{job_id} (inaczej „latest" złapie się jako job_id)."""
-    best = None  # (computed_at, job_id, result)
-    for j in db.list_jobs(limit=100):
-        if j.get("status") != "done" or j.get("mode") != "full":
-            continue
-        c = _load_cache(job_paths(j["id"]), "compare.json")
-        if c and not c.get("empty") and c.get("computed_at"):
-            if best is None or c["computed_at"] > best[0]:
-                best = (c["computed_at"], j["id"], c)
-    if best is None:
+    # Najlepsze (najwyższy przychód) zadanie najnowszego miesiąca — spójnie z Pulpitem.
+    from app.routers.stats import best_jobs_by_month
+    best = best_jobs_by_month()
+    if not best:
         return {"empty": True, "reason": "not_computed"}
-    _, job_id, out = best
+    latest = max(best.values(), key=lambda b: b["period"])
+    job_id = latest["job_id"]
+    out = _load_cache(job_paths(job_id), "compare.json")
+    if not out or out.get("empty"):
+        return {"empty": True, "reason": "not_computed", "job_id": job_id}
     # Grupy jednostek (widok) — tak jak w /compare/{job_id}.
     if out.get("by_unit"):
         from app.engine.config import load_config, build_unit_group_map

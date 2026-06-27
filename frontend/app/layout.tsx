@@ -5,6 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import MobileNav from "@/components/MobileNav";
 import ActiveJobBanner from "@/components/ActiveJobBanner";
 import AuthGate from "@/components/AuthGate";
+import Toaster from "@/components/Toaster";
 
 const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter" });
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </main>
           </div>
         </AuthGate>
+        <Toaster />
       </body>
     </html>
   );

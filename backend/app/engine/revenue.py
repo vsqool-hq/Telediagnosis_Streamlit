@@ -98,6 +98,26 @@ def _modality_norm(m) -> str:
     return m if m in {"RTG", "TK", "MR", "MMG"} else "INNE"
 
 
+def _result_period(wynik_dir: str) -> str | None:
+    """Miesiąc rozliczeniowy „YYYY-MM" z dat w plikach wynikowych (data zatwierdzenia,
+    fallback: data badania). Służy do grupowania zadań po miesiącu niezależnie od
+    tego, kiedy zostały policzone."""
+    if not os.path.isdir(wynik_dir):
+        return None
+    for path in glob.glob(os.path.join(wynik_dir, "*.xlsx")):
+        if os.path.basename(path).startswith("~$"):
+            continue
+        for col in ("Data 1. zatwierdzenia", "Data badania (UTC)"):
+            try:
+                d = pd.read_excel(path, sheet_name="Szczegółowe", usecols=[col])
+            except Exception:  # noqa: BLE001
+                continue
+            dt = pd.to_datetime(d[col], errors="coerce").dropna()
+            if not dt.empty:
+                return str(dt.dt.strftime("%Y-%m").mode().iloc[0])
+    return None
+
+
 def summarize(wynik_dir: str, cennik_dir: str) -> dict:
     """Podsumowanie zadania: przychód/ilości łącznie, wg modalności i top klienci."""
     df = build_revenue(wynik_dir, cennik_dir)
@@ -146,6 +166,7 @@ def summarize(wynik_dir: str, cennik_dir: str) -> dict:
 
     return {
         "empty": False,
+        "period": _result_period(wynik_dir),  # miesiąc rozliczeniowy „YYYY-MM" z dat w pliku
         "total_studies": int(df["Ilość"].sum()),
         "total_revenue": round(float(df["Wartość"].sum()), 2),
         "clients_count": int(df["Klient"].nunique()),

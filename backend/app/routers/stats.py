@@ -50,26 +50,58 @@ async def job_stats(job_id: str):
     return cached_summary(paths["base"], paths["wynik"], paths["cennik"])
 
 
-@router.get("/trends")
-async def trends():
-    """Trend liczby jednostek i przychodu w czasie — po ukończonych pełnych rozliczeniach.
-    Korzysta z cache podsumowań (stats.json), więc nie przelicza plików przy każdym wejściu."""
+def best_jobs_by_month() -> dict:
+    """Dla każdego miesiąca rozliczeniowego zwraca zadanie o NAJWYŻSZYM przychodzie.
+
+    Chroni przed pomyłkami: jeśli to samo rozliczenie policzono kilka razy i jeden
+    przebieg był błędny (np. niepełny plik → 4 mln zamiast 6 mln), do Pulpitu i
+    Porównania bierzemy ten z najwyższą kwotą. Miesiąc bierzemy z dat w pliku
+    (pole „period"); dla starszych zadań bez tego pola — z daty policzenia.
+    Zwraca: { "YYYY-MM": {job_id, revenue, studies, period, date} }.
+    """
     from app.engine.revenue import cached_summary
-
-    jobs = [j for j in db.list_jobs(limit=100) if j["status"] == "done" and j["mode"] == "full"]
-    jobs.sort(key=lambda j: j["created_at"])
-
-    points = []
-    for j in jobs:
+    best: dict = {}
+    for j in db.list_jobs(limit=100):
+        if j["status"] != "done" or j["mode"] != "full":
+            continue
         paths = job_paths(j["id"])
         s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
         if s.get("empty"):
             continue
-        points.append({
-            "job_id": j["id"],
-            "date": (j["finished_at"] or j["created_at"])[:10],
-            "label": j["input_name"],
-            "studies": s["total_studies"],
-            "revenue": s["total_revenue"],
-        })
+        period = s.get("period") or (j.get("finished_at") or j.get("created_at") or "")[:7]
+        rev = float(s.get("total_revenue") or 0)
+        cur = best.get(period)
+        if cur is None or rev > cur["revenue"]:
+            best[period] = {
+                "job_id": j["id"], "revenue": rev,
+                "studies": int(s.get("total_studies") or 0),
+                "period": period, "date": f"{period}-01",
+            }
+    return best
+
+
+@router.get("/trends")
+async def trends():
+    """Trend przychodu/ilości — JEDEN punkt na miesiąc, z przeliczenia o najwyższej
+    kwocie (patrz best_jobs_by_month). Korzysta z cache podsumowań."""
+    best = best_jobs_by_month()
+    points = [
+        {"job_id": b["job_id"], "date": b["date"], "label": p,
+         "studies": b["studies"], "revenue": b["revenue"]}
+        for p, b in sorted(best.items())
+    ]
     return {"points": points}
+
+
+@router.get("/current")
+async def current_stats():
+    """Statystyki „bieżące" do Pulpitu: najlepsze (najwyższy przychód) przeliczenie
+    NAJNOWSZEGO miesiąca rozliczeniowego."""
+    best = best_jobs_by_month()
+    if not best:
+        return {"empty": True}
+    latest = max(best.values(), key=lambda b: b["period"])
+    from app.engine.revenue import cached_summary
+    paths = job_paths(latest["job_id"])
+    s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
+    return {**s, "job_id": latest["job_id"], "period": latest["period"]}
