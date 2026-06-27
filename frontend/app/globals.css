@@ -90,3 +90,33 @@ body {
     @apply border border-white/10 bg-white/[0.06] text-slate-300;
   }
 }
+
+/* --- Pakiet „polish": subtelne animacje + szkielety ładowania --- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Karty delikatnie „wjeżdżają" przy pojawieniu (raz, na montażu elementu). */
+.card { animation: fade-up 0.32s ease both; }
+
+/* Szary, migoczący placeholder na czas ładowania. */
+.skeleton {
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.13) 37%, rgba(255,255,255,0.05) 63%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Lekkie uniesienie elementu interaktywnego pod kursorem. */
+.hover-lift { transition: transform 0.15s ease; }
+.hover-lift:hover { transform: translateY(-2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .skeleton { animation: none !important; }
+  .hover-lift:hover { transform: none; }
+}
