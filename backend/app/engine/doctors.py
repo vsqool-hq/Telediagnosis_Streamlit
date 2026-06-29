@@ -222,11 +222,22 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
         .sort_values(["lekarz", "kategoria"])
     )
 
+    # Liczba OKOLIC per lekarz i kategoria (count × mnożnik z „Procedura rozlicz.") —
+    # do uzupełniania pliku zobowiązań lekarzy (tam wpisuje się okolice, nie sztuki).
+    priced["_okolice"] = priced["Procedura rozlicz."].map(bill_extract_multiplier)
+    cat_okolice = (
+        priced.groupby(["_lek_disp", "_kategoria"])["_okolice"].sum()
+        .reset_index()
+        .rename(columns={"_lek_disp": "lekarz", "_kategoria": "kategoria", "_okolice": "okolice"})
+        .sort_values(["lekarz", "kategoria"])
+    )
+
     return {
         "empty": False,
         "rows": by_cat.to_dict("records"),
         "by_doctor": by_doctor.to_dict("records"),
         "category_counts": cat_counts.to_dict("records"),
+        "category_okolice": cat_okolice.to_dict("records"),
         "validation": {
             "total_studies": int(len(df)),
             "priced_studies": int(len(ok)),

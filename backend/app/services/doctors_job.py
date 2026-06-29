@@ -88,11 +88,13 @@ def compute(job_id: str) -> dict:
     if not result.get("empty"):
         # Miesiąc do nazw plików lekarzy — z nazwy pliku wejściowego (− 1 mies.).
         from app.engine.periods import period_from_filename, period_to_mmyyyy
-        period_mm = period_to_mmyyyy(period_from_filename((_job or {}).get("input_name"))) or None
+        period_ym = period_from_filename((_job or {}).get("input_name"))  # "YYYY-MM"
+        period_mm = period_to_mmyyyy(period_ym) or None
+        pliki_dir = os.path.join(_lekarze_dir(paths), "pliki")
         try:
             gen = generate_doctor_billing_files(
                 paths["sprawdzone"], slownik, cennik_lek,
-                os.path.join(_lekarze_dir(paths), "pliki"), excluded_keys=excluded,
+                pliki_dir, excluded_keys=excluded,
                 period_mmyyyy=period_mm,
             )
             result["files_count"] = gen["count"]
@@ -101,6 +103,25 @@ def compute(job_id: str) -> dict:
             result["files_count"] = 0
             result["files_error"] = str(e)
             print(f"! Pliki lekarzy — błąd generowania: {e}", flush=True)
+
+        # Plik zobowiązań: uzupełnij ilości okolic dla tego miesiąca (kumulatywnie)
+        # i dołóż jego kopię do paczki (katalog pliki/ → trafia do ZIP-a).
+        try:
+            from app.engine.commitments import active_commitments_workbook, fill_and_package
+            wb_path, disp = active_commitments_workbook()
+            if not wb_path:
+                print("! Plik zobowiązań: brak — wgraj cennik lekarzy jako .xlsx przez konwerter.", flush=True)
+            elif not period_ym:
+                print("! Plik zobowiązań: nie rozpoznano miesiąca z nazwy pliku — pomijam.", flush=True)
+            else:
+                rep = fill_and_package(wb_path, period_ym, result.get("category_okolice", []), pliki_dir, disp)
+                result["commitments"] = rep
+                print(f"✓ Plik zobowiązań uzupełniony ({period_ym}): lekarzy {rep['doctors_written']}, "
+                      f"komórek {rep['cells_written']} → {rep.get('package_file')}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            result["commitments_error"] = str(e)
+            print(f"! Plik zobowiązań — błąd: {e}", flush=True)
+
         result["computed_at"] = _rnow()
         result["_excluded_keys"] = excluded
         _save_cache(paths, "billing.json", result)

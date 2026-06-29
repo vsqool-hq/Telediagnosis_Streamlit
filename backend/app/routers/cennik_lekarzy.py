@@ -28,6 +28,10 @@ def _tmp_path(conv_id: str) -> str:
     return os.path.join(TMP_DIR, f"lek_{conv_id}.csv")
 
 
+def _tmp_xlsx_path(conv_id: str) -> str:
+    return os.path.join(TMP_DIR, f"lek_{conv_id}.xlsx")
+
+
 @router.post("/convert")
 async def convert(file: UploadFile = File(...)):
     if not file.filename.lower().endswith((".xlsx", ".xls")):
@@ -46,6 +50,10 @@ async def convert(file: UploadFile = File(...)):
     conv_id = uuid.uuid4().hex[:12]
     with open(_tmp_path(conv_id), "w", encoding="utf-8") as f:
         f.write(rows_to_csv(result["rows"]))
+    # Zachowujemy ORYGINALNY skoroszyt — to „plik zobowiązań", który po rozliczeniu
+    # uzupełnimy o ilości okolic. Zapisywany na stałe przy zapisie wersji (save).
+    with open(_tmp_xlsx_path(conv_id), "wb") as f:
+        f.write(content)
 
     result_preview = [
         {"lekarz": l, "kategoria": k, "cena": p} for l, k, p in result["rows"][:60]
@@ -82,14 +90,25 @@ async def save_converted(conv_id: str, label: str = Form(""), filename: str = Fo
         data = src.read()
         out.write(data)
 
+    # „Plik zobowiązań": zachowaj oryginalny skoroszyt jako source.xlsx (do
+    # uzupełniania ilości okolic po rozliczeniu) wraz z jego oryginalną nazwą.
+    xlsx_tmp = _tmp_xlsx_path(conv_id)
+    if os.path.isfile(xlsx_tmp):
+        with open(xlsx_tmp, "rb") as src, open(os.path.join(vdir, "source.xlsx"), "wb") as out:
+            out.write(src.read())
+        if label:
+            with open(os.path.join(vdir, "source_name.txt"), "w", encoding="utf-8") as f:
+                f.write(label if label.lower().endswith((".xlsx", ".xls")) else f"{label}.xlsx")
+
     make_active = db.get_active_version("cennik_lekarzy") is None
     db.add_version({
         "id": version_id, "kind": "cennik_lekarzy", "filename": filename,
         "original_name": filename, "label": label or "Z konwersji cennika lekarzy",
         "size": len(data), "is_active": 1 if make_active else 0, "uploaded_at": _now(),
     })
-    try:
-        os.remove(path)
-    except OSError:
-        pass
+    for tmp in (path, xlsx_tmp):
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
     return db.get_version(version_id)
