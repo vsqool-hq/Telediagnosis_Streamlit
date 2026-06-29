@@ -1,0 +1,794 @@
+{
+"zambrow": {
+"lat": 52.988351,
+"lng": 22.253549,
+"miasto": "Zambrów",
+"level": 1
+},
+"lubaczow": {
+"lat": 50.170963,
+"lng": 23.123746,
+"miasto": "Lubaczów",
+"level": 1
+},
+"dabrowatarnowska": {
+"lat": 50.177017,
+"lng": 20.97664,
+"miasto": "Dąbrowa Tarnowska",
+"level": 1
+},
+"centermedpoznan": {
+"lat": 52.404307,
+"lng": 16.939445,
+"miasto": "Poznań",
+"level": 1
+},
+"grupazdrowie": {
+"lat": 51.95705,
+"lng": 19.73329,
+"miasto": "Głowno",
+"level": 1
+},
+"gzplonsk": {
+"lat": 52.630431,
+"lng": 20.377149,
+"miasto": "Płońsk",
+"level": 1
+},
+"klodzko": {
+"lat": 50.45508,
+"lng": 16.65985,
+"miasto": "Kłodzko",
+"level": 1
+},
+"bialogard": {
+"lat": 54.007133,
+"lng": 16.00778,
+"miasto": "Białogard",
+"level": 1
+},
+"spzozgrodzisk": {
+"lat": 52.228215,
+"lng": 16.36846,
+"miasto": "Komorniki",
+"level": 1
+},
+"nml": {
+"lat": 53.424097,
+"lng": 19.586099,
+"miasto": "Nowe Miasto Lubawskie",
+"level": 1
+},
+"zgorzelec": {
+"lat": 51.157832,
+"lng": 15.010964,
+"miasto": "Zgorzelec",
+"level": 1
+},
+"kosmowroclaw": {
+"lat": 51.124845,
+"lng": 16.971391,
+"miasto": "Wrocław",
+"level": 1
+},
+"alfasochaczew": {
+"lat": 52.23257,
+"lng": 20.24831,
+"miasto": "Sochaczew",
+"level": 1
+},
+"tdscanmedak5": {
+"lat": 52.248869,
+"lng": 21.029771,
+"miasto": "Warszawa",
+"level": 1
+},
+"tdneuromedyka": {
+"lat": 52.053705,
+"lng": 20.445105,
+"miasto": "Żyrardów",
+"level": 2
+},
+"domchojna": {
+"lat": 52.959228,
+"lng": 14.420996,
+"miasto": "Chojna",
+"level": 1
+},
+"nrkrakow": {
+"lat": 50.00433,
+"lng": 19.894964,
+"miasto": "Kraków",
+"level": 1
+},
+"wysmaz": {
+"lat": 52.915196,
+"lng": 22.522209,
+"miasto": "Wysokie Mazowieckie",
+"level": 1
+},
+"wimed": {
+"lat": 52.836794,
+"lng": 19.184342,
+"miasto": "Lipno",
+"level": 1
+},
+"diamed": {
+"lat": 50.005747,
+"lng": 20.011908,
+"miasto": "Kraków",
+"level": 1
+},
+"spzozswidnica": {
+"lat": 50.833393,
+"lng": 16.471241,
+"miasto": "Świdnica",
+"level": 1
+},
+"nzozevita": {
+"lat": 50.578981,
+"lng": 16.502986,
+"miasto": "Kraków",
+"level": 1
+},
+"zozbol": {
+"lat": 51.254474,
+"lng": 15.566945,
+"miasto": "Bolesławiec",
+"level": 1
+},
+"tdemcpiaseczno": {
+"lat": 52.081016,
+"lng": 21.01675,
+"miasto": "Piaseczno",
+"level": 2
+},
+"medinet": {
+"lat": 51.148728,
+"lng": 17.04511,
+"miasto": "Wrocław",
+"level": 1
+},
+"komed": {
+"lat": 52.214604,
+"lng": 18.254721,
+"miasto": "Konin",
+"level": 1
+},
+"szpitaldzieciecy": {
+"lat": 50.063429,
+"lng": 19.950454,
+"miasto": "Kraków",
+"level": 1
+},
+"spzzozsierpc": {
+"lat": 52.852272,
+"lng": 19.675831,
+"miasto": "Sierpc",
+"level": 1
+},
+"zozbiala": {
+"lat": 50.387116,
+"lng": 17.661904,
+"miasto": "Biała",
+"level": 1
+},
+"tdallmedica": {
+"lat": 52.146848,
+"lng": 21.065674,
+"miasto": "Warszawa",
+"level": 2
+},
+"dcmdolmed": {
+"lat": 51.113563,
+"lng": 17.003134,
+"miasto": "Wrocław",
+"level": 1
+},
+"spzozlezajsk": {
+"lat": 50.271852,
+"lng": 22.400658,
+"miasto": "Leżajsk",
+"level": 1
+},
+"szpitaljaslo": {
+"lat": 49.752133,
+"lng": 21.480418,
+"miasto": "Jasło",
+"level": 1
+},
+"radiomedica": {
+"lat": 52.198268,
+"lng": 21.046223,
+"miasto": "Warszawa",
+"level": 2
+},
+"tdgvmcarint": {
+"lat": 50.072814,
+"lng": 19.9584,
+"miasto": "Sanok",
+"level": 1
+},
+"tdmilicz": {
+"lat": 51.52783,
+"lng": 17.282358,
+"miasto": "Milicz",
+"level": 2
+},
+"faceclinic": {
+"lat": 52.207876,
+"lng": 20.907699,
+"miasto": "Warszawa",
+"level": 1
+},
+"wizjamed": {
+"lat": 51.805141,
+"lng": 19.417664,
+"miasto": "Łódź",
+"level": 1
+},
+"powiatsredzki": {
+"lat": 51.166477,
+"lng": 16.594017,
+"miasto": "Środa Śląska",
+"level": 1
+},
+"uskbialystok": {
+"lat": 53.123576,
+"lng": 23.158217,
+"miasto": "Białystok",
+"level": 2
+},
+"puszczykowo": {
+"lat": 54.187703,
+"lng": 16.184937,
+"miasto": "Koszalin",
+"level": 2
+},
+"cobydgoszcz": {
+"lat": 53.146571,
+"lng": 18.11378,
+"miasto": "Bydgoszcz",
+"level": 1
+},
+"tdbonifratrzy": {
+"lat": 51.103969,
+"lng": 17.048732,
+"miasto": "Łódź",
+"level": 1
+},
+"almed": {
+"lat": 50.016613,
+"lng": 22.680924,
+"miasto": "almed",
+"level": 1
+},
+"mswsiedlce": {
+"lat": 52.177535,
+"lng": 22.291319,
+"miasto": "Siedlce",
+"level": 1
+},
+"tdsmswinoujscie": {
+"lat": 53.90981,
+"lng": 14.25843,
+"miasto": "Świnoujście",
+"level": 1
+},
+"tdnowomedica": {
+"lat": 51.208005,
+"lng": 22.55722,
+"miasto": "Kraśnik, Lubartów",
+"level": 1
+},
+"tdprzemysl": {
+"lat": 49.787149,
+"lng": 22.760205,
+"miasto": "Przemyśl",
+"level": 2
+},
+"tdscanmedpila": {
+"lat": 53.152323,
+"lng": 16.717866,
+"miasto": "Piła",
+"level": 1
+},
+"tdsuchab": {
+"lat": 49.739053,
+"lng": 19.58271,
+"miasto": "Sucha Beskidzka",
+"level": 2
+},
+"szpitalzakopane": {
+"lat": 49.304452,
+"lng": 19.956168,
+"miasto": "Zakopane",
+"level": 1
+},
+"szpitalrydygier": {
+"lat": 50.093083,
+"lng": 20.018479,
+"miasto": "Kraków",
+"level": 1
+},
+"szpitalopole": {
+"lat": 50.671361,
+"lng": 17.936102,
+"miasto": "Opole",
+"level": 1
+},
+"szpitallubartow": {
+"lat": 51.456247,
+"lng": 22.617664,
+"miasto": "Lubartów",
+"level": 1
+},
+"poddebice": {
+"lat": 51.741423,
+"lng": 19.825971,
+"miasto": "Poddębice",
+"level": 1
+},
+"starachowice": {
+"lat": 51.064331,
+"lng": 21.072867,
+"miasto": "Starachowice",
+"level": 1
+},
+"tworki": {
+"lat": 52.16963,
+"lng": 20.82724,
+"miasto": "Pruszków",
+"level": 1
+},
+"swk": {
+"lat": 54.199389,
+"lng": 16.211594,
+"miasto": "Koszalin",
+"level": 1
+},
+"rodamed": {
+"lat": 52.012834,
+"lng": 18.52902,
+"miasto": "Turek",
+"level": 1
+},
+"tdipin": {
+"lat": 52.173289,
+"lng": 21.065364,
+"miasto": "Warszawa",
+"level": 2
+},
+"tdgniezno": {
+"lat": 52.531699,
+"lng": 17.602344,
+"miasto": "gniezno",
+"level": 2
+},
+"wsswroclaw": {
+"lat": 51.148428,
+"lng": 17.043549,
+"miasto": "Wrocław",
+"level": 1
+},
+"tdorzesze": {
+"lat": 50.121559,
+"lng": 18.781528,
+"miasto": "Orzesze",
+"level": 2
+},
+"brzesko": {
+"lat": 49.969061,
+"lng": 20.590824,
+"miasto": "Brzesko",
+"level": 1
+},
+"grajewo": {
+"lat": 53.624921,
+"lng": 22.467274,
+"miasto": "Grajewo",
+"level": 2
+},
+"brodnica": {
+"lat": 53.261599,
+"lng": 19.395723,
+"miasto": "Brodnica",
+"level": 1
+},
+"kartuzy": {
+"lat": 54.336863,
+"lng": 18.196953,
+"miasto": "Kartuzy",
+"level": 1
+},
+"wlodawa": {
+"lat": 51.556858,
+"lng": 23.555128,
+"miasto": "Włodawa",
+"level": 1
+},
+"wegorzewo": {
+"lat": 54.20676,
+"lng": 21.735803,
+"miasto": "Węgorzewo",
+"level": 1
+},
+"ostrow": {
+"lat": 52.798656,
+"lng": 21.91293,
+"miasto": "Ostrów Mazowiecka",
+"level": 1
+},
+"grodzisk": {
+"lat": 52.094903,
+"lng": 20.61649,
+"miasto": "Grodzisk Mazowiecki",
+"level": 1
+},
+"tdpoludniowy": {
+"lat": 52.147799,
+"lng": 21.029706,
+"miasto": "Warszawa",
+"level": 2
+},
+"goleniow": {
+"lat": 53.569074,
+"lng": 14.833727,
+"miasto": "Goleniów",
+"level": 1
+},
+"dzierzoniow": {
+"lat": 50.72863,
+"lng": 16.658602,
+"miasto": "Dzierżoniów",
+"level": 1
+},
+"rybnik": {
+"lat": 50.111158,
+"lng": 18.520188,
+"miasto": "Rybnik",
+"level": 1
+},
+"gorlice": {
+"lat": 49.651115,
+"lng": 21.162744,
+"miasto": "Gorlice",
+"level": 1
+},
+"szpitalzawiercie": {
+"lat": 50.481776,
+"lng": 19.408786,
+"miasto": "Zawiercie",
+"level": 1
+},
+"spzozmc": {
+"lat": 51.984693,
+"lng": 22.787414,
+"miasto": "Międzyrzec Podlaski",
+"level": 1
+},
+"zarywojskowy105": {
+"lat": 51.641569,
+"lng": 15.148486,
+"miasto": "Żary",
+"level": 1
+},
+"zozswietochlowice": {
+"lat": 50.30605,
+"lng": 18.915318,
+"miasto": "Świętochłowice",
+"level": 1
+},
+"tdksskrakow": {
+"lat": 50.090006,
+"lng": 19.936879,
+"miasto": "Kraków",
+"level": 1
+},
+"tdspzozkolo": {
+"lat": 52.184913,
+"lng": 18.618872,
+"miasto": "Koło",
+"level": 1
+},
+"tdszpitalkolno": {
+"lat": 53.417569,
+"lng": 21.934246,
+"miasto": "Kolno",
+"level": 2
+},
+"tdsulechow": {
+"lat": 52.089509,
+"lng": 15.622349,
+"miasto": "Sulechów",
+"level": 1
+},
+"uskpoznan": {
+"lat": 52.402132,
+"lng": 16.886901,
+"miasto": "Poznań",
+"level": 1
+},
+"tdspzozsiedlce": {
+"lat": 52.162908,
+"lng": 22.275357,
+"miasto": "Siedlce",
+"level": 1
+},
+"szpitalsiemiatycze": {
+"lat": 52.421659,
+"lng": 22.863712,
+"miasto": "Siemiatycze",
+"level": 1
+},
+"mswiapoznan": {
+"lat": 52.43701,
+"lng": 16.902329,
+"miasto": "Poznań",
+"level": 1
+},
+"sokolow": {
+"lat": 52.409937,
+"lng": 22.225934,
+"miasto": "Sokołów Podlaski",
+"level": 2
+},
+"kamienpomorski": {
+"lat": 53.962811,
+"lng": 14.777477,
+"miasto": "Kamień Pomorski",
+"level": 1
+},
+"smtorun": {
+"lat": 53.022742,
+"lng": 18.621399,
+"miasto": "Toruń",
+"level": 1
+},
+"zozsochaczew": {
+"lat": 52.239122,
+"lng": 20.226702,
+"miasto": "Sochaczew",
+"level": 1
+},
+"tdbrodnowski": {
+"lat": 52.291659,
+"lng": 21.042229,
+"miasto": "Warszawa",
+"level": 1
+},
+"tdkoszalinmswia": {
+"lat": 54.187703,
+"lng": 16.184937,
+"miasto": "Koszalin",
+"level": 2
+},
+"lapy": {
+"lat": 52.988052,
+"lng": 22.867676,
+"miasto": "Łapy",
+"level": 1
+},
+"spbochnia": {
+"lat": 49.966534,
+"lng": 20.42122,
+"miasto": "Bochnia",
+"level": 1
+},
+"spzozturek": {
+"lat": 52.010257,
+"lng": 18.490825,
+"miasto": "Turek",
+"level": 1
+},
+"tdspectrum": {
+"lat": 51.701758,
+"lng": 17.430163,
+"miasto": "Krotoszyn",
+"level": 2
+},
+"tdszpitalchelm": {
+"lat": 51.127271,
+"lng": 23.466734,
+"miasto": "Chełm",
+"level": 2
+},
+"wss5": {
+"lat": 50.303411,
+"lng": 19.12338,
+"miasto": "Sosnowiec",
+"level": 1
+},
+"tdbelzyce": {
+"lat": 51.17147,
+"lng": 22.265895,
+"miasto": "Bełżyce",
+"level": 2
+},
+"tomograf": {
+"lat": 50.115288,
+"lng": 18.982844,
+"miasto": "Tychy",
+"level": 1
+},
+"tdcrir": {
+"lat": 53.126317,
+"lng": 18.012156,
+"miasto": "Bydgoszcz",
+"level": 2
+},
+"tdonkologiaradom": {
+"lat": 52.234029,
+"lng": 21.016919,
+"miasto": "Warszawa",
+"level": 1
+},
+"tdzozplonsk": {
+"lat": 52.623149,
+"lng": 20.370985,
+"miasto": "Płońsk",
+"level": 2
+},
+"tdpionki": {
+"lat": 51.46959,
+"lng": 21.448623,
+"miasto": "Pionki",
+"level": 2
+},
+"sm4gliwice": {
+"lat": 50.290365,
+"lng": 18.668081,
+"miasto": "Gliwice",
+"level": 2
+},
+"tdpyrzyce": {
+"lat": 53.155467,
+"lng": 14.891265,
+"miasto": "Pyrzyce",
+"level": 2
+},
+"tdpraski": {
+"lat": 52.25075,
+"lng": 21.029747,
+"miasto": "Warszawa",
+"level": 1
+},
+"tdzoznidzica": {
+"lat": 53.38894,
+"lng": 20.442198,
+"miasto": "Nidzica",
+"level": 2
+},
+"tdtargowek": {
+"lat": 52.26868,
+"lng": 21.053628,
+"miasto": "Warszawa",
+"level": 1
+},
+"tdwszplock": {
+"lat": 52.55731,
+"lng": 19.654818,
+"miasto": "Płock",
+"level": 1
+},
+"pczotwock": {
+"lat": 52.098011,
+"lng": 21.262143,
+"miasto": "Otwock",
+"level": 1
+},
+"tdcmbatorego": {
+"lat": 49.610248,
+"lng": 20.700834,
+"miasto": "Nowy Sącz",
+"level": 1
+},
+"tdzozwola": {
+"lat": 52.24407,
+"lng": 20.943655,
+"miasto": "Warszawa",
+"level": 2
+},
+"poliklinikakoszalin": {
+"lat": 54.187703,
+"lng": 16.184937,
+"miasto": "Koszalin",
+"level": 2
+},
+"arterieart": {
+"lat": 54.187703,
+"lng": 16.184937,
+"miasto": "Koszalin",
+"level": 2
+},
+"tdscanmed2": {
+"lat": 52.248869,
+"lng": 21.029771,
+"miasto": "Warszawa",
+"level": 1
+},
+"scanmed": {
+"lat": 52.248869,
+"lng": 21.029771,
+"miasto": "Warszawa",
+"level": 1
+},
+"gz": {
+"lat": 52.630431,
+"lng": 20.377149,
+"miasto": "Płońsk",
+"level": 1
+},
+"tdblachownia": {
+"lat": 52.248869,
+"lng": 21.029771,
+"miasto": "Warszawa",
+"level": 1
+},
+"tdgammaknife": {
+"lat": 52.293009,
+"lng": 21.031664,
+"miasto": "Warszawa",
+"level": 2
+},
+"tdstalowawola": {
+"lat": 50.580834,
+"lng": 22.052632,
+"miasto": "Stalowa Wola",
+"level": 2
+},
+"bimed": {
+"lat": 51.965766,
+"lng": 20.518122,
+"miasto": "Mszczonów",
+"level": 2
+},
+"tdparczew": {
+"lat": 51.632098,
+"lng": 22.901943,
+"miasto": "Parczew",
+"level": 2
+},
+"medflow": {
+"lat": 52.416971,
+"lng": 16.87748,
+"miasto": "Poznań",
+"level": 1
+},
+"swp": {
+"lat": 54.187703,
+"lng": 16.184937,
+"miasto": "Koszalin",
+"level": 2
+},
+"zozboleslawiec": {
+"lat": 51.254474,
+"lng": 15.566945,
+"miasto": "Bolesławiec",
+"level": 1
+},
+"td7szmw": {
+"lat": 54.393418,
+"lng": 18.566568,
+"miasto": "Gdańska",
+"level": 1
+},
+"tdkolbuszowa": {
+"lat": 50.234753,
+"lng": 21.77167,
+"miasto": "Kolbuszowa",
+"level": 2
+},
+"zozolawa": {
+"lat": 50.943488,
+"lng": 17.286421,
+"miasto": "Oława",
+"level": 2
+},
+"szpitalmikolow": {
+"lat": 50.179419,
+"lng": 18.887423,
+"miasto": "Mikołów",
+"level": 2
+}
+}

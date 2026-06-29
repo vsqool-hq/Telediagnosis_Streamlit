@@ -25,3 +25,7 @@ sync.env
 # System
 .DS_Store
 *.log
+
+# Statyczne dane aplikacji (geokody jednostek) — wersjonowane mimo reguły data/
+!backend/app/data/
+!backend/app/data/unit_geo.json
