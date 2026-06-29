@@ -156,6 +156,17 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
 
     # mapowanie badanie → kategoria lekarska
     df = df.copy()
+    # LEKARZE: brak jakiegokolwiek podciągania (w górę/dół). Używamy ORYGINALNego
+    # rodzaju procedury i liczby okolic (kolumny zachowane w Etapie 1 PRZED korektami
+    # jednostek), a kategorię dobieramy po PARZE (opis procedury, rodzaj procedury) —
+    # ten sam opis przy różnych rodzajach bywa w innej kategorii cenowej lekarza.
+    # Spójne z generate_doctor_billing_files (raporty per lekarz).
+    if "Rodzaj procedury rozlicz. (oryg.)" in df.columns:
+        df["Rodzaj procedury rozlicz."] = df["Rodzaj procedury rozlicz. (oryg.)"]
+    if "Procedura rozlicz. (oryg.)" in df.columns:
+        df["Procedura rozlicz."] = df["Procedura rozlicz. (oryg.)"]
+    if "Priorytet opisu" in df.columns:
+        df["Priorytet opisu"] = df["Priorytet opisu"].replace({"Bardzo pilny": "Pilny"})
     df["_proc_key"] = df["Procedura"].map(_key)
     df["_rodzaj_key"] = df["Rodzaj procedury rozlicz."].map(_key)
     df["_kategoria"] = [
