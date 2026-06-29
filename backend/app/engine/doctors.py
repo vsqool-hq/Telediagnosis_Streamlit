@@ -264,7 +264,7 @@ def _period_mmyyyy(frame) -> str:
 
 
 def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
-                                  out_dir: str, excluded_keys=None) -> dict:
+                                  out_dir: str, excluded_keys=None, period_mmyyyy=None) -> dict:
     """
     Tworzy OSOBNY plik Excel dla KAŻDEGO lekarza — w układzie identycznym jak
     rozliczenia jednostek (arkusz „Szczegółowe" z jego badaniami + „Rozliczenie"
@@ -335,7 +335,9 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
             return prices.get((_lk, category.upper()), np.nan)
 
         # Nazwa pliku wg szablonu: „MMRRRR dr Nazwisko Imię" (np. „052026 dr Bujalski Tomasz").
-        period = _period_mmyyyy(sub)
+        # Miesiąc w nazwie pliku: z nazwy pliku wejściowego (period_mmyyyy),
+        # a w razie braku — z dat w danych (zapas).
+        period = period_mmyyyy or _period_mmyyyy(sub)
         fname = (_safe_filename(f"{period} dr {_surname_first(disp)}") or "dr lekarz") + ".xlsx"
         try:
             bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),

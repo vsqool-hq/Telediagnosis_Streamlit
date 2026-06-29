@@ -76,6 +76,7 @@ def best_jobs_by_month() -> dict:
     Zwraca: { "YYYY-MM": {job_id, revenue, studies, period, date} }.
     """
     from app.engine.revenue import cached_summary
+    from app.engine.periods import period_from_filename
     best: dict = {}
     for j in db.list_jobs(limit=100):
         if j["status"] != "done" or j["mode"] != "full":
@@ -84,7 +85,11 @@ def best_jobs_by_month() -> dict:
         s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
         if s.get("empty"):
             continue
-        period = s.get("period") or (j.get("finished_at") or j.get("created_at") or "")[:7]
+        # Miesiąc rozliczenia: z NAZWY pliku (data wygenerowania − 1 miesiąc).
+        # Zapas: miesiąc z dat w pliku, a na końcu z daty policzenia.
+        period = (period_from_filename(j.get("input_name"))
+                  or s.get("period")
+                  or (j.get("finished_at") or j.get("created_at") or "")[:7])
         rev = float(s.get("total_revenue") or 0)
         cur = best.get(period)
         if cur is None or rev > cur["revenue"]:

@@ -11,6 +11,11 @@ const MONTHS_PL = [
 ];
 const monthLabel = (iso: string) => { const d = new Date(iso); return `${MONTHS_PL[d.getMonth()]} ${d.getFullYear()}`; };
 const monthKey = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+// Miesiąc rozliczenia z pola period ("YYYY-MM", z nazwy pliku − 1 mies.); zapas: data zadania.
+const periodLabel = (p?: string | null) => {
+  if (p && /^\d{4}-\d{2}$/.test(p)) return `${MONTHS_PL[parseInt(p.slice(5)) - 1]} ${p.slice(0, 4)}`;
+  return "—";
+};
 
 export default function HistoriaPage() {
   const [error, setError] = useState<string | null>(null);
@@ -24,14 +29,15 @@ export default function HistoriaPage() {
 
   const entries = useMemo<Job[]>(() => {
     const done = (jobsData ?? []).filter((j) => j.status === "done" && j.mode === "full");
-    // Lista z bazy jest malejąco wg daty → pierwszy w miesiącu = najnowszy (finalny).
+    // Grupujemy po MIESIĄCU ROZLICZENIA (period z nazwy pliku − 1 mies.; zapas: data zadania).
+    // Lista z bazy jest malejąco wg daty → pierwszy w grupie = najnowszy (finalny).
+    const keyOf = (j: Job) => j.period || monthKey(j.finished_at || j.created_at);
     const map = new Map<string, Job>();
     for (const j of done) {
-      const k = monthKey(j.finished_at || j.created_at);
+      const k = keyOf(j);
       if (!map.has(k)) map.set(k, j);
     }
-    return Array.from(map.values()).sort((a, b) =>
-      monthKey(b.finished_at || b.created_at).localeCompare(monthKey(a.finished_at || a.created_at)));
+    return Array.from(map.values()).sort((a, b) => keyOf(b).localeCompare(keyOf(a)));
   }, [jobsData]);
   const cennikNames = useMemo(
     () => Object.fromEntries((cennikVs ?? []).map((v) => [v.id, v.original_name])),
@@ -89,7 +95,7 @@ export default function HistoriaPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-extrabold">{monthLabel(when)}</h3>
+                      <h3 className="text-lg font-extrabold">{j.period ? periodLabel(j.period) : monthLabel(when)}</h3>
                       <span className={`pill ${latest ? "pill-ok" : "pill-muted"}`}>Finalne</span>
                     </div>
                     <p className="text-xs text-slate-400">Zapisano {new Date(when).toLocaleString("pl-PL")}</p>

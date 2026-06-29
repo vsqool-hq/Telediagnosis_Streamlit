@@ -29,9 +29,16 @@ async def create_job(file: UploadFile = File(...), mode: str = Form("full")):
     return job
 
 
+def _with_period(job: dict) -> dict:
+    """Dokłada miesiąc rozliczenia (z nazwy pliku − 1 mies.) — spójnie w całym UI."""
+    from app.engine.periods import period_from_filename
+    job["period"] = period_from_filename(job.get("input_name"))
+    return job
+
+
 @router.get("")
 async def list_jobs():
-    return db.list_jobs()
+    return [_with_period(j) for j in db.list_jobs()]
 
 
 @router.post("/import")
@@ -132,7 +139,7 @@ async def get_job(job_id: str):
     job["live_status"] = status.get("status", job["status"])
     job["elapsed_seconds"] = _elapsed_seconds(job)
     job["files"] = [os.path.basename(p) for p in runner.result_files(job_id, job["mode"])]
-    return job
+    return _with_period(job)
 
 
 @router.post("/{job_id}/cancel")

@@ -107,6 +107,7 @@ export interface Job {
   finished_at: string | null;
   files?: string[];
   elapsed_seconds?: number;
+  period?: string | null;   // miesiąc rozliczenia „YYYY-MM" (z nazwy pliku − 1 mies.)
 }
 
 export interface Overview {

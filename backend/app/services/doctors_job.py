@@ -86,10 +86,14 @@ def compute(job_id: str) -> dict:
     print(f"Liczę rozliczenie lekarzy (zadanie {job_id})…", flush=True)
     result = build_doctor_billing(paths["sprawdzone"], slownik, cennik_lek, excluded_keys=excluded)
     if not result.get("empty"):
+        # Miesiąc do nazw plików lekarzy — z nazwy pliku wejściowego (− 1 mies.).
+        from app.engine.periods import period_from_filename, period_to_mmyyyy
+        period_mm = period_to_mmyyyy(period_from_filename((_job or {}).get("input_name"))) or None
         try:
             gen = generate_doctor_billing_files(
                 paths["sprawdzone"], slownik, cennik_lek,
                 os.path.join(_lekarze_dir(paths), "pliki"), excluded_keys=excluded,
+                period_mmyyyy=period_mm,
             )
             result["files_count"] = gen["count"]
             print(f"✓ Wygenerowano plików lekarzy: {gen['count']}.", flush=True)
