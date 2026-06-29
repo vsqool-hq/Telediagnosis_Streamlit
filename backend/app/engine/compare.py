@@ -88,9 +88,22 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     if "Badania do porównania" in _dk.columns:
         _dk["Badania do porównania"] = 0
     df["_badanie"] = _dk.apply(build_price_key, axis=1)
+
+    # Strona LEKARZA: bez podciągania (w górę/dół) — kategorię i okolice liczymy na
+    # ORYGINALNym rodzaju procedury i „Procedura rozlicz." (kolumny „(oryg.)" z Etapu 1),
+    # a kategorię dobieramy po PARZE (opis procedury, rodzaj procedury). Tak samo jak
+    # build_doctor_billing i raporty per lekarz — by koszt lekarzy w marży się zgadzał.
+    _rodzaj_doc = (df["Rodzaj procedury rozlicz. (oryg.)"]
+                   if "Rodzaj procedury rozlicz. (oryg.)" in df.columns
+                   else df["Rodzaj procedury rozlicz."])
+    _proc_doc = (df["Procedura rozlicz. (oryg.)"]
+                 if "Procedura rozlicz. (oryg.)" in df.columns
+                 else df["Procedura rozlicz."])
+    df["_rodzaj_doc_key"] = _rodzaj_doc.map(_key)
+    df["_mult_doc"] = _proc_doc.map(bill_extract_multiplier)   # okolice lekarza (oryg.)
     df["_kategoria"] = [
-        resolve_category(r, cat_map.get((_key(r.get("Procedura")), _key(r.get("Rodzaj procedury rozlicz."))), ""))
-        for _, r in df.iterrows()
+        resolve_category(r, cat_map.get((_key(r.get("Procedura")), rk), ""))
+        for (_, r), rk in zip(df.iterrows(), df["_rodzaj_doc_key"])
     ]
     df["_lek_key"] = df["Opisujący"].map(doctor_key) if "Opisujący" in df.columns else ""
 
@@ -123,10 +136,10 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     df["_unit_price"] = df.apply(_unit_price, axis=1)
     df["_doc_price"] = df.apply(_doc_price, axis=1)
     df["_units_rev"] = df["_mult"] * df["_unit_price"].fillna(0) + df.apply(_porown_rev, axis=1)
-    df["_doc_cost"] = df["_mult"] * df["_doc_price"].fillna(0)
+    df["_doc_cost"] = df["_mult_doc"] * df["_doc_price"].fillna(0)   # okolice lekarza (oryg.)
 
     grp = df[df["_kategoria"] != ""].groupby(["Modalność", "_kategoria"]).agg(
-        ilosc=("_mult", "sum"),
+        ilosc=("_mult_doc", "sum"),
         przychod_jednostki=("_units_rev", "sum"),
         koszt_lekarzy=("_doc_cost", "sum"),
     ).reset_index().rename(columns={"_kategoria": "kategoria"})
@@ -170,7 +183,7 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
             .sort_values("n", ascending=False).drop_duplicates("_lek_key").set_index("_lek_key")["_lekarz"]
         )
         gd = doc.groupby("_lek_key").agg(
-            ilosc=("_mult", "sum"),
+            ilosc=("_mult_doc", "sum"),
             przychod_jednostki=("_units_rev", "sum"),
             koszt_lekarzy=("_doc_cost", "sum"),
         ).reset_index()
