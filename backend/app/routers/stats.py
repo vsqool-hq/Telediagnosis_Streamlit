@@ -6,7 +6,8 @@ Statystyki budujemy z plików rozliczeń zadania:
     odtwarzając logikę wyceny silnika — bo Excel trzyma formuły, nie liczby.
 """
 
-from collections import defaultdict
+import os
+import json
 
 from fastapi import APIRouter, HTTPException
 
@@ -14,6 +15,21 @@ from app import db
 from app.storage import job_paths
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
+
+# Współrzędne jednostek (geokodowane raz ze słownika adresów) — do zakładki „Mapa".
+_GEO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "unit_geo.json")
+_geo_cache = None
+
+
+def _load_geo() -> dict:
+    global _geo_cache
+    if _geo_cache is None:
+        try:
+            with open(_GEO_PATH, "r", encoding="utf-8") as f:
+                _geo_cache = json.load(f)
+        except (OSError, ValueError):
+            _geo_cache = {}
+    return _geo_cache
 
 
 @router.get("/overview")
@@ -105,3 +121,44 @@ async def current_stats():
     paths = job_paths(latest["job_id"])
     s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
     return {**s, "job_id": latest["job_id"], "period": latest["period"]}
+
+
+@router.get("/map")
+async def map_data(months: int = 3):
+    """Dane do zakładki „Mapa": przychód per jednostka za ostatnie N miesięcy
+    (z najlepszego przeliczenia każdego miesiąca) + współrzędne ze słownika adresów."""
+    from app.engine.revenue import build_revenue
+    geo = _load_geo()
+    best = best_jobs_by_month()
+    recent = sorted(best.keys())[-max(1, months):]
+
+    rev_by_month: dict = {}
+    for p in recent:
+        paths = job_paths(best[p]["job_id"])
+        try:
+            df = build_revenue(paths["wynik"], paths["cennik"])
+            rev_by_month[p] = {} if df.empty else df.groupby("Klient")["Wartość"].sum().to_dict()
+        except Exception:  # noqa: BLE001
+            rev_by_month[p] = {}
+
+    keys = set()
+    for p in recent:
+        keys |= set(rev_by_month[p].keys())
+
+    units, missing_geo = [], []
+    for raw in sorted(keys):
+        k = str(raw).strip().lower()
+        g = geo.get(k)
+        months_rev = {p: round(float(rev_by_month[p].get(raw, 0) or 0), 2) for p in recent}
+        if g is None:
+            if any(v > 0 for v in months_rev.values()):
+                missing_geo.append(k)
+            continue
+        units.append({
+            "key": k, "miasto": g.get("miasto") or k,
+            "lat": g["lat"], "lng": g["lng"],
+            "months": months_rev,
+            "latest": months_rev.get(recent[-1], 0.0),
+        })
+    return {"months": recent, "units": units,
+            "missing_geo": sorted(set(missing_geo))[:50], "geocoded": len(geo)}

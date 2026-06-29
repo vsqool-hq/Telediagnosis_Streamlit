@@ -8,6 +8,7 @@ import {
   Stethoscope,
   Wallet,
   Scale,
+  Map as MapIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ export const NAV: NavItem[] = [
   { href: "/rozliczenie-lekarzy", label: "Rozliczenie lekarzy", short: "Lekarze", icon: Stethoscope },
   { href: "/cennik-lekarzy", label: "Cennik lekarzy", short: "Cennik lek.", icon: Wallet },
   { href: "/porownanie", label: "Porównanie", short: "Porównanie", icon: Scale },
+  { href: "/mapa", label: "Mapa", short: "Mapa", icon: MapIcon },
   { href: "/ustawienia", label: "Ustawienia", short: "Ustawienia", icon: SlidersHorizontal },
 ];
 

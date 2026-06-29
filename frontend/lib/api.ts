@@ -239,6 +239,21 @@ export interface DoctorComparison {
   };
 }
 
+export interface MapUnit {
+  key: string;
+  miasto: string;
+  lat: number;
+  lng: number;
+  months: Record<string, number>;
+  latest: number;
+}
+export interface MapData {
+  months: string[];
+  units: MapUnit[];
+  missing_geo: string[];
+  geocoded: number;
+}
+
 export interface TrendPoint {
   job_id: string;
   date: string;
@@ -280,6 +295,7 @@ export const api = {
   jobStats: (id: string) => req<JobStats>(`/api/stats/job/${id}`),
   statsCurrent: () => req<JobStats>("/api/stats/current"),
   trends: () => req<{ points: TrendPoint[] }>("/api/stats/trends"),
+  mapData: () => req<MapData>("/api/stats/map"),
   importExportUrl: (id: string, fmt: "csv" | "xlsx") =>
     withToken(`${API_BASE}/api/jobs/${id}/import-export?fmt=${fmt}`),
 
