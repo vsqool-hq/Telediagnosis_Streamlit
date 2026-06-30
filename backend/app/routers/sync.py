@@ -130,7 +130,10 @@ def pull_active_from_cloud(cloud: str, token: str) -> dict:
     # (dedup po id), więc kolejne synchronizacje nie ściągają go w kółko.
     try:
         jobs = json.loads(_fetch(f"{cloud}/api/jobs", token))
-        latest = next((j for j in jobs if j.get("mode") == "full"), None) or (jobs[0] if jobs else None)
+        # Ostatnio wgrany plik = NAJNOWSZE zadanie, niezależnie od trybu (pełne lub
+        # „tylko braki wzorca"). Lista z chmury jest malejąco wg daty; pomijamy tylko
+        # zadania anulowane (przerwane), bo nie reprezentują realnego wgrania.
+        latest = next((j for j in jobs if j.get("status") != "cancelled"), None) or (jobs[0] if jobs else None)
         if latest and latest.get("id"):
             if db.get_job(latest["id"]):
                 synced["latest_job"] = None  # już mamy
