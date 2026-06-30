@@ -66,6 +66,31 @@ async def convert(file: UploadFile = File(...)):
     }
 
 
+@router.get("/commitments-status")
+async def commitments_status():
+    """
+    Czy aktywny cennik lekarzy ma zapisany „plik zobowiązań" (source.xlsx) do
+    uzupełniania ilości okolic? Zwraca nazwę i liczbę arkuszy (lekarzy), żeby od
+    razu było widać, że wgranie xlsx przez konwerter się powiodło.
+    """
+    from app.engine.commitments import active_commitments_workbook
+    path, name = active_commitments_workbook()
+    if not path:
+        return {"available": False,
+                "reason": "Aktywny cennik lekarzy nie ma zapisanego pliku .xlsx. "
+                          "Wgraj ZOBOWIĄZANIA LEKARZY (.xlsx) przez konwerter."}
+    info = {"available": True, "name": name, "size": os.path.getsize(path)}
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(path, read_only=True)
+        sheets = [s for s in wb.sheetnames if not s.strip().upper().startswith("ZBIORCZO")]
+        info["doctor_sheets"] = len(sheets)
+        wb.close()
+    except Exception as e:  # noqa: BLE001
+        info["read_error"] = str(e)
+    return info
+
+
 @router.get("/convert/{conv_id}/download")
 async def download_converted(conv_id: str):
     path = _tmp_path(conv_id)
