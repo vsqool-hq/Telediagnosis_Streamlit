@@ -114,10 +114,18 @@ def compute(job_id: str) -> dict:
             elif not period_ym:
                 print("! Plik zobowiązań: nie rozpoznano miesiąca z nazwy pliku — pomijam.", flush=True)
             else:
-                rep = fill_and_package(wb_path, period_ym, result.get("category_okolice", []), pliki_dir, disp)
+                rep = fill_and_package(
+                    wb_path, period_ym, result.get("category_okolice", []),
+                    pliki_dir, disp, daily_rows=result.get("category_okolice_daily", []),
+                )
                 result["commitments"] = rep
-                print(f"✓ Plik zobowiązań uzupełniony ({period_ym}): lekarzy {rep['doctors_written']}, "
-                      f"komórek {rep['cells_written']} → {rep.get('package_file')}", flush=True)
+                msg = (f"✓ Plik zobowiązań uzupełniony ({period_ym}): lekarzy {rep['doctors_written']}, "
+                       f"komórek {rep['cells_written']} → {rep.get('package_file')}")
+                if rep.get("split_doctors"):
+                    msg += f"; miesiące rozbite aneksem: {len(rep['split_doctors'])}"
+                if rep.get("split_unallocated"):
+                    msg += f"; ⚠ nierozdzielone pozycje: {len(rep['split_unallocated'])}"
+                print(msg, flush=True)
         except Exception as e:  # noqa: BLE001
             result["commitments_error"] = str(e)
             print(f"! Plik zobowiązań — błąd: {e}", flush=True)

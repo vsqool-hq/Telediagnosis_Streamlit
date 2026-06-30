@@ -10,8 +10,16 @@ komórkami ilości — formuły SUMA/ŚREDNIA przeliczą się same w Excelu).
 
 Mapowanie:
   * lekarz → zakładka: doctor_key() (niewrażliwe na kolejność imię/nazwisko),
-  * miesiąc → kolumna: data w WIERSZU 2 (działa też dla układów z aneksami),
+  * miesiąc → kolumna: data w WIERSZU 2. Gdy ten sam miesiąc występuje w kilku
+    blokach (aneksy obok siebie), bierzemy NAJNOWSZY = NAJBARDZIEJ NA PRAWO.
   * kategoria → wiersz: etykieta w kolumnie A (wiersze wspólne dla bloków aneksów).
+
+Miesiąc ROZBITY aneksem w połowie:
+  gdy w połowie miesiąca podpisano aneks ze zmianą stawek, miesiąc w pliku jest
+  podzielony na DWIE kolumny z zakresem dni w nagłówku (np. „01-17.05.2026" i
+  „18-31.05.2026"). Wtedy nie wpisujemy jednej sumy — rozdzielamy okolice po
+  DACIE BADANIA: badania z dni ≤ granicy idą do pierwszej kolumny, pozostałe do
+  drugiej (dane dzienne z build_doctor_billing → category_okolice_daily).
 """
 
 import os
@@ -29,6 +37,10 @@ from app.engine.cennik_lekarzy_convert import doctor_key
 
 def _ncat(s) -> str:
     return re.sub(r"\s+", " ", str(s if s is not None else "")).strip().upper()
+
+
+# Nagłówek kolumny rozbitego miesiąca: „DD-DD.MM.YYYY" (np. „01-17.05.2026").
+_RANGE_RE = re.compile(r"^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})\s*$")
 
 
 def active_commitments_workbook():
@@ -51,12 +63,38 @@ def active_commitments_workbook():
     return path, name
 
 
-def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list) -> dict:
+def _month_columns(ws, y: int, m: int):
+    """Zwraca kolumny miesiąca z wiersza 2:
+      whole  — [(col)] kolumny ze zwykłą datą tego miesiąca (zwykle 1, czasem
+               kilka przy powtórce w blokach aneksów),
+      splits — [(col, dzień_od, dzień_do)] kolumny rozbitego miesiąca
+               (nagłówek „DD-DD.MM.YYYY"), posortowane wg dnia początkowego.
+    """
+    whole, splits = [], []
+    for c in range(1, ws.max_column + 1):
+        v = ws.cell(row=2, column=c).value
+        if isinstance(v, datetime.datetime):
+            if v.year == y and v.month == m:
+                whole.append(c)
+        elif isinstance(v, str):
+            mt = _RANGE_RE.match(v)
+            if mt:
+                d_from, d_to, mm, yy = (int(mt.group(i)) for i in range(1, 5))
+                if yy == y and mm == m:
+                    splits.append((c, d_from, d_to))
+    splits.sort(key=lambda t: t[1])
+    return whole, splits
+
+
+def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list,
+                  daily_rows: list = None) -> dict:
     """
     Uzupełnia w skoroszycie (w miejscu) liczbę okolic dla danego miesiąca.
       period_ym    — „YYYY-MM" (miesiąc rozliczenia),
-      okolice_rows — [{lekarz, kategoria, okolice}] z build_doctor_billing.
-    Nadpisuje TYLKO komórki (kategoria × miesiąc); reszty nie rusza.
+      okolice_rows — [{lekarz, kategoria, okolice}] — suma okolic (zwykły miesiąc),
+      daily_rows   — [{lekarz, kategoria, data:"YYYY-MM-DD", okolice}] — rozbicie
+                     dzienne; używane TYLKO dla miesięcy rozbitych aneksem.
+    Nadpisuje TYLKO komórki (kategoria × kolumna miesiąca); reszty nie rusza.
     """
     y, m = (int(x) for x in period_ym.split("-")[:2])
 
@@ -69,8 +107,22 @@ def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list) -> dict:
         by_doc[k][_ncat(r["kategoria"])] = r["okolice"]
         disp_by_key.setdefault(k, r["lekarz"])
 
+    # rozbicie dzienne: doctor_key -> {NCAT: {dzień_miesiąca: suma_okolic}}
+    daily = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+    for r in (daily_rows or []):
+        k = doctor_key(r["lekarz"])
+        if not k:
+            continue
+        try:
+            d = datetime.date.fromisoformat(str(r["data"])[:10])
+        except (ValueError, TypeError):
+            continue
+        if d.year == y and d.month == m:
+            daily[k][_ncat(r["kategoria"])][d.day] += float(r["okolice"] or 0)
+
     report = {"period": period_ym, "doctors_written": 0, "cells_written": 0,
-              "doctors_no_sheet": [], "no_month_column": [], "categories_not_found": []}
+              "doctors_no_sheet": [], "no_month_column": [], "categories_not_found": [],
+              "split_doctors": [], "split_unallocated": []}
 
     wb = load_workbook(wb_path)  # data_only=False — zachowujemy formuły
 
@@ -87,14 +139,8 @@ def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list) -> dict:
             continue
         ws = wb[sn]
 
-        # miesiąc → kolumna (data w wierszu 2)
-        target_col = None
-        for c in range(1, ws.max_column + 1):
-            v = ws.cell(row=2, column=c).value
-            if isinstance(v, datetime.datetime) and v.year == y and v.month == m:
-                target_col = c
-                break
-        if target_col is None:
+        whole_cols, split_cols = _month_columns(ws, y, m)
+        if not whole_cols and not split_cols:
             report["no_month_column"].append(sn)
             continue
 
@@ -106,13 +152,47 @@ def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list) -> dict:
                 cat_row.setdefault(_ncat(a), rr)
 
         wrote = 0
-        for ncat, okolice in cats.items():
-            row = cat_row.get(ncat)
-            if not row:
-                report["categories_not_found"].append({"lekarz": disp_by_key.get(k, k), "kategoria": ncat})
-                continue
-            ws.cell(row=row, column=target_col).value = int(okolice)
-            wrote += 1
+        if split_cols:
+            # Miesiąc rozbity aneksem — rozdziel okolice po dniu badania na zakresy.
+            doc_daily = daily.get(k, {})
+            for ncat, total in cats.items():
+                row = cat_row.get(ncat)
+                if not row:
+                    report["categories_not_found"].append({"lekarz": disp_by_key.get(k, k), "kategoria": ncat})
+                    continue
+                day_map = doc_daily.get(ncat, {})
+                if not day_map:
+                    # Brak danych dziennych dla tej kategorii — NIE nadpisujemy
+                    # komórek zerami; zgłaszamy do ręcznego sprawdzenia.
+                    report["split_unallocated"].append({
+                        "lekarz": disp_by_key.get(k, k), "kategoria": ncat,
+                        "suma_miesiac": float(total or 0), "rozdzielono": 0.0})
+                    continue
+                allocated = 0.0
+                for (col, d_from, d_to) in split_cols:
+                    s = sum(ok for day, ok in day_map.items() if d_from <= day <= d_to)
+                    ws.cell(row=row, column=col).value = int(round(s))
+                    allocated += s
+                    wrote += 1
+                # suma z zakresów ≠ suma miesięczna → niepełne dane dzienne (np. NaT)
+                if abs(allocated - float(total or 0)) > 0.5:
+                    report["split_unallocated"].append({
+                        "lekarz": disp_by_key.get(k, k), "kategoria": ncat,
+                        "suma_miesiac": float(total or 0), "rozdzielono": allocated})
+            report["split_doctors"].append({
+                "lekarz": disp_by_key.get(k, k),
+                "zakresy": [{"od": d_from, "do": d_to} for (_, d_from, d_to) in split_cols]})
+        else:
+            # Zwykły miesiąc — jedna suma do NAJNOWSZEJ (skrajnie prawej) kolumny.
+            target_col = max(whole_cols)
+            for ncat, okolice in cats.items():
+                row = cat_row.get(ncat)
+                if not row:
+                    report["categories_not_found"].append({"lekarz": disp_by_key.get(k, k), "kategoria": ncat})
+                    continue
+                ws.cell(row=row, column=target_col).value = int(okolice)
+                wrote += 1
+
         if wrote:
             report["doctors_written"] += 1
             report["cells_written"] += wrote
@@ -122,9 +202,9 @@ def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list) -> dict:
 
 
 def fill_and_package(wb_path: str, period_ym: str, okolice_rows: list,
-                     package_dir: str, display_name: str) -> dict:
+                     package_dir: str, display_name: str, daily_rows: list = None) -> dict:
     """Uzupełnia przechowywany plik (kumulatywnie) i wrzuca jego kopię do paczki."""
-    report = fill_workbook(wb_path, period_ym, okolice_rows)
+    report = fill_workbook(wb_path, period_ym, okolice_rows, daily_rows)
     os.makedirs(package_dir, exist_ok=True)
     base = re.sub(r'[\\/:*?"<>|]+', "", display_name or "ZOBOWIĄZANIA LEKARZY")
     base = re.sub(r"\.(xlsx|xls)$", "", base, flags=re.I).strip() or "ZOBOWIĄZANIA LEKARZY"

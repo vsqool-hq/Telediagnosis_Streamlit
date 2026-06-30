@@ -243,12 +243,35 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
         .sort_values(["lekarz", "kategoria"])
     )
 
+    # Rozbicie okolic po DACIE BADANIA (dzień) — potrzebne tylko dla miesięcy
+    # rozbitych aneksem w połowie (w pliku zobowiązań są wtedy dwie kolumny:
+    # np. „01-17.05" i „18-31.05" z różnymi stawkami). Lekka agregacja
+    # lekarz × kategoria × data → suma okolic; dla zwykłych miesięcy nieużywana
+    # (wpisujemy sumę z category_okolice). Data: data badania (zapas: zatwierdzenia).
+    cat_okolice_daily = []
+    _date_col = next((c for c in ("Data badania (UTC)", "Data 1. zatwierdzenia")
+                      if c in priced.columns), None)
+    if _date_col is not None and not priced.empty:
+        _pr = priced[["_lek_disp", "_kategoria", "_okolice", _date_col]].copy()
+        _pr["_data"] = pd.to_datetime(_pr[_date_col], errors="coerce")
+        _pr = _pr[_pr["_data"].notna()]
+        if not _pr.empty:
+            _pr["_data"] = _pr["_data"].dt.strftime("%Y-%m-%d")
+            cat_okolice_daily = (
+                _pr.groupby(["_lek_disp", "_kategoria", "_data"])["_okolice"].sum()
+                .reset_index()
+                .rename(columns={"_lek_disp": "lekarz", "_kategoria": "kategoria",
+                                 "_data": "data", "_okolice": "okolice"})
+                .to_dict("records")
+            )
+
     return {
         "empty": False,
         "rows": by_cat.to_dict("records"),
         "by_doctor": by_doctor.to_dict("records"),
         "category_counts": cat_counts.to_dict("records"),
         "category_okolice": cat_okolice.to_dict("records"),
+        "category_okolice_daily": cat_okolice_daily,
         "validation": {
             "total_studies": int(len(df)),
             "priced_studies": int(len(ok)),
