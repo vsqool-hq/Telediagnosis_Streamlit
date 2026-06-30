@@ -7,7 +7,7 @@ import asyncio
 import zipfile
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, Response
 
 from app import db
 from app.services import runner
@@ -41,15 +41,13 @@ async def list_jobs():
     return [_with_period(j) for j in db.list_jobs()]
 
 
-@router.post("/import")
-async def import_job(request: Request):
+def import_job_bundle(raw: bytes) -> dict:
     """
-    Odbiera zadanie policzone na innym backendzie (np. lokalnym „Ten komputer")
-    i zapisuje je tutaj, żeby było widoczne online. Body = ZIP z katalogiem
-    zadania (jednostki/, wynik/, sprawdzone/, lekarze/, log.txt, status.json)
-    oraz meta.json. Idempotentne: ponowny import odświeża pliki tego samego zadania.
+    Rozpakowuje paczkę ZIP zadania (meta.json + jednostki/wynik/sprawdzone/lekarze/
+    log/status) do katalogu zadania i zapisuje rekord w bazie. Idempotentne.
+    Wspólne dla importu z innego backendu (push) i pobierania najnowszego
+    zadania z chmury (sync). Zwraca {"ok", "job_id"}.
     """
-    raw = await request.body()
     if not raw:
         raise HTTPException(400, "Puste żądanie.")
     try:
@@ -92,6 +90,27 @@ async def import_job(request: Request):
                   finished_at=meta.get("finished_at") or _now_iso(),
                   error=None)
     return {"ok": True, "job_id": job_id}
+
+
+@router.post("/import")
+async def import_job(request: Request):
+    """
+    Odbiera zadanie policzone na innym backendzie (np. lokalnym „Ten komputer")
+    i zapisuje je tutaj, żeby było widoczne online. Body = ZIP z katalogiem
+    zadania (jednostki/, wynik/, sprawdzone/, lekarze/, log.txt, status.json)
+    oraz meta.json. Idempotentne: ponowny import odświeża pliki tego samego zadania.
+    """
+    return import_job_bundle(await request.body())
+
+
+@router.get("/{job_id}/bundle")
+async def download_bundle(job_id: str):
+    """Paczka ZIP zadania (wgrany plik + wyniki) do pobrania — używane przez
+    lokalny backend przy synchronizacji z chmury (pobranie ostatniego zadania)."""
+    from app.routers.sync import _build_job_bundle
+    data = _build_job_bundle(job_id)
+    return Response(content=data, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="job_{job_id}.zip"'})
 
 
 def _now_iso():

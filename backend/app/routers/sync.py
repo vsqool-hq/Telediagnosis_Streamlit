@@ -32,6 +32,19 @@ def _now():
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+def _resolve_cloud(payload: dict):
+    """Adres i token chmury. PREFERUJEMY konfigurację serwera (sync.env:
+    TELEDIAG_SYNC_URL / TELEDIAG_SYNC_TOKEN) — to są właściwe dane dostępowe TEGO
+    komputera do chmury. Token z przeglądarki uwierzytelnia lokalny backend (gdzie
+    zwykle nie ma tokenu), więc nie nadaje się do logowania w chmurze (stąd 401).
+    Zapas: wartości z żądania."""
+    env_url = os.environ.get("TELEDIAG_SYNC_URL", "").strip().rstrip("/")
+    env_token = os.environ.get("TELEDIAG_SYNC_TOKEN", "").strip()
+    cloud = (env_url or (payload.get("cloud_base") or "")).rstrip("/")
+    token = env_token or (payload.get("token") or "")
+    return cloud, token
+
+
 def _fetch(url: str, token: str) -> bytes:
     headers = {"X-API-Token": token} if token else {}
     req = urllib.request.Request(url, headers=headers)
@@ -111,15 +124,32 @@ def pull_active_from_cloud(cloud: str, token: str) -> dict:
     except Exception as e:  # noqa: BLE001
         errors["settings"] = str(e)
 
+    # Najnowsze zadanie z chmury (ostatni wgrany plik „rozliczenie" + wyniki),
+    # żeby na lokalu było od razu dostępne do podejrzenia / przeliczenia. Bierzemy
+    # najnowsze zadanie 'full'; pobieramy tylko jeśli nie mamy go jeszcze lokalnie
+    # (dedup po id), więc kolejne synchronizacje nie ściągają go w kółko.
+    try:
+        jobs = json.loads(_fetch(f"{cloud}/api/jobs", token))
+        latest = next((j for j in jobs if j.get("mode") == "full"), None) or (jobs[0] if jobs else None)
+        if latest and latest.get("id"):
+            if db.get_job(latest["id"]):
+                synced["latest_job"] = None  # już mamy
+            else:
+                from app.routers.jobs import import_job_bundle
+                bundle = _fetch(f"{cloud}/api/jobs/{latest['id']}/bundle", token)
+                import_job_bundle(bundle)
+                synced["latest_job"] = latest.get("input_name") or latest["id"]
+    except Exception as e:  # noqa: BLE001
+        errors["latest_job"] = str(e)
+
     return {"synced": synced, "errors": errors}
 
 
 @router.post("")
 async def sync_from_cloud(payload: dict):
-    cloud = (payload.get("cloud_base") or "").rstrip("/")
-    token = payload.get("token") or ""
+    cloud, token = _resolve_cloud(payload)
     if not cloud:
-        raise HTTPException(400, "Brak adresu chmury (cloud_base).")
+        raise HTTPException(400, "Brak adresu chmury (TELEDIAG_SYNC_URL lub cloud_base).")
     if cloud.startswith(("http://localhost", "http://127.0.0.1")):
         raise HTTPException(400, "Adres chmury wskazuje na localhost — nie ma skąd synchronizować.")
     return pull_active_from_cloud(cloud, token)
@@ -165,11 +195,10 @@ async def push_to_cloud(payload: dict):
     widoczne online. Wywoływane automatycznie po ukończeniu liczenia „na tym
     komputerze". Transfer serwer→serwer (urllib), więc bez ograniczeń przeglądarki.
     """
-    cloud = (payload.get("cloud_base") or "").rstrip("/")
-    token = payload.get("token") or ""
+    cloud, token = _resolve_cloud(payload)
     job_id = (payload.get("job_id") or "").strip()
     if not cloud or not job_id:
-        raise HTTPException(400, "Brak cloud_base lub job_id.")
+        raise HTTPException(400, "Brak adresu chmury lub job_id.")
     if cloud.startswith(("http://localhost", "http://127.0.0.1")):
         raise HTTPException(400, "Adres chmury wskazuje na localhost — nie ma dokąd wysłać.")
 
