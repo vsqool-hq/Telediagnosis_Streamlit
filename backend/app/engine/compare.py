@@ -131,6 +131,8 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
         if row["_porown_flag"] <= 0 or row["_porown_badanie"] == row["_badanie"]:
             return 0.0
         p = resolve_unit_price(unit_prices, row.get("Klient", ""), row["_porown_badanie"], adj_by_unit)
+        # Dopłata od LICZBY badań porównawczych (jak faktura i tabela jednostek/Pulpit),
+        # bez mnożnika okolic: flaga (0/1) × stawka_porówn.
         return float(row["_porown_flag"]) * float(p) if (p and p > 0) else 0.0
 
     df["_unit_price"] = df.apply(_unit_price, axis=1)

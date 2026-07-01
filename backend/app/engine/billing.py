@@ -940,10 +940,11 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         grouped.rename(columns={'Nr badania': '#', 'Badania do porównania': 'Porown_Raw'}, inplace=True)
 
         grouped['Mnożnik'] = grouped['Procedura rozlicz.'].apply(bill_extract_multiplier)
-        # Porown_Raw — SUROWA liczba oflagowanych badań (do dopłaty porównawczej, bez
-        # mnożnika). Porownawcze_Flag — wersja z mnożnikiem okolic (kolumna „w tym
-        # porównawcze" w raporcie).
-        grouped['Porownawcze_Flag'] = grouped['Porown_Raw'] * grouped['Mnożnik']
+        # Dopłatę porównawczą liczymy od LICZBY BADAŃ porównawczych (jak faktura), a NIE
+        # od okolic. Dlatego kolumna „w tym porównawcze" = surowa liczba badań
+        # (Porown_Raw), bez mnożnika okolic. Formuła „Wartość" dolicza:
+        # (stawka_porówn ÷ bazowa) × stawka bazowa × liczba badań porównawczych.
+        grouped['Porownawcze_Flag'] = grouped['Porown_Raw']
 
         grouped['CENA_KLUCZ'] = grouped.apply(build_price_key, axis=1)
 
@@ -960,11 +961,31 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         if merged['Cena'].isna().any():
             logs.append(f"! OSTRZEŻENIE: Nie znaleziono cen dla {merged['Cena'].isna().sum()} pozycji (po dwóch próbach).")
 
-        # Badania porównawcze: NIE tworzymy osobnych wierszy „(porównawcze)" w
-        # rozliczeniu jednostek — ich licznik jest pokazany w kolumnie
-        # „{priorytet} w tym porównawcze" przy właściwym wierszu. Dopłatę porównawczą
-        # (wartość) nalicza Pulpit/przychód (revenue.py) i Porównanie (compare.py),
-        # więc nie rozbijamy tu pozycji na dodatkowe linie.
+        # Badania porównawcze: NIE rozbijamy na osobne wiersze — dopłatę porównawczą
+        # wliczamy WPROST w formułę „Wartość" danego wiersza. Reguła (spójna z
+        # Pulpitem i Porównaniem):
+        #   Wartość = Stawka×Ilość + (stawka_porówn ÷ stawka_bazowa) × Stawka × „w tym porównawcze"
+        # gdzie „w tym porównawcze" to LICZBA badań porównawczych (bez mnożnika okolic).
+        # Stawkę porównawczą bierzemy z cennika (klucz „… PORÓWNAWCZE …"; tylko TK/MR —
+        # RTG/MMG nie mają wariantu, więc dopłaty nie ma). Procent (stawka_porówn ÷
+        # bazowa) wpisujemy do formuły per (wiersz, priorytet) z ratio_map.
+        _porown_keys = merged.assign(**{'Badania do porównania': 1}).apply(build_price_key, axis=1)
+        _pmap = _prices_to_pmap(df_prices)
+        _adj = prepare_adjustments(get_unit_adjustments())
+        _comp_cena = []
+        for _kl, _pk, _bk in zip(merged['Klient'], _porown_keys, merged['CENA_KLUCZ']):
+            if _pk == _bk:
+                _comp_cena.append(0.0)          # brak wariantu porównawczego (RTG/MMG)
+                continue
+            _p = resolve_unit_price(_pmap, _kl, _pk, _adj)
+            _comp_cena.append(float(_p) if (_p is not None and pd.notna(_p) and _p > 0) else 0.0)
+        merged['Porown_Cena'] = _comp_cena
+        ratio_map = {}   # (Modalność, Procedura, Rodzaj, Procedura rozlicz., Priorytet) -> procent
+        for _, _mr in merged.iterrows():
+            _base, _comp = _mr.get('Cena'), (_mr.get('Porown_Cena') or 0.0)
+            if pd.notna(_base) and _base and _base > 0 and _comp > 0:
+                ratio_map[(_mr['Modalność'], _mr['Procedura'], _mr['Rodzaj procedury rozlicz.'],
+                           _mr['Procedura rozlicz.'], _mr['Priorytet opisu'])] = float(_comp) / float(_base)
 
         merged['Ilość'] = merged['#'] * merged['Mnożnik']
         merged['Wartość'] = np.nan
@@ -1000,15 +1021,11 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         num_cols = [c for c in billing_table.columns if any(k in c for k in ['Stawka', '#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze'])]
         billing_table[num_cols] = billing_table[num_cols].fillna(0)
 
+        # Arkusz „Szczegółowe" zachowuje SUROWĄ flagę „Badania do porównania" (0/1).
+        # Dopłatę liczymy od LICZBY badań porównawczych (nie okolic), więc nie zamieniamy
+        # już flagi na liczbę okolic — dzięki temu przychód (revenue.py) czyta tę samą
+        # liczbę badań, co tabela jednostek (spójność jednostki ↔ Pulpit).
         df_details_modified = df_details.copy()
-
-        def transform_comparative_studies(row):
-            if pd.to_numeric(row['Badania do porównania'], errors='coerce') == 1:
-                return bill_extract_multiplier(row['Procedura rozlicz.'])
-            return row['Badania do porównania']
-
-        df_details_modified['Badania do porównania'] = df_details_modified.apply(transform_comparative_studies, axis=1)
-        logs.append("✓ Zaktualizowano kolumnę 'Badania do porównania' w arkuszu 'Szczegółowe'.")
 
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             df_details_modified.to_excel(writer, sheet_name='Szczegółowe', index=False)
@@ -1055,7 +1072,19 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                             stawka_col_letter = col_map.get(f'{priority_prefix} Stawka')
                             ilosc_col_letter = col_map.get(f'{priority_prefix} Ilość')
                             if stawka_col_letter and ilosc_col_letter:
-                                cell.value = f"={stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}"
+                                formula = f"={stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}"
+                                # Dopłata porównawcza w TEJ SAMEJ formule (bez osobnych
+                                # wierszy): + procent × stawka bazowa × „w tym porównawcze",
+                                # procent = stawka_porówn ÷ bazowa z cennika (ratio_map).
+                                porown_col_letter = col_map.get(f'{priority_prefix} w tym porównawcze')
+                                ratio = ratio_map.get((
+                                    row_data['Modalność'], row_data['Procedura'],
+                                    row_data['Rodzaj procedury rozlicz.'], row_data['Procedura rozlicz.'],
+                                    priority_prefix))
+                                if ratio and porown_col_letter:
+                                    formula += (f"+({ratio:.10g}*{stawka_col_letter}{r_idx}"
+                                                f"*{porown_col_letter}{r_idx})")
+                                cell.value = formula
                         else:
                             cell.value = row_data[c_name]
                 current_row += len(m_data)
