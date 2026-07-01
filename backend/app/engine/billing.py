@@ -960,32 +960,11 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         if merged['Cena'].isna().any():
             logs.append(f"! OSTRZEŻENIE: Nie znaleziono cen dla {merged['Cena'].isna().sum()} pozycji (po dwóch próbach).")
 
-        # Dopłata za badania porównawcze — osobne wiersze po stawce porównawczej z
-        # cennika (faktura nalicza je oprócz pełnej stawki). Tylko tam, gdzie istnieje
-        # odrębny klucz „… PORÓWNAWCZE …" (TK/MR). Liczba SUROWA (Porown_Raw), mnożnik 1.
-        porown_keys = merged.assign(**{'Badania do porównania': 1}).apply(build_price_key, axis=1)
-        pmap = _prices_to_pmap(df_prices)
-        adj = prepare_adjustments(get_unit_adjustments())
-        mask = (pd.to_numeric(merged['Porown_Raw'], errors='coerce').fillna(0) > 0) & (porown_keys != merged['CENA_KLUCZ'])
-        if mask.any():
-            pr = merged[mask].copy()
-            pr['CENA_KLUCZ'] = porown_keys[mask]
-            pr['Cena'] = [resolve_unit_price(pmap, kl, k, adj) for kl, k in zip(pr['Klient'], pr['CENA_KLUCZ'])]
-            pr['Cena'] = pd.to_numeric(pr['Cena'], errors='coerce').fillna(0)
-            pr = pr[pr['Cena'] > 0].copy()
-            if not pr.empty:
-                pr['#'] = pd.to_numeric(pr['Porown_Raw'], errors='coerce').fillna(0)
-                pr['Mnożnik'] = 1
-                pr['Porownawcze_Flag'] = 0
-                pr['Porown_Raw'] = 0
-                pr['Rodzaj procedury rozlicz.'] = pr['Rodzaj procedury rozlicz.'].astype(str) + ' (porównawcze)'
-                pr['Procedura rozlicz.'] = 'Porównawcze'   # LEFT()→litera → mnożnik formuły = 1
-                pr = pr.groupby(
-                    ['Priorytet opisu', 'Modalność', 'Procedura', 'Rodzaj procedury rozlicz.',
-                     'Procedura rozlicz.', 'Klient', 'CENA_KLUCZ'], as_index=False
-                ).agg({'#': 'sum', 'Cena': 'first', 'Mnożnik': 'first',
-                       'Porownawcze_Flag': 'first', 'Porown_Raw': 'first'})
-                merged = pd.concat([merged, pr], ignore_index=True)
+        # Badania porównawcze: NIE tworzymy osobnych wierszy „(porównawcze)" w
+        # rozliczeniu jednostek — ich licznik jest pokazany w kolumnie
+        # „{priorytet} w tym porównawcze" przy właściwym wierszu. Dopłatę porównawczą
+        # (wartość) nalicza Pulpit/przychód (revenue.py) i Porównanie (compare.py),
+        # więc nie rozbijamy tu pozycji na dodatkowe linie.
 
         merged['Ilość'] = merged['#'] * merged['Mnożnik']
         merged['Wartość'] = np.nan
