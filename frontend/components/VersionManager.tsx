@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { UploadCloud, CheckCircle2, Download, Trash2, Star } from "lucide-react";
-import { api, Version } from "@/lib/api";
+import { api, Version, isLocalBackend } from "@/lib/api";
 import ReferenceImage from "@/components/ReferenceImage";
 import { toast } from "@/lib/toast";
 
@@ -42,11 +42,18 @@ export default function VersionManager({
     setUploading(true);
     setError(null);
     try {
-      await api.uploadVersion(kind, file, label);
+      const created = await api.uploadVersion(kind, file, label);
       setLabel("");
       if (fileRef.current) fileRef.current.value = "";
       refresh();
       toast("Wgrano nową wersję.");
+      // Liczenie „na tym komputerze": wyślij wgrany plik od razu do chmury,
+      // żeby był widoczny online (best-effort — nie blokuje wgrania).
+      if (isLocalBackend() && created?.id) {
+        api.pushVersionToCloud(kind, created.id)
+          .then(() => toast("Wysłano do chmury."))
+          .catch((e) => toast("Nie wysłano do chmury: " + e.message));
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {

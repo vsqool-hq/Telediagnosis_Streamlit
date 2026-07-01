@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FileText, Calendar, Receipt, BookText, RefreshCw, Loader2 } from "lucide-react";
+import { Download, FileText, Calendar, Receipt, BookText, RefreshCw, Loader2, Trash2 } from "lucide-react";
 import { api, Job, Version } from "@/lib/api";
-import { useCachedData } from "@/lib/cache";
+import { useCachedData, invalidateCache } from "@/lib/cache";
 
 const MONTHS_PL = [
   "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
@@ -20,6 +20,7 @@ const periodLabel = (p?: string | null) => {
 export default function HistoriaPage() {
   const [error, setError] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   // Cache: powrót na Historię pokazuje listę od razu, odświeżenie leci w tle.
   const { data: jobsData, loading: jobsLoading } = useCachedData<Job[]>("jobs", () => api.listJobs());
@@ -57,6 +58,20 @@ export default function HistoriaPage() {
     } catch (e: any) {
       setError(e.message);
       setRerunning(null);
+    }
+  }
+
+  async function remove(jobId: string) {
+    if (!confirm("Usunąć to rozliczenie wraz z wgranym plikiem i wynikami? Tej operacji nie można cofnąć.")) return;
+    setDeleting(jobId);
+    setError(null);
+    try {
+      await api.deleteJob(jobId);
+      invalidateCache();          // lista zadań + statystyki są nieaktualne
+      window.location.reload();
+    } catch (e: any) {
+      setError(e.message);
+      setDeleting(null);
     }
   }
 
@@ -113,6 +128,12 @@ export default function HistoriaPage() {
                   <a className="btn-primary px-3 py-1.5 text-xs" href={api.resultUrl(j.id)}>
                     <Download size={14} /> Pobierz wyniki
                   </a>
+                  <button
+                    className="btn-secondary px-3 py-1.5 text-xs hover:border-red-500 hover:text-red-300 disabled:opacity-40"
+                    disabled={deleting === j.id} onClick={() => remove(j.id)}
+                    title="Usuń to rozliczenie (plik źródłowy + wyniki)">
+                    {deleting === j.id ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                  </button>
                 </div>
               </div>
 

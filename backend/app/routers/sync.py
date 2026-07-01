@@ -216,3 +216,52 @@ async def push_to_cloud(payload: dict):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"Nie udało się wysłać do chmury: {e}")
 
+
+def _build_version_bundle(kind: str, version_id: str) -> bytes:
+    """Pakuje katalog wersji (wszystkie pliki: cennik/słownik + ewentualny
+    source.xlsx pliku zobowiązań) + meta.json do ZIP-a — do wysłania na chmurę."""
+    v = db.get_version(version_id)
+    if not v or v["kind"] != kind:
+        raise HTTPException(404, "Nie znaleziono wersji.")
+    vdir = version_dir(kind, version_id)
+    meta = {
+        "id": version_id, "kind": kind, "filename": v.get("filename"),
+        "original_name": v.get("original_name"), "label": v.get("label"),
+        "size": v.get("size"), "uploaded_at": v.get("uploaded_at"),
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("meta.json", json.dumps(meta, ensure_ascii=False))
+        for f in glob.glob(os.path.join(vdir, "*")):
+            if os.path.isfile(f) and not os.path.basename(f).startswith("~$"):
+                zf.write(f, os.path.basename(f))
+    return buf.getvalue()
+
+
+@router.post("/push-version")
+async def push_version_to_cloud(payload: dict):
+    """
+    Wysyła wgraną lokalnie wersję pliku (słownik / cennik / cennik lekarzy wraz z
+    plikiem zobowiązań) do chmury i ustawia ją tam jako aktywną. Wywoływane
+    automatycznie zaraz po wgraniu/zapisaniu pliku „na tym komputerze", żeby ten sam
+    plik był od razu widoczny online. Transfer serwer→serwer (bez ograniczeń przeglądarki).
+    """
+    cloud, token = _resolve_cloud(payload)
+    kind = (payload.get("kind") or "").strip()
+    version_id = (payload.get("version_id") or "").strip()
+    if not cloud or not kind or not version_id:
+        raise HTTPException(400, "Brak adresu chmury, kind lub version_id.")
+    if cloud.startswith(("http://localhost", "http://127.0.0.1")):
+        raise HTTPException(400, "Adres chmury wskazuje na localhost — nie ma dokąd wysłać.")
+
+    data = _build_version_bundle(kind, version_id)
+    headers = {"Content-Type": "application/zip"}
+    if token:
+        headers["X-API-Token"] = token
+    req = urllib.request.Request(f"{cloud}/api/versions/{kind}/import", data=data, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            return {"ok": True, "cloud": json.loads(resp.read())}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Nie udało się wysłać wersji do chmury: {e}")
+

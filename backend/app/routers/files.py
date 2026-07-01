@@ -1,11 +1,14 @@
 """Router wersjonowania plików wzorcowych i cennika."""
 
 import os
+import io
+import json
 import uuid
 import shutil
+import zipfile
 import datetime
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app import db
@@ -62,6 +65,54 @@ async def upload_version(kind: str, file: UploadFile = File(...), label: str = F
         "uploaded_at": _now(),
     })
     return db.get_version(version_id)
+
+
+@router.post("/{kind}/import")
+async def import_version(kind: str, request: Request):
+    """Odbiera wersję z innego backendu (bundle ZIP: pliki katalogu wersji +
+    meta.json) — używane przy auto-synchronizacji lokal → chmura zaraz po wgraniu
+    pliku „na tym komputerze". Idempotentne po id; zawiera też source.xlsx (plik
+    zobowiązań) dla cennika lekarzy. Wgrana wersja staje się aktywna."""
+    if kind not in KINDS:
+        raise HTTPException(404, "Nieznany rodzaj plików.")
+    raw = await request.body()
+    if not raw:
+        raise HTTPException(400, "Puste żądanie.")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+        meta = json.loads(zf.read("meta.json"))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Nieprawidłowa paczka wersji: {e}")
+
+    version_id = str(meta.get("id") or "").strip()
+    if not version_id or meta.get("kind") != kind:
+        raise HTTPException(400, "Brak lub niezgodny id/kind w paczce.")
+
+    ensure_dirs()
+    vdir = version_dir(kind, version_id)
+    os.makedirs(vdir, exist_ok=True)
+    for name in zf.namelist():
+        if name == "meta.json" or name.endswith("/"):
+            continue
+        if name.startswith("/") or ".." in name.split("/"):  # ochrona przed zip-slip
+            continue
+        target = os.path.join(vdir, name)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "wb") as f:
+            f.write(zf.read(name))
+
+    if not db.get_version(version_id):
+        db.add_version({
+            "id": version_id, "kind": kind,
+            "filename": meta.get("filename"),
+            "original_name": meta.get("original_name") or meta.get("filename"),
+            "label": meta.get("label") or "",
+            "size": int(meta.get("size") or 0),
+            "is_active": 0,
+            "uploaded_at": meta.get("uploaded_at") or _now(),
+        })
+    db.set_active_version(kind, version_id)
+    return {"ok": True, "id": version_id}
 
 
 @router.post("/{kind}/{version_id}/activate")

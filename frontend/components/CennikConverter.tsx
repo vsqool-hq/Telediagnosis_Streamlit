@@ -5,7 +5,7 @@ import {
   UploadCloud, Wand2, Download, Save, Loader2, CheckCircle2,
   AlertTriangle, XCircle, Copy,
 } from "lucide-react";
-import { api, CennikConversion } from "@/lib/api";
+import { api, CennikConversion, isLocalBackend } from "@/lib/api";
 
 function Metric({ label, value, tone = "default" }: { label: string; value: string | number; tone?: "default" | "warn" | "error" | "ok" }) {
   const tones = {
@@ -68,8 +68,12 @@ export default function CennikConverter() {
     setSaving(true);
     setError(null);
     try {
-      await api.saveConvertedCennik(conv.id, label, label.replace(/[^\w\-]+/g, "_") + ".csv");
+      const created = await api.saveConvertedCennik(conv.id, label, label.replace(/[^\w\-]+/g, "_") + ".csv");
       setSaved(true);
+      // Na lokalu: wyślij zapisany cennik od razu do chmury (żeby był online).
+      if (isLocalBackend() && created?.id) {
+        try { await api.pushVersionToCloud("cennik", created.id); } catch { /* best-effort */ }
+      }
       setTimeout(() => window.location.reload(), 900);
     } catch (e: any) {
       setError(e.message);

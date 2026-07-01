@@ -149,6 +149,11 @@ def get_job(job_id: str):
         return dict(row) if row else None
 
 
+def delete_job(job_id: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+
+
 def list_jobs(limit: int = 50):
     with get_conn() as conn:
         rows = conn.execute(

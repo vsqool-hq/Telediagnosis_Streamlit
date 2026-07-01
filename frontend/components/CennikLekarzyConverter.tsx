@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { UploadCloud, Wand2, Download, Save, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
-import { api, DoctorConversion } from "@/lib/api";
+import { api, DoctorConversion, isLocalBackend } from "@/lib/api";
 
 function Metric({ label, value, tone = "default" }: { label: string; value: string | number; tone?: "default" | "warn" | "ok" }) {
   const tones = { default: "text-slate-100", ok: "text-brand-accent2", warn: "text-amber-300" };
@@ -38,8 +38,12 @@ export default function CennikLekarzyConverter() {
     if (!conv) return;
     setSaving(true); setError(null);
     try {
-      await api.saveConvertedCennikLekarzy(conv.id, label, label.replace(/[^\w\-]+/g, "_") + ".csv");
+      const created = await api.saveConvertedCennikLekarzy(conv.id, label, label.replace(/[^\w\-]+/g, "_") + ".csv");
       setSaved(true);
+      // Na lokalu: wyślij zapisany cennik lekarzy (wraz z plikiem zobowiązań) do chmury.
+      if (isLocalBackend() && created?.id) {
+        try { await api.pushVersionToCloud("cennik_lekarzy", created.id); } catch { /* best-effort */ }
+      }
       setTimeout(() => window.location.reload(), 900);
     } catch (e: any) { setError(e.message); } finally { setSaving(false); }
   }

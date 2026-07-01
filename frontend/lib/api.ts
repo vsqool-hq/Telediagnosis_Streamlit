@@ -292,6 +292,15 @@ export const api = {
       body: JSON.stringify({ cloud_base: CLOUD_BASE, token: getToken(), job_id: jobId }),
     }),
 
+  // Wyślij wgraną lokalnie wersję pliku (słownik/cennik/cennik lekarzy + plik
+  // zobowiązań) do chmury i ustaw ją tam aktywną — żeby ten sam plik był od razu online.
+  pushVersionToCloud: (kind: string, versionId: string) =>
+    req("/api/sync/push-version", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cloud_base: CLOUD_BASE, token: getToken(), kind, version_id: versionId }),
+    }),
+
   overview: () => req<Overview>("/api/stats/overview"),
   jobStats: (id: string) => req<JobStats>(`/api/stats/job/${id}`),
   statsCurrent: () => req<JobStats>("/api/stats/current"),
@@ -314,6 +323,7 @@ export const api = {
   rerunJob: (id: string, mode?: "full" | "unmatched") =>
     req<Job>(`/api/jobs/${id}/rerun${mode ? `?mode=${mode}` : ""}`, { method: "POST" }),
   cancelJob: (id: string) => req<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),
+  deleteJob: (id: string) => req<{ ok: boolean }>(`/api/jobs/${id}`, { method: "DELETE" }),
   logsUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/logs`),
   resultUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/result`),
   inputUrl: (id: string) => withToken(`${API_BASE}/api/jobs/${id}/input`),

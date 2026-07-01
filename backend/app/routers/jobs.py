@@ -170,6 +170,22 @@ async def cancel_job(job_id: str):
     return job
 
 
+@router.delete("/{job_id}")
+async def delete_job(job_id: str):
+    """Usuwa rozliczenie: katalog zadania (wgrany plik, wyniki, lekarze) + wpis w bazie.
+    Nie pozwala usunąć zadania w trakcie liczenia — najpierw je zatrzymaj."""
+    import shutil
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    live = runner.read_status(job_id).get("status", job.get("status"))
+    if live in ("running", "queued"):
+        raise HTTPException(400, "Zadanie jest w trakcie liczenia — najpierw je zatrzymaj (STOP).")
+    shutil.rmtree(job_paths(job_id)["base"], ignore_errors=True)
+    db.delete_job(job_id)
+    return {"ok": True}
+
+
 @router.post("/{job_id}/rerun")
 async def rerun_job(job_id: str, mode: str | None = None):
     """Przelicza ponownie na TYM SAMYM, wcześniej wgranym pliku (zapisanym przy

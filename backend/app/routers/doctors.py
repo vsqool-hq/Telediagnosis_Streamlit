@@ -322,8 +322,11 @@ async def doctor_billing_files(job_id: str):
         for p in files:
             zf.write(p, os.path.basename(p))
     buf.seek(0)
+    # octet-stream (nie „application/zip") — zniechęca Safari do automatycznego
+    # rozpakowania po pobraniu, dzięki czemu można wysłać dalej TEN paczkowany ZIP
+    # (ma poprawne polskie znaki w nazwach), bez ponownego pakowania w Finderze.
     return StreamingResponse(
-        buf, media_type="application/zip",
+        buf, media_type="application/octet-stream",
         headers={"Content-Disposition": 'attachment; filename="Rozliczenia_lekarzy.zip"'},
     )
 

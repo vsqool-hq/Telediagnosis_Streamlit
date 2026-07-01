@@ -831,6 +831,12 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
 
     df_details_modified = df_details.copy()
 
+    if for_doctor:
+        # Prywatność (RODO): raport lekarza NIE może zawierać danych pacjenta —
+        # usuwamy PESEL i imię/nazwisko z arkusza „Szczegółowe".
+        df_details_modified = df_details_modified.drop(
+            columns=[c for c in ('Pacjent', 'ID pacjenta') if c in df_details_modified.columns])
+
     def transform_comparative_studies(row):
         if pd.to_numeric(row['Badania do porównania'], errors='coerce') == 1:
             return bill_extract_multiplier(row['Procedura rozlicz.'])
