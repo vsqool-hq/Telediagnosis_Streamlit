@@ -212,6 +212,29 @@ def _raise_no_job():
 
 
 
+@router.get("/compare/months")
+async def doctor_compare_months():
+    """Miesiące rozliczeniowe do przełącznika na Porównaniu. Każdy miesiąc jest
+    spięty z jego NAJWIĘKSZYM przeliczeniem (best_jobs_by_month — jak Pulpit/trend).
+    Dla każdego zwracamy, czy porównanie jest już policzone (computed/computed_at).
+    Musi być zadeklarowane PRZED /compare/{job_id}."""
+    from app.routers.stats import best_jobs_by_month
+    best = best_jobs_by_month()
+    months = []
+    for period in sorted(best.keys(), reverse=True):
+        b = best[period]
+        c = _load_cache(job_paths(b["job_id"]), "compare.json")
+        computed = bool(c) and not c.get("empty")
+        months.append({
+            "period": period,
+            "job_id": b["job_id"],
+            "revenue": b["revenue"],
+            "computed": computed,
+            "computed_at": (c or {}).get("computed_at") if computed else None,
+        })
+    return {"months": months}
+
+
 @router.get("/compare/latest")
 async def doctor_compare_latest():
     """Najnowsze ZAPISANE porównanie (wg computed_at) spośród wszystkich zadań —

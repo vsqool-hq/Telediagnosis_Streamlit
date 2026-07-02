@@ -5,7 +5,7 @@ import { Play, Loader2, AlertTriangle, Download, RefreshCw, Search } from "lucid
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
 } from "recharts";
-import { api, Job, DoctorComparison } from "@/lib/api";
+import { api, CompareMonth, DoctorComparison } from "@/lib/api";
 
 const zl = (n: number) =>
   n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
@@ -133,51 +133,64 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-// Zapamiętujemy ostatnio wybrane zadanie, żeby po powrocie na kartę pokazać je
-// ponownie wraz z zapisanym (zcache'owanym) porównaniem — bez ponownego liczenia.
-const LS_JOB = "porownanie_job_id";
+// Zapamiętujemy ostatnio oglądany MIESIĄC, żeby po powrocie na kartę pokazać go
+// ponownie wraz z zapisanym porównaniem — bez ponownego liczenia.
+const LS_PERIOD = "porownanie_period";
+
+const MONTHS_PL = [
+  "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
+];
+const periodLabel = (p: string) =>
+  /^\d{4}-\d{2}$/.test(p) ? `${MONTHS_PL[parseInt(p.slice(5)) - 1]} ${p.slice(0, 4)}` : p;
 
 export default function PorownaniePage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [jobId, setJobId] = useState<string>("");
+  // Miesiące rozliczeniowe — każdy spięty z jego NAJWIĘKSZYM przeliczeniem
+  // (jak wykres na Pulpicie). Nowe, większe przeliczenie przejmuje miesiąc.
+  const [months, setMonths] = useState<CompareMonth[]>([]);
+  const [period, setPeriod] = useState<string>("");
   const [result, setResult] = useState<DoctorComparison | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("kategoria");
   const [catSource, setCatSource] = useState<"doctor" | "unit">("doctor");
 
+  const selected = months.find((m) => m.period === period);
+  const jobId = selected?.job_id ?? "";
+
   useEffect(() => {
-    api.listJobs().then(async (all) => {
-      const done = all.filter((j) => j.status === "done" && j.mode === "full");
-      setJobs(done);
-      if (!done.length) return;
-      // 1) Jeśli mamy zapamiętany wybór — przywróć go.
-      const saved = typeof window !== "undefined" ? localStorage.getItem(LS_JOB) : null;
-      if (saved && done.some((j) => j.id === saved)) { setJobId(saved); return; }
-      // 2) Inaczej pokaż OSTATNIO PRZELICZONE porównanie (bez klikania „Policz").
-      const latest = await api.doctorsCompareLatest().catch(() => null);
-      // Wybór zadania uruchomi peek (efekt na jobId), który wczyta zapisane porównanie.
-      setJobId(latest && !latest.empty && latest.job_id && done.some((j) => j.id === latest.job_id)
-        ? latest.job_id
-        : done[0].id);
+    api.doctorsCompareMonths().then(({ months: ms }) => {
+      setMonths(ms);
+      if (!ms.length) return;
+      // Przywróć ostatnio oglądany miesiąc; inaczej najnowszy z policzonym
+      // porównaniem, a gdy żaden nie ma — po prostu najnowszy.
+      const saved = typeof window !== "undefined" ? localStorage.getItem(LS_PERIOD) : null;
+      if (saved && ms.some((m) => m.period === saved)) { setPeriod(saved); return; }
+      setPeriod((ms.find((m) => m.computed) ?? ms[0]).period);
     }).catch((e) => setError(e.message));
   }, []);
 
-  // Wczytaj zapisane porównanie po wyborze zadania (bez liczenia) i zapamiętaj wybór.
+  // Wczytaj zapisane porównanie po wyborze miesiąca (bez liczenia) i zapamiętaj wybór.
   useEffect(() => {
     if (!jobId) { setResult(null); return; }
-    if (typeof window !== "undefined") localStorage.setItem(LS_JOB, jobId);
+    if (typeof window !== "undefined" && period) localStorage.setItem(LS_PERIOD, period);
     setResult(null); setError(null);
     api.doctorsCompare(jobId, { peek: true })
       .then((r) => setResult(r && (r as any).reason === "not_computed" ? null : r))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
   async function run(recompute = false) {
     if (!jobId) return;
     setBusy(true); setError(null); setResult(null);
     try {
-      setResult(await api.doctorsCompare(jobId, { recompute }));
+      const r = await api.doctorsCompare(jobId, { recompute });
+      setResult(r);
+      if (!r.empty) {
+        // odśwież znacznik „policzone" przy wybranym miesiącu
+        setMonths((ms) => ms.map((m) => (m.period === period ? { ...m, computed: true } : m)));
+      }
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
 
@@ -195,22 +208,33 @@ export default function PorownaniePage() {
         </p>
       </header>
 
-      <div className="card flex flex-wrap items-end gap-3">
-        <label className="space-y-1.5">
-          <span className="text-[13px] font-semibold text-slate-200">Zadanie (pełne rozliczenie)</span>
-          <select className="input min-w-[280px]" value={jobId} onChange={(e) => setJobId(e.target.value)}>
-            {jobs.length === 0 && <option value="">brak ukończonych rozliczeń</option>}
-            {jobs.map((j) => (
-              <option key={j.id} value={j.id}>
-                {new Date(j.created_at).toLocaleString("pl-PL")} · {j.input_name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
-          {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
-          Policz porównanie
-        </button>
+      <div className="card space-y-3">
+        <div>
+          <span className="text-[13px] font-semibold text-slate-200">Miesiąc rozliczenia</span>
+          <p className="text-xs text-slate-400">
+            Każdy miesiąc jest spięty z jego <b className="text-slate-300">największym przeliczeniem</b> (jak
+            wykres na Pulpicie). Kropka = porównanie do policzenia.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {months.length === 0 && <span className="text-sm text-slate-500">brak ukończonych rozliczeń</span>}
+          {months.map((m) => (
+            <button
+              key={m.period}
+              onClick={() => setPeriod(m.period)}
+              className={period === m.period ? "btn-primary" : "btn-secondary"}
+              title={m.computed ? "Porównanie policzone" : "Porównanie jeszcze niepoliczone — kliknij i policz"}
+            >
+              {periodLabel(m.period)}
+              {!m.computed && <span className="ml-1 inline-block h-2 w-2 rounded-full bg-amber-400" />}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
+            {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
+            Policz porównanie
+          </button>
         {result && !result.empty && (
           <>
             <a className="btn-secondary" href={api.doctorsCompareDownloadUrl(jobId)}>
@@ -226,9 +250,18 @@ export default function PorownaniePage() {
             )}
           </>
         )}
+        </div>
       </div>
 
       {error && <div className="card border-red-500/40 text-red-300">{error}</div>}
+
+      {selected && !selected.computed && !result && !busy && (
+        <div className="card text-amber-300">
+          <AlertTriangle className="mb-1 inline" size={16} /> Porównanie dla{" "}
+          <b>{periodLabel(selected.period)}</b> nie jest jeszcze policzone dla największego
+          przeliczenia tego miesiąca — kliknij „Policz porównanie".
+        </div>
+      )}
 
       {result?.empty && (
         <div className="card text-amber-300"><AlertTriangle className="mb-1 inline" size={16} /> {result.reason}</div>

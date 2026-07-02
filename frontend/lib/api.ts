@@ -211,6 +211,14 @@ export interface DoctorBilling {
   };
 }
 
+export interface CompareMonth {
+  period: string;        // "YYYY-MM"
+  job_id: string;        // największe przeliczenie tego miesiąca
+  revenue: number;
+  computed: boolean;     // czy porównanie dla tego zadania jest już policzone
+  computed_at?: string | null;
+}
+
 export interface DoctorComparison {
   empty: boolean;
   reason?: string;
@@ -395,6 +403,7 @@ export const api = {
   doctorsCompare: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
     req<DoctorComparison>(`/api/doctors/compare/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
   doctorsCompareLatest: () => req<DoctorComparison>("/api/doctors/compare/latest"),
+  doctorsCompareMonths: () => req<{ months: CompareMonth[] }>("/api/doctors/compare/months"),
   doctorsCompareDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/compare/${jobId}/download`),
   doctorsList: () =>
     req<{ job_id: string | null; doctors: { name: string; key: string; excluded: boolean }[] }>("/api/doctors/list"),
