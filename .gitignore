@@ -29,3 +29,6 @@ sync.env
 # Statyczne dane aplikacji (geokody jednostek) — wersjonowane mimo reguły data/
 !backend/app/data/
 !backend/app/data/unit_geo.json
+
+# Artefakt inkrementalnego typechecku TypeScript — nie wersjonujemy
+frontend/tsconfig.tsbuildinfo
