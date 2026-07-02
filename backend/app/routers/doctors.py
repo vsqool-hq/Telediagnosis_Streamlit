@@ -35,18 +35,27 @@ def _cache_path(paths: dict, name: str) -> str:
 
 
 def _load_cache(paths: dict, name: str):
+    from app.engine import ENGINE_VERSION
     p = _cache_path(paths, name)
     if os.path.isfile(p):
         try:
             with open(p, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
         except (OSError, json.JSONDecodeError):
             return None
+        # Wynik policzony STARSZYM silnikiem → nieważny (przelicz), by rozliczenie,
+        # Porównanie i Pulpit były spójne po zmianach logiki wyceny. Puste wpisy zostają.
+        if isinstance(data, dict) and not data.get("empty") and data.get("_engine_version") != ENGINE_VERSION:
+            return None
+        return data
     return None
 
 
 def _save_cache(paths: dict, name: str, data: dict):
+    from app.engine import ENGINE_VERSION
     try:
+        if isinstance(data, dict):
+            data["_engine_version"] = ENGINE_VERSION
         with open(_cache_path(paths, name), "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
     except OSError:

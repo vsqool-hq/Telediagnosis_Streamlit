@@ -34,14 +34,31 @@ def _load_prices(cennik_dir: str) -> pd.DataFrame | None:
     return df
 
 
+def _studies_dir(wynik_dir: str) -> str:
+    """Źródło badań do policzenia przychodu. PREFERUJEMY pliki SPRAWDZONE (Etap 1) —
+    są liczone BIEŻĄCĄ logiką silnika, tak samo jak Porównanie, więc przychód
+    jednostek na Pulpicie == przychód w Porównaniu. 'Wynik' bywał policzony starszym
+    silnikiem i po zmianach (np. dopłata porównawcza) rozjeżdżał się z Porównaniem.
+    Zapas: 'Wynik' (gdy sprawdzonych brak — np. zadania zaimportowane z chmury)."""
+    base = os.path.dirname(os.path.normpath(wynik_dir))
+    spr = os.path.join(base, "pliki_sprawdzone")
+    if os.path.isdir(spr):
+        xs = [f for f in glob.glob(os.path.join(spr, "*.xlsx")) if not os.path.basename(f).startswith("~$")]
+        if xs:
+            return spr
+    return wynik_dir
+
+
 def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
-    """Zwraca DataFrame [Klient, Modalność, Ilość, Wartość] zsumowany po grupach."""
+    """Zwraca DataFrame [Klient, Modalność, Ilość, Wartość] zsumowany po grupach.
+    Liczy z plików SPRAWDZONYCH (spójnie z Porównaniem) — patrz _studies_dir."""
     prices = _load_prices(cennik_dir)
-    if prices is None or not os.path.isdir(wynik_dir):
+    src_dir = _studies_dir(wynik_dir)
+    if prices is None or not os.path.isdir(src_dir):
         return pd.DataFrame(columns=["Klient", "Modalność", "Ilość", "Wartość"])
 
     frames = []
-    for path in glob.glob(os.path.join(wynik_dir, "*.xlsx")):
+    for path in glob.glob(os.path.join(src_dir, "*.xlsx")):
         if os.path.basename(path).startswith("~$"):
             continue
         try:
@@ -190,9 +207,12 @@ def cached_summary(base_dir: str, wynik_dir: str, cennik_dir: str) -> dict:
     Dzięki temu Historia/Pulpit nie przeliczają wszystkich plików przy każdym wejściu.
     """
     from app.engine.config import load_config
-    # Sygnatura grup jednostek — gdy zmienisz grupowanie w Ustawieniach, podsumowanie
-    # (top jednostki) przelicza się; reszta wyniku zadania jest niezmienna.
-    sig = json.dumps(load_config().get("unit_groups", []), ensure_ascii=False, sort_keys=True)
+    from app.engine import ENGINE_VERSION
+    # Sygnatura: grupy jednostek (zmiana grupowania → przelicz „top jednostki") ORAZ
+    # wersja silnika (zmiana logiki wyceny → przelicz cały przychód z bieżącym silnikiem,
+    # by Pulpit zgadzał się z Porównaniem).
+    sig = json.dumps({"groups": load_config().get("unit_groups", []), "engine": ENGINE_VERSION},
+                     ensure_ascii=False, sort_keys=True)
     cache = os.path.join(base_dir, "stats.json")
     if os.path.isfile(cache):
         try:
