@@ -124,6 +124,25 @@ def pull_active_from_cloud(cloud: str, token: str) -> dict:
     except Exception as e:  # noqa: BLE001
         errors["settings"] = str(e)
 
+    # „Plik zobowiązań" (source.xlsx) dla aktywnego cennika lekarzy — sync wersji
+    # ściąga tylko CSV, a lokalne rozliczenie lekarzy potrzebuje źródłowego .xlsx,
+    # żeby dołączyć do paczki ZIP zobowiązania z uzupełnionymi ilościami okolic.
+    # Dociągamy go osobno, TYLKO gdy lokalnie brak (nie nadpisujemy lokalnych uzupełnień).
+    try:
+        v = db.get_active_version("cennik_lekarzy")
+        if v:
+            vdir = version_dir("cennik_lekarzy", v["id"])
+            src_path = os.path.join(vdir, "source.xlsx")
+            if not os.path.isfile(src_path):
+                cloud_vid = v["id"][len("cloud_"):] if str(v["id"]).startswith("cloud_") else v["id"]
+                data = _fetch(f"{cloud}/api/versions/cennik_lekarzy/{cloud_vid}/source", token)
+                os.makedirs(vdir, exist_ok=True)
+                with open(src_path, "wb") as f:
+                    f.write(data)
+                synced["commitments"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        errors["commitments"] = str(e)
+
     # Najnowsze zadanie z chmury (ostatni wgrany plik „rozliczenie" + wyniki),
     # żeby na lokalu było od razu dostępne do podejrzenia / przeliczenia. Bierzemy
     # najnowsze zadanie 'full'; pobieramy tylko jeśli nie mamy go jeszcze lokalnie

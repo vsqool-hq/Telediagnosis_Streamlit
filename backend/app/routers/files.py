@@ -137,6 +137,29 @@ async def download_version(kind: str, version_id: str):
     return FileResponse(path, filename=v["original_name"])
 
 
+@router.get("/{kind}/{version_id}/source")
+async def download_version_source(kind: str, version_id: str):
+    """Źródłowy skoroszyt .xlsx zapisany przy wersji — dla cennika lekarzy to „plik
+    zobowiązań" (do uzupełniania ilości okolic w paczce rozliczeń lekarzy). 404 gdy
+    wersji nie zapisano z .xlsx. Używane przy synchronizacji lokal ← chmura, żeby
+    liczenie „na tym komputerze" też dołączało zobowiązania do ZIP-a."""
+    v = db.get_version(version_id)
+    if not v or v["kind"] != kind:
+        raise HTTPException(404, "Nie znaleziono wersji.")
+    vdir = version_dir(kind, version_id)
+    path = os.path.join(vdir, "source.xlsx")
+    if not os.path.isfile(path):
+        raise HTTPException(404, "Ta wersja nie ma zapisanego źródłowego pliku .xlsx.")
+    name = "ZOBOWIĄZANIA LEKARZY.xlsx"
+    nf = os.path.join(vdir, "source_name.txt")
+    if os.path.isfile(nf):
+        try:
+            name = open(nf, encoding="utf-8").read().strip() or name
+        except OSError:
+            pass
+    return FileResponse(path, filename=name)
+
+
 @router.delete("/{kind}/{version_id}")
 async def delete_version(kind: str, version_id: str):
     v = db.get_version(version_id)
