@@ -201,9 +201,12 @@ def _build_job_bundle(job_id: str) -> bytes:
             d = paths.get(sub) or os.path.join(paths["base"], sub)
             if not os.path.isdir(d):
                 continue
+            # WŁAŚCIWA nazwa katalogu (Jednostki/Wynik/pliki_sprawdzone/lekarze) — nie
+            # klucz — żeby po imporcie pliki trafiły tam, skąd czyta aplikacja.
+            arc = os.path.basename(os.path.normpath(d))
             for f in glob.glob(os.path.join(d, "*")):
                 if os.path.isfile(f) and not os.path.basename(f).startswith("~$"):
-                    zf.write(f, f"{sub}/{os.path.basename(f)}")
+                    zf.write(f, f"{arc}/{os.path.basename(f)}")
         for key in ("log", "status"):
             if os.path.isfile(paths[key]):
                 zf.write(paths[key], os.path.basename(paths[key]))

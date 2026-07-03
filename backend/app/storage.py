@@ -34,6 +34,43 @@ def job_dir(job_id: str) -> str:
     return os.path.join(JOBS_DIR, job_id)
 
 
+# Mapa: nazwa katalogu w STARYCH paczkach ZIP (klucz job_paths) → właściwy katalog
+# zadania. Stare paczki (_build_job_bundle) zapisywały pliki pod nazwami-kluczami
+# ('jednostki'/'wynik'/'sprawdzone'), a aplikacja czyta z 'Jednostki'/'Wynik'/
+# 'pliki_sprawdzone' — przez co zaimportowane zadania miały puste rozliczenie lekarzy.
+BUNDLE_DIR_FIX = {"jednostki": "Jednostki", "wynik": "Wynik", "sprawdzone": "pliki_sprawdzone"}
+
+
+def heal_job_dirs(job_id: str) -> None:
+    """Naprawia zadania zaimportowane starą paczką: przenosi pliki z katalogów o złej
+    nazwie do właściwych (patrz BUNDLE_DIR_FIX). Idempotentne i tanie — dla zdrowych
+    zadań nic nie robi. Wołane przy imporcie oraz przy pierwszym otwarciu (rozliczenie
+    lekarzy / porównanie / przychód), by istniejące zepsute zadania też się naprawiły."""
+    import glob
+    import shutil
+    base = job_dir(job_id)
+    if not os.path.isdir(base):
+        return
+    for wrong, right in BUNDLE_DIR_FIX.items():
+        wp = os.path.join(base, wrong)
+        if not os.path.isdir(wp):
+            continue
+        rp = os.path.join(base, right)
+        os.makedirs(rp, exist_ok=True)
+        for f in glob.glob(os.path.join(wp, "*")):
+            dest = os.path.join(rp, os.path.basename(f))
+            if not os.path.exists(dest):
+                try:
+                    shutil.move(f, dest)
+                except OSError:
+                    pass
+        try:
+            if not os.listdir(wp):
+                os.rmdir(wp)
+        except OSError:
+            pass
+
+
 def job_paths(job_id: str) -> dict:
     base = job_dir(job_id)
     return {

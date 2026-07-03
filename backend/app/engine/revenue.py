@@ -41,6 +41,13 @@ def _studies_dir(wynik_dir: str) -> str:
     silnikiem i po zmianach (np. dopłata porównawcza) rozjeżdżał się z Porównaniem.
     Zapas: 'Wynik' (gdy sprawdzonych brak — np. zadania zaimportowane z chmury)."""
     base = os.path.dirname(os.path.normpath(wynik_dir))
+    # Napraw zadania zaimportowane starą paczką (pliki w złych katalogach), by przychód
+    # też się liczył ze sprawdzonych spójnie z Porównaniem.
+    try:
+        from app.storage import heal_job_dirs
+        heal_job_dirs(os.path.basename(base))
+    except Exception:  # noqa: BLE001
+        pass
     spr = os.path.join(base, "pliki_sprawdzone")
     if os.path.isdir(spr):
         xs = [f for f in glob.glob(os.path.join(spr, "*.xlsx")) if not os.path.basename(f).startswith("~$")]

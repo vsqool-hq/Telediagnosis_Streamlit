@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse, FileResponse, Response
 
 from app import db
 from app.services import runner
-from app.storage import job_paths, ensure_dirs
+from app.storage import job_paths, ensure_dirs, heal_job_dirs, BUNDLE_DIR_FIX
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -69,10 +69,19 @@ def import_job_bundle(raw: bytes) -> dict:
             continue
         if name.startswith("/") or ".." in name.split("/"):  # ochrona przed zip-slip
             continue
-        target = os.path.join(base, name)
+        # Stare paczki miały katalogi o złych nazwach (jednostki/wynik/sprawdzone) —
+        # mapujemy je na właściwe (Jednostki/Wynik/pliki_sprawdzone), żeby rozliczenie
+        # lekarzy/porównanie/przychód znalazły dane. Nowe paczki mają już poprawne.
+        out_name = name
+        parts = name.split("/", 1)
+        if len(parts) == 2 and parts[0] in BUNDLE_DIR_FIX:
+            out_name = f"{BUNDLE_DIR_FIX[parts[0]]}/{parts[1]}"
+        target = os.path.join(base, out_name)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "wb") as f:
             f.write(zf.read(name))
+
+    heal_job_dirs(job_id)  # domknięcie: przenieś ewentualne pozostałe błędne katalogi
 
     rec = {
         "id": job_id,

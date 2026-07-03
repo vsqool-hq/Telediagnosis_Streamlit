@@ -157,6 +157,8 @@ def _resolve_job(job_id: str):
         raise HTTPException(404, "Nie znaleziono zadania.")
     if job["mode"] != "full":
         raise HTTPException(400, "Moduł lekarzy działa na pełnym rozliczeniu jednostek.")
+    from app.storage import heal_job_dirs
+    heal_job_dirs(job_id)  # napraw zadania zaimportowane starą paczką (złe nazwy katalogów)
     paths = job_paths(job_id)
     # Słownik bierzemy z AKTYWNEJ wersji (świeże kategorie „Rodzaj procedury lekarz"),
     # a tylko awaryjnie z kopii zapisanej przy zadaniu.
