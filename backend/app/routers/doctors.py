@@ -34,6 +34,16 @@ def _cache_path(paths: dict, name: str) -> str:
     return os.path.join(_lekarze_dir(paths), name)
 
 
+def _has_sprawdzone(paths: dict) -> bool:
+    """Czy zadanie ma pliki SPRAWDZONE — czyli czy da się je PRZELICZYĆ (lekarze/
+    porównanie liczą wyłącznie ze sprawdzonych). Zadania zaimportowane z chmury
+    bywają bez sprawdzonych — wtedy recompute dałby pusty wynik."""
+    d = paths.get("sprawdzone")
+    if not d or not os.path.isdir(d):
+        return False
+    return any(not os.path.basename(f).startswith("~$") for f in glob.glob(os.path.join(d, "*.xlsx")))
+
+
 def _load_cache(paths: dict, name: str):
     from app.engine import ENGINE_VERSION
     p = _cache_path(paths, name)
@@ -43,9 +53,12 @@ def _load_cache(paths: dict, name: str):
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             return None
-        # Wynik policzony STARSZYM silnikiem → nieważny (przelicz), by rozliczenie,
-        # Porównanie i Pulpit były spójne po zmianach logiki wyceny. Puste wpisy zostają.
-        if isinstance(data, dict) and not data.get("empty") and data.get("_engine_version") != ENGINE_VERSION:
+        # Cache policzony STARSZYM silnikiem unieważniamy (przelicz z bieżącą logiką —
+        # spójność z Pulpitem/Porównaniem) — ale TYLKO gdy jest z czego przeliczyć
+        # (są pliki sprawdzone). Inaczej recompute dałby pusty wynik i zepsuł działające
+        # (choć starsze) rozliczenie, np. zadania zaimportowane z chmury bez sprawdzonych.
+        if (isinstance(data, dict) and not data.get("empty")
+                and data.get("_engine_version") != ENGINE_VERSION and _has_sprawdzone(paths)):
             return None
         return data
     return None
