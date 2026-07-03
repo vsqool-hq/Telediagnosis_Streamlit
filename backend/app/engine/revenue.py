@@ -108,7 +108,8 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
         # więc Porownawcze_Flag = liczba badań porównawczych (bez mnożnika okolic).
         surcharge, _ = porownawcze_surcharge(merged, prices)
         merged["Wartość"] = merged["Wartość"] + surcharge
-        frames.append(merged[["Klient", "Modalność", "Ilość", "Wartość"]])
+        # CENA_KLUCZ/#/Cena — do diagnostyki „rozliczone po 0 zł" w summarize().
+        frames.append(merged[["Klient", "Modalność", "Ilość", "Wartość", "CENA_KLUCZ", "#", "Cena"]])
 
     if not frames:
         return pd.DataFrame(columns=["Klient", "Modalność", "Ilość", "Wartość"])
@@ -189,6 +190,25 @@ def summarize(wynik_dir: str, cennik_dir: str) -> dict:
             "suggestions": [] if in_cennik else _suggest(str(c)),
         })
 
+    # --- Diagnostyka: badania rozliczone po stawce 0 zł ---
+    # Pozycja W CENNIKU istnieje (Cena nie jest pusta), ale wynosi 0 zł — inna sytuacja
+    # niż „brak pozycji" (Cena NaN). Tabela: jednostka × kategoria (klucz cennika) × liczba badań.
+    zero_rates = []
+    zero_rate_studies = 0
+    if "Cena" in df.columns:
+        zr = df[pd.to_numeric(df["Cena"], errors="coerce") == 0]
+        if not zr.empty:
+            zero_rate_studies = int(zr["#"].sum())
+            zt = (
+                zr.groupby(["Klient", "CENA_KLUCZ"])["#"].sum().reset_index()
+                .rename(columns={"Klient": "jednostka", "CENA_KLUCZ": "kategoria", "#": "n"})
+                .sort_values("n", ascending=False)
+            )
+            zero_rates = [
+                {"jednostka": str(r["jednostka"]), "kategoria": str(r["kategoria"]), "n": int(r["n"])}
+                for _, r in zt.head(200).iterrows()
+            ]
+
     return {
         "empty": False,
         "period": _result_period(wynik_dir),  # miesiąc rozliczeniowy „YYYY-MM" z dat w pliku
@@ -196,6 +216,8 @@ def summarize(wynik_dir: str, cennik_dir: str) -> dict:
         "total_revenue": round(float(df["Wartość"].sum()), 2),
         "clients_count": int(df["Klient"].nunique()),
         "zero_clients": zero_clients,
+        "zero_rate_studies": zero_rate_studies,
+        "zero_rates": zero_rates,
         "by_modality": [
             {"modality": r["Modalność"], "count": int(r["count"]), "revenue": round(float(r["revenue"]), 2)}
             for _, r in by_mod.iterrows()

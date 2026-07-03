@@ -185,6 +185,38 @@ export default function RozliczenieLekarzyPage() {
             </div>
           )}
 
+          {/* Badania rozliczone po stawce 0 zł — pozycja jest w cenniku, ale stawka = 0. */}
+          {(result.validation.zero_rate_pairs?.length ?? 0) > 0 && (
+            <div className="card space-y-3 border-sky-400/30">
+              <h2 className="flex items-center gap-2 text-base font-bold text-sky-300">
+                <AlertTriangle size={18} /> Rozliczone po stawce 0 zł ({result.validation.zero_rate_studies ?? 0} badań)
+              </h2>
+              <p className="text-[13px] text-slate-400">
+                Pozycja istnieje w cenniku lekarza, ale stawka wynosi 0 zł — badania policzone z wartością 0.
+              </p>
+              <div className="max-h-56 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-brand-surface text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase">Kategoria (cennik lekarzy)</th>
+                      <th className="px-3 py-2 text-right text-xs uppercase">Badania 0 zł</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.validation.zero_rate_pairs!.map((p, i) => (
+                      <tr key={i} className="border-t border-white/10">
+                        <td className="px-3 py-2">{p.lekarz}</td>
+                        <td className="px-3 py-2 text-slate-300">{p.kategoria}</td>
+                        <td className="px-3 py-2 text-right text-slate-400">{p.n}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="card">
             <h2 className="mb-3 text-base font-bold">Rozliczenie per lekarz</h2>
             <div className="max-h-[28rem] overflow-auto">

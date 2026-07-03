@@ -128,6 +128,7 @@ function MarginView({ rows, nameLabel }: { rows: MarginRow[]; nameLabel: string 
 
 const TABS = [
   { id: "kategoria", label: "Per kategoria" },
+  { id: "priorytet", label: "Per priorytet" },
   { id: "lekarz", label: "Per lekarz" },
   { id: "jednostka", label: "Per jednostka" },
 ] as const;
@@ -197,6 +198,7 @@ export default function PorownaniePage() {
   const t = result?.totals;
   const docRows: MarginRow[] = (result?.by_doctor ?? []).map((r) => ({ name: r.lekarz, ...r }));
   const unitRows: MarginRow[] = (result?.by_unit ?? []).map((r) => ({ name: r.jednostka, ...r }));
+  const prioRows: MarginRow[] = (result?.rows_priority ?? []).map((r) => ({ name: r.priorytet, ...r }));
 
   return (
     <div className="space-y-6">
@@ -365,6 +367,14 @@ export default function PorownaniePage() {
             );
           })()}
 
+          {tab === "priorytet" && (
+            prioRows.length > 0
+              ? <MarginView rows={prioRows} nameLabel="priorytetów" />
+              : <div className="card text-sm text-slate-400">
+                  Podział per priorytet pojawi się po przeliczeniu porównania nowym silnikiem —
+                  kliknij „Przelicz ponownie".
+                </div>
+          )}
           {tab === "lekarz" && <MarginView rows={docRows} nameLabel="lekarzy" />}
           {tab === "jednostka" && <MarginView rows={unitRows} nameLabel="jednostek" />}
         </>

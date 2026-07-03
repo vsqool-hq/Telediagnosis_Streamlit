@@ -128,6 +128,8 @@ export interface JobStats {
   total_revenue?: number;
   clients_count?: number;
   zero_clients?: { client: string; studies: number; in_cennik: boolean; suggestions: string[] }[];
+  zero_rate_studies?: number;
+  zero_rates?: { jednostka: string; kategoria: string; n: number }[];
   by_modality?: { modality: string; count: number; revenue: number }[];
   top_clients?: { client: string; count: number; revenue: number }[];
 }
@@ -208,6 +210,8 @@ export interface DoctorBilling {
     total_value: number;
     doctors_unmatched: string[];
     pairs_without_price: { _lek_disp: string; _kategoria: string; n: number }[];
+    zero_rate_studies?: number;
+    zero_rate_pairs?: { lekarz: string; kategoria: string; n: number }[];
   };
 }
 
@@ -230,6 +234,10 @@ export interface DoctorComparison {
   }[];
   rows_units?: {
     "Modalność": string; kategoria: string; ilosc: number;
+    przychod_jednostki: number; koszt_lekarzy: number; marza: number;
+  }[];
+  rows_priority?: {
+    priorytet: string; ilosc: number;
     przychod_jednostki: number; koszt_lekarzy: number; marza: number;
   }[];
   by_doctor?: {

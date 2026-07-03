@@ -196,6 +196,15 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
         .sort_values("n", ascending=False)
     )
 
+    # Badania rozliczone po stawce 0 zł — pozycja W CENNIKU istnieje, ale stawka = 0
+    # (lekarz nieopłacany za tę kategorię). Osobna lista od „braku stawki" (NaN wyżej).
+    zero_rate = priced[pd.to_numeric(priced["_stawka"], errors="coerce") == 0]
+    zero_rate_pairs = (
+        zero_rate.groupby(["_lek_disp", "_kategoria"]).size().reset_index(name="n")
+        .rename(columns={"_lek_disp": "lekarz", "_kategoria": "kategoria"})
+        .sort_values("n", ascending=False)
+    )
+
     doctors_in_data = set(df["_lek_key"]) - {""}
     doctors_in_cennik = {k for (k, _) in prices.keys()}
     doctors_unmatched = sorted(
@@ -282,6 +291,8 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
             "excluded_studies": excluded_studies,
             "doctors_unmatched": doctors_unmatched[:100],
             "pairs_without_price": pairs_no_price.head(100).to_dict("records"),
+            "zero_rate_studies": int(len(zero_rate)),
+            "zero_rate_pairs": zero_rate_pairs.head(200).to_dict("records"),
         },
     }
 

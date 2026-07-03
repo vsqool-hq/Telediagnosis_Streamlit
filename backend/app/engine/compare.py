@@ -212,10 +212,39 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     for c in ("ilosc", "przychod_jednostki", "koszt_lekarzy", "marza"):
         grp_u[c] = grp_u[c].round(2)
 
+    # Marża per PRIORYTET (Cito / Pilny / Planowy) — na tym samym zbiorze (badania
+    # z kategorią lekarską). „CITO-CITO" → Cito, „Bardzo pilny" → Pilny (jak u lekarzy).
+    def _prio_norm(v) -> str:
+        s = str(v or "").strip().upper()
+        if s.startswith("CITO"):
+            return "Cito"
+        if "PILN" in s:
+            return "Pilny"
+        if s.startswith("PLANOW"):
+            return "Planowy"
+        return str(v or "").strip() or "—"
+
+    rows_priority = []
+    if "Priorytet opisu" in cat.columns and not cat.empty:
+        cp = cat.copy()
+        cp["_prio"] = cp["Priorytet opisu"].map(_prio_norm)
+        grp_p = cp.groupby("_prio").agg(
+            ilosc=("_mult_doc", "sum"),
+            przychod_jednostki=("_units_rev", "sum"),
+            koszt_lekarzy=("_doc_cost", "sum"),
+        ).reset_index().rename(columns={"_prio": "priorytet"})
+        grp_p["marza"] = grp_p["przychod_jednostki"] - grp_p["koszt_lekarzy"]
+        for c in ("ilosc", "przychod_jednostki", "koszt_lekarzy", "marza"):
+            grp_p[c] = grp_p[c].round(2)
+        _order = {"Cito": 0, "Pilny": 1, "Planowy": 2}
+        grp_p["_ord"] = grp_p["priorytet"].map(lambda x: _order.get(x, 9))
+        rows_priority = grp_p.sort_values("_ord").drop(columns="_ord").to_dict("records")
+
     return {
         "empty": False,
         "rows": grp.to_dict("records"),
         "rows_units": grp_u.to_dict("records"),
+        "rows_priority": rows_priority,
         "by_doctor": by_doctor,
         "by_unit": by_unit,
         "totals": {

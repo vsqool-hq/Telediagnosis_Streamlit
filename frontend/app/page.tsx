@@ -129,6 +129,35 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Badania rozliczone po stawce 0 zł — pozycja w cenniku istnieje, ale wynosi 0. */}
+      {stats?.zero_rates && stats.zero_rates.length > 0 && (
+        <div className="card border-sky-400/30">
+          <h2 className="flex items-center gap-2 text-base font-bold text-sky-300">
+            <AlertTriangle size={18} /> Rozliczone po stawce 0 zł ({stats.zero_rate_studies ?? 0} badań)
+          </h2>
+          <p className="mt-1 text-[13px] text-slate-400">
+            Pozycja jest w cenniku, ale ze stawką 0 zł — badania policzone z wartością 0.
+            Sprawdź, czy to zamierzone (np. pozycja nieopłacana), czy brakująca cena.
+          </p>
+          <div className="mt-3 max-h-56 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-brand-surface text-left text-xs uppercase text-slate-400">
+                <tr><th className="py-2 pr-4">Jednostka</th><th className="py-2 pr-4">Kategoria badania (cennik)</th><th className="py-2 pr-4 text-right">Badania 0 zł</th></tr>
+              </thead>
+              <tbody>
+                {stats.zero_rates.map((z, i) => (
+                  <tr key={i} className="border-t border-white/10">
+                    <td className="py-2 pr-4 font-semibold">{z.jednostka}</td>
+                    <td className="py-2 pr-4 text-slate-300">{z.kategoria}</td>
+                    <td className="py-2 pr-4 text-right text-slate-400">{z.n}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {trends.length > 1 && (
         <div className="card">
           <h2 className="mb-4 text-base font-bold">Trend wartości rozliczeń</h2>

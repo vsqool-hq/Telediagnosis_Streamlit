@@ -128,21 +128,46 @@ async def current_stats():
     return {**s, "job_id": latest["job_id"], "period": latest["period"]}
 
 
-@router.get("/map")
-async def map_data(months: int = 3):
-    """Dane do zakładki „Mapa": przychód per jednostka za ostatnie N miesięcy
-    (z najlepszego przeliczenia każdego miesiąca) + współrzędne ze słownika adresów."""
+def _job_revenue_by_client(job_id: str) -> dict:
+    """Przychód per jednostka danego zadania — z CACHE (map.json w katalogu zadania).
+    Liczone RAZ (wyniki zadania są niezmienne); dzięki temu Mapa wczytuje się od razu,
+    zamiast czytać ~120 plików Excel przy każdym wejściu. Cache unieważnia zmiana
+    wersji silnika (spójność z Pulpitem/Porównaniem)."""
+    from app.engine import ENGINE_VERSION
+    paths = job_paths(job_id)
+    cache = os.path.join(paths["base"], "map.json")
+    if os.path.isfile(cache):
+        try:
+            with open(cache, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            if d.get("_engine") == ENGINE_VERSION:
+                return d.get("by_client", {})
+        except (OSError, ValueError):
+            pass
     from app.engine.revenue import build_revenue
+    df = build_revenue(paths["wynik"], paths["cennik"])
+    by = {} if df.empty else {str(k): float(v) for k, v in df.groupby("Klient")["Wartość"].sum().items()}
+    try:
+        with open(cache, "w", encoding="utf-8") as f:
+            json.dump({"_engine": ENGINE_VERSION, "by_client": by}, f, ensure_ascii=False)
+    except OSError:
+        pass
+    return by
+
+
+@router.get("/map")
+async def map_data(months: int = 1):
+    """Dane do zakładki „Mapa": przychód per jednostka za OSTATNI miesiąc (domyślnie;
+    months=N dla dłuższej historii) z najlepszego przeliczenia miesiąca + współrzędne.
+    Przychody per zadanie są cache'owane (map.json) — bez przeliczania przy wejściu."""
     geo = _load_geo()
     best = best_jobs_by_month()
     recent = sorted(best.keys())[-max(1, months):]
 
     rev_by_month: dict = {}
     for p in recent:
-        paths = job_paths(best[p]["job_id"])
         try:
-            df = build_revenue(paths["wynik"], paths["cennik"])
-            rev_by_month[p] = {} if df.empty else df.groupby("Klient")["Wartość"].sum().to_dict()
+            rev_by_month[p] = _job_revenue_by_client(best[p]["job_id"])
         except Exception:  # noqa: BLE001
             rev_by_month[p] = {}
 
