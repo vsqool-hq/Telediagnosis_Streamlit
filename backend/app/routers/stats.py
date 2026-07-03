@@ -78,18 +78,18 @@ def best_jobs_by_month() -> dict:
     from app.engine.revenue import cached_summary
     from app.engine.periods import period_from_filename
     best: dict = {}
-    for j in db.list_jobs(limit=100):
+    for j in db.list_jobs(limit=200):
         if j["status"] != "done" or j["mode"] != "full":
+            continue
+        # Tylko pliki MIESIĘCZNE (data z 1. dniem miesiąca w nazwie). Pliki jednorazowe
+        # (bez takiej daty) nie wchodzą na Pulpit/Historię/lekarzy/porównanie.
+        period = period_from_filename(j.get("input_name"))
+        if not period:
             continue
         paths = job_paths(j["id"])
         s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
         if s.get("empty"):
             continue
-        # Miesiąc rozliczenia: z NAZWY pliku (data wygenerowania − 1 miesiąc).
-        # Zapas: miesiąc z dat w pliku, a na końcu z daty policzenia.
-        period = (period_from_filename(j.get("input_name"))
-                  or s.get("period")
-                  or (j.get("finished_at") or j.get("created_at") or "")[:7])
         rev = float(s.get("total_revenue") or 0)
         cur = best.get(period)
         if cur is None or rev > cur["revenue"]:
@@ -97,6 +97,8 @@ def best_jobs_by_month() -> dict:
                 "job_id": j["id"], "revenue": rev,
                 "studies": int(s.get("total_studies") or 0),
                 "period": period, "date": f"{period}-01",
+                "input_name": j.get("input_name"),
+                "computed_at": j.get("finished_at") or j.get("created_at"),
             }
     return best
 

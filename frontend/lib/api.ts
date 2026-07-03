@@ -110,6 +110,20 @@ export interface Job {
   period?: string | null;   // miesiąc rozliczenia „YYYY-MM" (z nazwy pliku − 1 mies.)
 }
 
+// Unikalny wgrany plik (bez mnożenia przez kolejne przeliczenia). „monthly" =
+// plik miesięczny (1. dzień miesiąca w nazwie), „oneoff" = jednorazowy.
+export interface JobFile {
+  kind: "monthly" | "oneoff";
+  period: string | null;
+  input_name: string;
+  job_id: string;            // najlepsze (miesięczny) / najnowsze (jednorazowy) przeliczenie
+  revenue: number | null;
+  studies: number | null;
+  computed_at: string | null;
+  status?: string;
+  job_ids: string[];         // wszystkie przeliczenia tej pozycji (do usunięcia całości)
+}
+
 export interface Overview {
   jobs_total: number;
   jobs_done: number;
@@ -326,6 +340,7 @@ export const api = {
     withToken(`${API_BASE}/api/jobs/${id}/import-export?fmt=${fmt}`),
 
   listJobs: () => req<Job[]>("/api/jobs"),
+  listFiles: () => req<{ files: JobFile[] }>("/api/jobs/files"),
   activeJob: () => req<Job | null>("/api/jobs/active"),
   getJob: (id: string) => req<Job>(`/api/jobs/${id}`),
 

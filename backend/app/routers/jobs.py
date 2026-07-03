@@ -41,6 +41,52 @@ async def list_jobs():
     return [_with_period(j) for j in db.list_jobs()]
 
 
+@router.get("/files")
+async def list_files():
+    """UNIKALNE wgrane pliki dla zakładki Rozliczenie (bez mnożenia przez kolejne
+    przeliczenia). Dwa rodzaje:
+      • miesięczny — plik z datą 1. dnia miesiąca w nazwie; jeden wpis na miesiąc,
+        z NAJWIĘKSZEGO przeliczenia (best_jobs_by_month). To on jest używany na
+        Pulpicie/Historii/lekarzach/porównaniu.
+      • jednorazowy — pozostałe pliki; jeden wpis na nazwę pliku (najnowsze przeliczenie),
+        nigdzie indziej nieużywany.
+    Każdy wpis niesie `job_ids` (wszystkie przeliczenia tej pozycji) — do czystego
+    usunięcia całej pozycji za jednym razem."""
+    from app.engine.periods import period_from_filename
+    from app.routers.stats import best_jobs_by_month
+
+    all_jobs = db.list_jobs(limit=500)  # malejąco wg daty
+    by_period_ids: dict = {}
+    oneoff, oneoff_ids = {}, {}
+    for j in all_jobs:
+        per = period_from_filename(j.get("input_name"))
+        if per:
+            by_period_ids.setdefault(per, []).append(j["id"])
+        else:
+            key = (j.get("input_name") or j["id"]).strip()
+            oneoff_ids.setdefault(key, []).append(j["id"])
+            oneoff.setdefault(key, j)  # lista malejąco → pierwszy = najnowszy
+
+    files = []
+    best = best_jobs_by_month()
+    for period in sorted(best.keys(), reverse=True):
+        b = best[period]
+        files.append({
+            "kind": "monthly", "period": period, "input_name": b.get("input_name"),
+            "job_id": b["job_id"], "revenue": b.get("revenue"),
+            "studies": b.get("studies"), "computed_at": b.get("computed_at"),
+            "job_ids": by_period_ids.get(period, [b["job_id"]]),
+        })
+    for key, j in oneoff.items():
+        files.append({
+            "kind": "oneoff", "period": None, "input_name": key,
+            "job_id": j["id"], "revenue": None, "studies": None,
+            "computed_at": j.get("finished_at") or j.get("created_at"),
+            "status": j.get("status"), "job_ids": oneoff_ids.get(key, [j["id"]]),
+        })
+    return {"files": files}
+
+
 def import_job_bundle(raw: bytes) -> dict:
     """
     Rozpakowuje paczkę ZIP zadania (meta.json + jednostki/wynik/sprawdzone/lekarze/

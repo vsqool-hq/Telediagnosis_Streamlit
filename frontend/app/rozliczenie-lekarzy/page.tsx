@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw } from "lucide-react";
-import { api, Job, DoctorBilling, DoctorCoverage } from "@/lib/api";
+import { api, CompareMonth, DoctorBilling, DoctorCoverage } from "@/lib/api";
 import { useCachedData } from "@/lib/cache";
 
 const zl = (n: number) =>
   n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
+
+const MONTHS_PL = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
+const periodLabel = (p: string) =>
+  /^\d{4}-\d{2}$/.test(p) ? `${MONTHS_PL[parseInt(p.slice(5)) - 1]} ${p.slice(0, 4)}` : p;
 
 export default function RozliczenieLekarzyPage() {
   const [jobId, setJobId] = useState<string>("");
@@ -16,23 +21,23 @@ export default function RozliczenieLekarzyPage() {
   // Aktywne odpytywanie (gdy liczenie biegnie w tle) — id interwału do sprzątania.
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Cache: coverage i lista zadań pojawiają się od razu po powrocie na zakładkę.
+  // Cache: coverage i lista miesięcy pojawiają się od razu po powrocie na zakładkę.
   const { data: coverage } = useCachedData<DoctorCoverage>("doctorsCoverage", () => api.doctorsCoverage());
-  const { data: allJobs } = useCachedData<Job[]>("jobs", () => api.listJobs());
-  const jobs = useMemo(
-    () => (allJobs ?? []).filter((j) => j.status === "done" && j.mode === "full"),
-    [allJobs],
-  );
+  // Do wyboru: MIESIĄCE (unikalne pliki miesięczne — najwyższe przeliczenie miesiąca),
+  // a nie surowe zadania mnożone przez kolejne przeliczenia.
+  const { data: monthsData } = useCachedData<{ months: CompareMonth[] }>(
+    "doctorsMonths", () => api.doctorsCompareMonths());
+  const months = useMemo(() => monthsData?.months ?? [], [monthsData]);
 
   function stopPolling() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   }
   useEffect(() => stopPolling, []);
 
-  // Domyślnie wybierz najnowsze zadanie, gdy lista się pojawi.
+  // Domyślnie wybierz najnowszy miesiąc, gdy lista się pojawi.
   useEffect(() => {
-    if (!jobId && jobs.length) setJobId(jobs[0].id);
-  }, [jobs, jobId]);
+    if (!jobId && months.length) setJobId(months[0].job_id);
+  }, [months, jobId]);
 
   // Po wyborze zadania: zatrzymaj ewentualne odpytywanie i wczytaj ZAPISANY wynik
   // (bez liczenia) — dzięki temu po powrocie na zakładkę rozliczenie jest od razu.
@@ -105,12 +110,12 @@ export default function RozliczenieLekarzyPage() {
 
       <div className="card flex flex-wrap items-end gap-3">
         <label className="space-y-1.5">
-          <span className="text-[13px] font-semibold text-slate-200">Zadanie (pełne rozliczenie)</span>
+          <span className="text-[13px] font-semibold text-slate-200">Miesiąc rozliczenia</span>
           <select className="input min-w-[280px]" value={jobId} onChange={(e) => setJobId(e.target.value)}>
-            {jobs.length === 0 && <option value="">brak ukończonych rozliczeń</option>}
-            {jobs.map((j) => (
-              <option key={j.id} value={j.id}>
-                {new Date(j.created_at).toLocaleString("pl-PL")} · {j.input_name}
+            {months.length === 0 && <option value="">brak rozliczeń miesięcznych</option>}
+            {months.map((m) => (
+              <option key={m.job_id} value={m.job_id}>
+                {periodLabel(m.period)} · {zl(m.revenue)}
               </option>
             ))}
           </select>

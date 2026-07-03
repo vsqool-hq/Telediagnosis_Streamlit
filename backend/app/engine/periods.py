@@ -12,27 +12,34 @@ import re
 
 
 def period_from_filename(name) -> str | None:
-    """Zwraca 'YYYY-MM' (miesiąc z nazwy pliku minus 1) albo None, gdy brak daty."""
+    """Zwraca 'YYYY-MM' (miesiąc z nazwy pliku minus 1) dla pliku MIESIĘCZNEGO, albo
+    None gdy plik NIE jest miesięczny.
+
+    Umowa: plik MIESIĘCZNY (pełne rozliczenie miesiąca — pokazywane na Pulpicie,
+    w Historii, używane w rozliczeniu lekarzy i porównaniu) ma w nazwie datę z
+    PIERWSZYM DNIEM miesiąca (np. „…2026-07-01…" = dane za czerwiec). Każdy inny
+    plik (bez daty albo z inną datą niż 1. dzień) traktujemy jako JEDNORAZOWY —
+    liczony na żądanie, nigdzie indziej nieużywany. Dzięki temu przypadkowe pliki
+    (np. „tduskszczecin05") nie są brane jako rozliczenie miesiąca."""
     s = str(name or "")
-    y = mo = None
+    y = mo = day = None
     m = re.search(r"(20\d{2})[-_.](\d{1,2})[-_.](\d{1,2})", s)            # YYYY-MM-DD
     if m:
-        y, mo = int(m.group(1)), int(m.group(2))
+        y, mo, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
     if y is None:
         m = re.search(r"(?<!\d)(\d{1,2})[-_.](\d{1,2})[-_.](20\d{2})", s)  # DD-MM-YYYY
         if m:
-            mo, y = int(m.group(2)), int(m.group(3))
+            day, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
     if y is None:
         m = re.search(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)", s)          # YYYYMMDD
         if m:
-            y, mo = int(m.group(1)), int(m.group(2))
-    if y is None:
-        m = re.search(r"(20\d{2})[-_.](\d{1,2})(?!\d)", s)                 # YYYY-MM
-        if m:
-            y, mo = int(m.group(1)), int(m.group(2))
-    if y is None or not (1 <= mo <= 12):
+            y, mo, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    # Bez pełnej daty (sam YYYY-MM, brak dnia) → nie jest to plik miesięczny.
+    if y is None or mo is None or not (1 <= mo <= 12):
         return None
-    mo -= 1                                    # dane za POPRZEDNI miesiąc
+    if day != 1:                               # tylko PIERWSZY dzień miesiąca = miesięczny
+        return None
+    mo -= 1                                     # dane za POPRZEDNI miesiąc
     if mo == 0:
         mo, y = 12, y - 1
     return f"{y:04d}-{mo:02d}"

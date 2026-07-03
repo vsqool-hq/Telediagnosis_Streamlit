@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock, FileText, History } from "lucide-react";
-import { api, Job, isLocalBackend } from "@/lib/api";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock, FileText, History, Trash2, Calendar } from "lucide-react";
+import { api, Job, JobFile, isLocalBackend } from "@/lib/api";
 import { invalidateCache } from "@/lib/cache";
 import ReferenceImage from "@/components/ReferenceImage";
 
@@ -20,7 +20,8 @@ export default function RozliczeniePage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [logs, setLogs] = useState<string[]>([]);
   const [job, setJob] = useState<Job | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);   // historia ostatnio wgranych plików
+  const [files, setFiles] = useState<JobFile[]>([]);   // UNIKALNE wgrane pliki (bez duplikatów przeliczeń)
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
   const startAnchor = useRef<number | null>(null);  // chwila startu zadania w zegarze klienta
@@ -78,9 +79,28 @@ export default function RozliczeniePage() {
     }).catch(() => {});
   }
 
-  /** Odświeża historię ostatnio wgranych plików (lista zadań, malejąco wg daty). */
+  /** Odświeża historię UNIKALNYCH wgranych plików (bez mnożenia przez przeliczenia). */
   function loadJobs() {
-    api.listJobs().then(setJobs).catch(() => {});
+    api.listFiles().then((r) => setFiles(r.files)).catch(() => {});
+  }
+
+  /** Usuwa całą pozycję (wszystkie przeliczenia tego pliku/miesiąca) i odświeża listę. */
+  async function deleteFile(f: JobFile) {
+    const label = f.kind === "monthly" ? `rozliczenie miesiąca ${f.period}` : `plik „${f.input_name}"`;
+    const extra = f.job_ids.length > 1 ? ` (${f.job_ids.length} przeliczeń)` : "";
+    if (!confirm(`Usunąć ${label}${extra}? Tej operacji nie można cofnąć.`)) return;
+    setDeleting(f.job_id);
+    setError(null);
+    try {
+      for (const id of f.job_ids) await api.deleteJob(id).catch(() => {});
+      if (job && f.job_ids.includes(job.id)) { setJob(null); setPhase("idle"); setLogs([]); }
+      loadJobs();
+      invalidateCache();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setDeleting(null);
+    }
   }
 
   /** Wybiera plik z historii — staje się „ostatnim plikiem" do przeliczenia.
@@ -262,50 +282,68 @@ export default function RozliczeniePage() {
         <ReferenceImage slot="rozliczenie" title="Wzór: plik miesięczny" />
       </div>
 
-      {jobs.length > 0 && (
+      {files.length > 0 && (
         <div className="card">
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <History size={18} className="text-brand-accent" />
-            <h2 className="text-lg font-semibold">Ostatnio wgrane pliki</h2>
-            <span className="text-xs text-slate-400">({jobs.length})</span>
+            <h2 className="text-lg font-semibold">Wgrane pliki</h2>
+            <span className="text-xs text-slate-400">({files.length})</span>
           </div>
+          <p className="mb-3 text-xs text-slate-400">
+            Unikalne pliki (bez powtórek przeliczeń). „Miesięczne" (data 1. dnia miesiąca w nazwie)
+            trafiają na Pulpit, do Historii, lekarzy i porównania — pokazujemy najwyższe przeliczenie.
+            „Jednorazowe" liczymy na żądanie i nie używamy nigdzie indziej.
+          </p>
           <div className="space-y-2">
-            {jobs.slice(0, 12).map((j) => {
-              const selected = job?.id === j.id;
-              const st = j.status === "done" ? "Gotowe" : j.status === "error" ? "Błąd" : "W toku";
+            {files.map((f) => {
+              const selected = job?.id === f.job_id;
+              const isMonthly = f.kind === "monthly";
               return (
                 <div
-                  key={j.id}
+                  key={f.job_id}
                   className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
                     selected ? "border-brand-accent/50 bg-brand-accent/10" : "border-white/10 bg-white/[0.02]"
                   }`}
                 >
-                  <FileText size={18} className="shrink-0 text-slate-400" />
+                  {isMonthly
+                    ? <Calendar size={18} className="shrink-0 text-brand-accent" />
+                    : <FileText size={18} className="shrink-0 text-slate-400" />}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate font-semibold">{j.input_name}</span>
+                      <span className="truncate font-semibold">{f.input_name}</span>
+                      {isMonthly
+                        ? <span className="pill pill-ok">Miesięczny · {f.period}</span>
+                        : <span className="pill pill-muted">Jednorazowy</span>}
                       {selected && <span className="pill pill-ok"><CheckCircle2 size={12} /> Wybrany</span>}
                     </div>
                     <p className="text-xs text-slate-400">
-                      {new Date(j.created_at).toLocaleString("pl-PL")} ·{" "}
-                      {j.mode === "full" ? "Pełny proces" : "Braki wzorca"} · {st}
+                      {f.computed_at ? `Ostatnie pełne przeliczenie: ${new Date(f.computed_at).toLocaleString("pl-PL")}` : "—"}
+                      {f.job_ids.length > 1 ? ` · ${f.job_ids.length} przeliczeń` : ""}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       className="btn-secondary px-3 py-1.5 text-xs"
                       disabled={busy || selected}
-                      onClick={() => selectJob(j.id)}
+                      onClick={() => selectJob(f.job_id)}
                     >
                       Wybierz
                     </button>
                     <a
                       className="btn-secondary px-3 py-1.5 text-xs"
-                      href={api.inputUrl(j.id)}
+                      href={api.inputUrl(f.job_id)}
                       title="Pobierz plik źródłowy"
                     >
                       <Download size={14} />
                     </a>
+                    <button
+                      className="btn-secondary px-3 py-1.5 text-xs hover:border-red-500 hover:text-red-300 disabled:opacity-40"
+                      disabled={busy || deleting === f.job_id}
+                      onClick={() => deleteFile(f)}
+                      title="Usuń ten plik (wszystkie jego przeliczenia)"
+                    >
+                      {deleting === f.job_id ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                    </button>
                   </div>
                 </div>
               );

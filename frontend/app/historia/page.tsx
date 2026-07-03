@@ -29,10 +29,12 @@ export default function HistoriaPage() {
   const loaded = !jobsLoading;
 
   const entries = useMemo<Job[]>(() => {
-    const done = (jobsData ?? []).filter((j) => j.status === "done" && j.mode === "full");
-    // Grupujemy po MIESIĄCU ROZLICZENIA (period z nazwy pliku − 1 mies.; zapas: data zadania).
-    // Lista z bazy jest malejąco wg daty → pierwszy w grupie = najnowszy (finalny).
-    const keyOf = (j: Job) => j.period || monthKey(j.finished_at || j.created_at);
+    // Tylko pliki MIESIĘCZNE (period z nazwy pliku = 1. dzień miesiąca − 1 mies.).
+    // Pliki jednorazowe (bez period) NIE trafiają do Historii.
+    const done = (jobsData ?? []).filter((j) => j.status === "done" && j.mode === "full" && j.period);
+    // Grupujemy po MIESIĄCU ROZLICZENIA. Lista z bazy jest malejąco wg daty →
+    // pierwszy w grupie = najnowszy (finalny).
+    const keyOf = (j: Job) => j.period as string;
     const map = new Map<string, Job>();
     for (const j of done) {
       const k = keyOf(j);
