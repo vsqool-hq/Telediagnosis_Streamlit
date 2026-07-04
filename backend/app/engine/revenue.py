@@ -150,6 +150,13 @@ def summarize(wynik_dir: str, cennik_dir: str) -> dict:
     if df.empty:
         return {"empty": True}
     df = df.copy()
+    # Jednostki wyłączone w ustawieniach — pomijane w statystykach (Pulpit/trend).
+    from app.engine.billing import get_excluded_units, _norm_unit
+    excl = get_excluded_units()
+    if excl:
+        df = df[~df["Klient"].map(_norm_unit).isin(excl)]
+        if df.empty:
+            return {"empty": True}
     df["Modalność"] = df["Modalność"].map(_modality_norm)
     by_mod = df.groupby("Modalność").agg(count=("Ilość", "sum"), revenue=("Wartość", "sum")).reset_index()
 
@@ -237,10 +244,12 @@ def cached_summary(base_dir: str, wynik_dir: str, cennik_dir: str) -> dict:
     """
     from app.engine.config import load_config
     from app.engine import ENGINE_VERSION
-    # Sygnatura: grupy jednostek (zmiana grupowania → przelicz „top jednostki") ORAZ
+    from app.engine.billing import get_excluded_units
+    # Sygnatura: grupy jednostek (zmiana grupowania → przelicz „top jednostki"),
     # wersja silnika (zmiana logiki wyceny → przelicz cały przychód z bieżącym silnikiem,
-    # by Pulpit zgadzał się z Porównaniem).
-    sig = json.dumps({"groups": load_config().get("unit_groups", []), "engine": ENGINE_VERSION},
+    # by Pulpit zgadzał się z Porównaniem) ORAZ wyłączone jednostki (zmiana → przelicz).
+    sig = json.dumps({"groups": load_config().get("unit_groups", []), "engine": ENGINE_VERSION,
+                      "units_excluded": sorted(get_excluded_units())},
                      ensure_ascii=False, sort_keys=True)
     cache = os.path.join(base_dir, "stats.json")
     if os.path.isfile(cache):

@@ -179,6 +179,15 @@ def _excluded_keys() -> list:
         return []
 
 
+def _compare_cache_fresh(c: dict | None) -> bool:
+    """Czy zapisane porównanie jest aktualne względem WYŁĄCZONYCH JEDNOSTEK.
+    Zmiana wyłączeń → zapis traktujemy jako „do przeliczenia" (nie kasujemy go)."""
+    if not c or c.get("empty"):
+        return False
+    from app.engine.billing import get_excluded_units
+    return c.get("_units_excluded", []) == sorted(get_excluded_units())
+
+
 @router.get("/billing/{job_id}")
 async def doctor_billing(job_id: str, recompute: bool = False, peek: bool = False):
     """
@@ -239,7 +248,7 @@ async def doctor_compare_months():
     for period in sorted(best.keys(), reverse=True):
         b = best[period]
         c = _load_cache(job_paths(b["job_id"]), "compare.json")
-        computed = bool(c) and not c.get("empty")
+        computed = _compare_cache_fresh(c)   # nieaktualne wyłączenia jednostek → „policz"
         months.append({
             "period": period,
             "job_id": b["job_id"],
@@ -263,7 +272,7 @@ async def doctor_compare_latest():
     latest = max(best.values(), key=lambda b: b["period"])
     job_id = latest["job_id"]
     out = _load_cache(job_paths(job_id), "compare.json")
-    if not out or out.get("empty"):
+    if not _compare_cache_fresh(out):
         return {"empty": True, "reason": "not_computed", "job_id": job_id}
     # Grupy jednostek (widok) — tak jak w /compare/{job_id}.
     if out.get("by_unit"):
@@ -280,11 +289,14 @@ async def doctor_compare(job_id: str, recompute: bool = False, peek: bool = Fals
     """Porównanie (marża) dla zadania — z takim samym zapisem/odczytem jak rozliczenie."""
     paths = job_paths(job_id)
     cached = None if recompute else _load_cache(paths, "compare.json")
-    # Peek nigdy nie liczy — zwraca zapis (nawet stary, bez „rows_units") lub „brak".
+    # Peek nigdy nie liczy — zwraca AKTUALNY zapis lub „brak" (stary zapis z innym
+    # zestawem wyłączonych jednostek traktujemy jak niepoliczony).
     if peek:
-        out = cached if cached is not None else {"empty": True, "reason": "not_computed", "computed_at": None}
-    # Przelicz, gdy brak cache LUB stary cache bez „rows_units" (kategorie jednostek).
-    elif cached is not None and (cached.get("empty") or "rows_units" in cached):
+        out = cached if _compare_cache_fresh(cached) else {"empty": True, "reason": "not_computed", "computed_at": None}
+    # Przelicz, gdy brak cache, stary cache bez „rows_units" LUB nieaktualne wyłączenia.
+    elif cached is not None and cached.get("empty"):
+        out = cached
+    elif cached is not None and "rows_units" in cached and _compare_cache_fresh(cached):
         out = cached
     else:
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
@@ -382,7 +394,7 @@ async def doctor_billing_files(job_id: str):
 async def doctor_compare_download(job_id: str):
     paths = job_paths(job_id)
     res = _load_cache(paths, "compare.json")
-    if res is None:
+    if not _compare_cache_fresh(res):   # brak zapisu LUB nieaktualne wyłączenia jednostek
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
         from app.engine.compare import build_comparison
         res = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
@@ -404,33 +416,63 @@ def _latest_full_job_id() -> str | None:
     return None
 
 
+def participants(job_id: str) -> dict:
+    """
+    Lekarze (kolumna „Opisujący") i jednostki (kolumna „Klient") występujący
+    w danych zadania — z CACHE (participants.json w katalogu zadania). Zestaw
+    jest STAŁY dla wgranego pliku, więc czytamy pliki Excel tylko RAZ; kolejne
+    wejścia na Ustawienia dostają listę natychmiast.
+    """
+    paths = job_paths(job_id)
+    cache = os.path.join(paths["base"], "participants.json")
+    if os.path.isfile(cache):
+        try:
+            with open(cache, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "doctors" in data and "units" in data:
+                return data
+        except (OSError, ValueError):
+            pass
+    from app.engine.doctors import read_verified_studies, doctor_key, _norm, OPISUJACY_COL
+    from app.engine.billing import _norm_unit
+    doctors, units, seen = [], [], set()
+    df = read_verified_studies(paths["sprawdzone"])
+    if df is not None and not df.empty:
+        if OPISUJACY_COL in df.columns:
+            for val in df[OPISUJACY_COL].dropna().unique():
+                disp = _norm(val)
+                k = doctor_key(disp)
+                if disp and k not in seen:
+                    seen.add(k)
+                    doctors.append({"name": disp, "key": k})
+        if "Klient" in df.columns:
+            for val in df["Klient"].dropna().unique():
+                name = str(val).strip()
+                if name:
+                    units.append({"name": name, "key": _norm_unit(name)})
+    doctors.sort(key=lambda d: d["name"].lower())
+    units.sort(key=lambda u: u["name"].lower())
+    data = {"doctors": doctors, "units": units}
+    try:
+        with open(cache, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except OSError:
+        pass
+    return data
+
+
 @router.get("/list")
 async def doctors_list(job_id: str | None = None):
     """
-    Lista lekarzy (kolumna „Opisujący") znalezionych w danych zadania — domyślnie
-    z najnowszego pełnego rozliczenia. Każdy z kluczem dopasowania i flagą, czy jest
-    aktualnie wyłączony z rozliczenia. Służy do sekcji „Ustawienia lekarzy".
+    Lista lekarzy z danych zadania (domyślnie najnowszego pełnego rozliczenia),
+    z flagą „wyłączony". Zestaw per zadanie z cache (participants) — bez czytania
+    plików Excel przy każdym wejściu na Ustawienia.
     """
-    from app.engine.doctors import read_verified_studies, doctor_key, _norm, OPISUJACY_COL
-
     jid = job_id or _latest_full_job_id()
     if not jid:
         return {"job_id": None, "doctors": []}
-    paths = job_paths(jid)
-    df = read_verified_studies(paths["sprawdzone"])
     excluded = set(_excluded_keys())
-    seen, doctors = {}, []
-    if df is not None and OPISUJACY_COL in df.columns:
-        for val in df[OPISUJACY_COL].dropna().unique():
-            disp = _norm(val)
-            if not disp:
-                continue
-            k = doctor_key(disp)
-            if k in seen:
-                continue
-            seen[k] = True
-            doctors.append({"name": disp, "key": k, "excluded": k in excluded})
-    doctors.sort(key=lambda d: d["name"].lower())
+    doctors = [{**d, "excluded": d["key"] in excluded} for d in participants(jid)["doctors"]]
     return {"job_id": jid, "doctors": doctors}
 
 

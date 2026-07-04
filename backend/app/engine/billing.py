@@ -508,6 +508,22 @@ def get_unit_adjustments() -> dict:
         return {}
 
 
+def get_excluded_units() -> set:
+    """
+    Znormalizowane (_norm_unit) nazwy jednostek WYŁĄCZONYCH z rozliczenia
+    (ustawienia: units_excluded). Wyłączenie działa po stronie jednostek
+    (Pulpit/trend/Mapa/Porównanie) — rozliczenia lekarzy nie zmienia.
+    """
+    raw = CONFIG.get("units_excluded")
+    if raw is None:
+        try:
+            from app import db
+            raw = db.get_settings().get("units_excluded", []) or []
+        except Exception:  # noqa: BLE001
+            raw = []
+    return {_norm_unit(u) for u in raw if str(u).strip()}
+
+
 def prepare_adjustments(raw: dict | None) -> dict:
     """Indeksuje współczynniki po znormalizowanej nazwie jednostki (do szybkiego dopasowania)."""
     out = {}

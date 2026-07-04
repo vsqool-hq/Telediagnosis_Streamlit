@@ -436,6 +436,14 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ keys }),
     }),
+  unitsList: () =>
+    req<{ job_id: string | null; units: { name: string; key: string; excluded: boolean }[] }>("/api/units"),
+  setUnitsExcluded: (keys: string[]) =>
+    req<{ ok: boolean; units_excluded: string[] }>("/api/units/excluded", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys }),
+    }),
 
   getSettings: () => req<{ settings: any; defaults: any }>("/api/settings"),
   saveSettings: (settings: any) =>

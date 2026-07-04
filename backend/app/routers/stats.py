@@ -177,8 +177,14 @@ async def map_data(months: int = 1):
     for p in recent:
         keys |= set(rev_by_month[p].keys())
 
+    # Jednostki wyłączone w ustawieniach — nie pokazujemy ich na mapie.
+    from app.engine.billing import get_excluded_units, _norm_unit
+    excl = get_excluded_units()
+
     units, missing_geo = [], []
     for raw in sorted(keys):
+        if _norm_unit(raw) in excl:
+            continue
         k = str(raw).strip().lower()
         g = geo.get(k)
         months_rev = {p: round(float(rev_by_month[p].get(raw, 0) or 0), 2) for p in recent}

@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import BackendSwitcher from "@/components/BackendSwitcher";
 import DoctorsSettings from "@/components/DoctorsSettings";
+import UnitsSettings from "@/components/UnitsSettings";
 
 type MapPair = { from: string; to: string };
 type AdjRule = { base: string; factor: number };
@@ -503,6 +504,7 @@ export default function UstawieniaPage() {
       </div>
 
       <DoctorsSettings />
+      <UnitsSettings />
     </div>
   );
 }

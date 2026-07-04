@@ -71,6 +71,15 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     if df is None or df.empty:
         return {"empty": True, "reason": "Brak zweryfikowanych danych."}
 
+    # Jednostki wyłączone w ustawieniach — pomijamy ich badania PO OBU stronach
+    # (przychód i koszt), żeby marża liczyła się na tym samym zbiorze.
+    from app.engine.billing import get_excluded_units, _norm_unit
+    _excl_units = get_excluded_units()
+    if _excl_units and "Klient" in df.columns:
+        df = df[~df["Klient"].map(_norm_unit).isin(_excl_units)]
+        if df.empty:
+            return {"empty": True, "reason": "Wszystkie jednostki wyłączone w ustawieniach."}
+
     # Częściowo/niewypełniona kolumna „Rodzaj procedury lekarz" nie blokuje porównania —
     # badania bez kategorii są pomijane w marży i raportowane (studies_without_category).
     cat_map = load_lekarz_categories(slownik_path)
@@ -243,6 +252,8 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
 
     return {
         "empty": False,
+        # Migawka wyłączonych jednostek — pozwala wykryć nieaktualny zapis (cache).
+        "_units_excluded": sorted(_excl_units),
         "rows": grp.to_dict("records"),
         "rows_units": grp_u.to_dict("records"),
         "rows_priority": rows_priority,
