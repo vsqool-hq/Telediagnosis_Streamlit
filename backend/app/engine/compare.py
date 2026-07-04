@@ -64,7 +64,7 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     from app.engine.cennik_lekarzy_convert import doctor_key
     from app.engine.doctors import (
         read_verified_studies, load_lekarz_categories, load_doctor_prices,
-        resolve_category, _key,
+        resolve_category, resolve_doctor_price, _key,
     )
 
     df = read_verified_studies(sprawdzone_dir)
@@ -117,7 +117,8 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     def _doc_price(row):
         if not row["_kategoria"]:
             return None
-        return doc_prices.get((row["_lek_key"], row["_kategoria"].upper()))
+        # 0/brak stawki → niższy priorytet tej samej kategorii (jak raporty lekarzy).
+        return resolve_doctor_price(doc_prices, row["_lek_key"], row["_kategoria"])
 
     # Dopłata za badania porównawcze (osobna linia po stawce porównawczej) — tak jak
     # w rozliczeniu jednostek/Pulpicie. Klucz porównawczy budujemy z flagą = 1; dopłatę

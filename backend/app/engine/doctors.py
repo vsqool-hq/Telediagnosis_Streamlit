@@ -110,6 +110,38 @@ def resolve_category(study_row, slownik_category: str) -> str:
     return f"{modality} {priority} {rest}".strip()
 
 
+_PRIORITY_LADDER = ["CITO", "PILNE", "PLANOWE"]
+
+
+def resolve_doctor_price(prices: dict, lek_key: str, category: str):
+    """
+    Stawka lekarza dla kategorii z dziedziczeniem W DÓŁ po priorytecie: gdy stawka
+    jest 0/pusta, próbujemy TEJ SAMEJ kategorii z niższym priorytetem
+    (CITO → PILNE → PLANOWE), NIE zmieniając modalności ani rozmiaru:
+      'TK CITO A' → 'TK PILNE A' → 'TK PLANOWE A'.
+    Nigdy w górę (z PLANOWE nie bierzemy PILNE) — analogicznie do drabinki cen
+    jednostek. Zwraca pierwszą stawkę > 0, a gdy brak — oryginalny wynik lookupu
+    (None/0/NaN), żeby diagnostyka braków działała jak dotąd.
+    """
+    cat = str(category or "").strip().upper()
+    if not cat:
+        return None
+    c = prices.get((lek_key, cat))
+    if c is not None and c == c and c > 0:   # c == c odrzuca NaN
+        return c
+    toks = cat.split(" ")
+    for i, prio in enumerate(_PRIORITY_LADDER):
+        if prio in toks:
+            idx = toks.index(prio)
+            for lower in _PRIORITY_LADDER[i + 1:]:
+                cand = " ".join(toks[:idx] + [lower] + toks[idx + 1:])
+                cc = prices.get((lek_key, cand))
+                if cc is not None and cc == cc and cc > 0:
+                    return cc
+            break
+    return c
+
+
 def read_verified_studies(sprawdzone_dir: str):
     """Wczytuje i łączy arkusze „Szczegółowe" ze wszystkich plików sprawdzonych."""
     import pandas as pd
@@ -187,7 +219,8 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
 
     priced = df[df["_kategoria"] != ""].copy()
     priced["_stawka"] = [
-        prices.get((lk, kat.upper())) for lk, kat in zip(priced["_lek_key"], priced["_kategoria"])
+        resolve_doctor_price(prices, lk, kat)
+        for lk, kat in zip(priced["_lek_key"], priced["_kategoria"])
     ]
 
     missing_price = priced[priced["_stawka"].isna()]
@@ -377,7 +410,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
             category = resolve_category(r, base)
             if not category:
                 return np.nan
-            return prices.get((lek_key, category.upper()), np.nan)
+            c = resolve_doctor_price(prices, lek_key, category)   # 0/brak → niższy priorytet
+            return np.nan if c is None else c
 
         grouped["Cena"] = grouped.apply(_cena, axis=1)
 
@@ -388,7 +422,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
             category = resolve_category({"Priorytet opisu": priorytet}, base)
             if not category:
                 return np.nan
-            return prices.get((_lk, category.upper()), np.nan)
+            c = resolve_doctor_price(prices, _lk, category)       # 0/brak → niższy priorytet
+            return np.nan if c is None else c
 
         # Nazwa pliku wg szablonu: „MMRRRR dr Nazwisko Imię" (np. „052026 dr Bujalski Tomasz").
         # Miesiąc w nazwie pliku: z nazwy pliku wejściowego (period_mmyyyy),
