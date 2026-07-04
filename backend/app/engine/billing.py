@@ -447,29 +447,31 @@ def base_price_key(badanie):
     return out if out != k else None
 
 
+_PRIORITY_LADDER = ["CITO", "PILNE", "PLANOWE"]
+
+
 def _fallback_keys(badanie):
     """
     Klucze zastępcze (w kolejności prób), gdy stawka jednostki dla danego badania
-    jest 0/pusta:
-      • ONKO/ANGIO → klucz bazowy (base_price_key),
-      • MR CITO …  → MR PILNE …  (cennik jednostek nie ma MR CITO; CITO≈PILNE),
-        oraz baza tego klucza.
+    jest 0/pusta. Drabinka potwierdzona przez klienta (dotyczy MR, TK i RTG):
+      1) wariant ONKO/ANGIO → GŁÓWNA cena badania (klucz bazowy, ten sam priorytet),
+         np. 'MR PILNE GŁ/KRG ONKO' → 'MR PILNE GŁ/KRG', 'TK CITO ONKO' → 'TK CITO';
+      2) schodzenie po priorytetach W DÓŁ: CITO → PILNE → PLANOWE, przy TEJ SAMEJ
+         okolicy/układzie klucza, np. 'MR PILNE GŁ/KRG' → 'MR PLANOWE GŁ/KRG',
+         'TK CITO' → 'TK PILNE' → 'TK PLANOWE'.
+      Nigdy w górę (z PLANOWE nie bierzemy PILNE). Obejmuje też dawne specjalne
+      przypadki MR CITO→MR PILNE i RTG CITO→RTG PILNE (pierwszy szczebel drabinki).
     """
     b = str(badanie).strip()
     out = []
-    bk = base_price_key(b)
-    if bk:
-        out.append(bk)
-    if b.startswith("MR CITO"):
-        pilne = "MR PILNE" + b[len("MR CITO"):]
-        out.append(pilne)
-        bk2 = base_price_key(pilne)
-        if bk2:
-            out.append(bk2)
-    if b.startswith("RTG CITO"):
-        # Cennik części jednostek nie ma „RTG CITO" (tylko PILNE/PLANOWE) — faktura
-        # liczy RTG CITO po stawce RTG PILNE (jak MR CITO → MR PILNE).
-        out.append("RTG PILNE" + b[len("RTG CITO"):])
+    base = base_price_key(b) or b      # bez ONKO/ANGIO (ten sam priorytet)
+    if base != b:
+        out.append(base)
+    for i, prio in enumerate(_PRIORITY_LADDER):
+        if re.search(rf"\b{prio}\b", base):
+            for lower in _PRIORITY_LADDER[i + 1:]:
+                out.append(re.sub(rf"\b{prio}\b", lower, base))
+            break
     seen, res = set(), []
     for k in out:
         if k != b and k not in seen:
@@ -519,7 +521,8 @@ def resolve_unit_price(pmap, klient, badanie, adj_by_unit=None, _seen=None):
     Stawka jednostki dla (klient, badanie) z dziedziczeniem:
       1. dokładny klucz z cennika (jeśli >0),
       2. współczynnik (adjustment): stawka badania bazowego × factor — rekurencyjnie,
-      3. klucze zastępcze/heurystyki (ONKO/ANGIO→baza, MR CITO→MR PILNE).
+      3. drabinka kluczy zastępczych (_fallback_keys): ONKO/ANGIO→cena główna,
+         potem priorytety w dół CITO→PILNE→PLANOWE (ta sama okolica; MR/TK/RTG).
     pmap: {(jednostka, BADANIE): cena}. adj_by_unit: wynik prepare_adjustments
     (gdy None — pobierany leniwie z ustawień). Zwraca cenę (może 0/None).
     """
