@@ -111,17 +111,29 @@ def resolve_category(study_row, slownik_category: str) -> str:
 
 
 _PRIORITY_LADDER = ["CITO", "PILNE", "PLANOWE"]
+_SIZE_LADDER = ["D", "C", "B", "A"]   # rozmiary od najwyższego do najniższego
+
+
+def _prio_order(prio: str) -> list:
+    """Kolejność prób priorytetów: bieżący → niższe → wyższe (najbliższy najpierw).
+    PILNE → [PILNE, PLANOWE, CITO]; CITO → [CITO, PILNE, PLANOWE]."""
+    i = _PRIORITY_LADDER.index(prio)
+    return [prio] + _PRIORITY_LADDER[i + 1:] + list(reversed(_PRIORITY_LADDER[:i]))
 
 
 def resolve_doctor_price(prices: dict, lek_key: str, category: str):
     """
-    Stawka lekarza dla kategorii z dziedziczeniem W DÓŁ po priorytecie: gdy stawka
-    jest 0/pusta, próbujemy TEJ SAMEJ kategorii z niższym priorytetem
-    (CITO → PILNE → PLANOWE), NIE zmieniając modalności ani rozmiaru:
-      'TK CITO A' → 'TK PILNE A' → 'TK PLANOWE A'.
-    Nigdy w górę (z PLANOWE nie bierzemy PILNE) — analogicznie do drabinki cen
-    jednostek. Zwraca pierwszą stawkę > 0, a gdy brak — oryginalny wynik lookupu
-    (None/0/NaN), żeby diagnostyka braków działała jak dotąd.
+    Stawka lekarza dla kategorii z dziedziczeniem, gdy stawka jest 0/pusta:
+      1) ta sama literka (rozmiar), niższy priorytet: 'TK CITO A' → 'TK PILNE A'
+         → 'TK PLANOWE A';
+      2) gdy dla tej literki nie ma stawki na ŻADNYM priorytecie (także wyższym),
+         schodzimy po literkach od najwyższej (D → C → B → A, z pominięciem
+         własnej), a w obrębie każdej literki: bieżący priorytet → niższe → wyższe.
+         Np. 'TK PILNE B' → (B: PLANOWE, CITO) → 'TK PILNE D' → 'TK PLANOWE D'
+         → 'TK CITO D' → literka C → literka A.
+    Kategorie bez literki (RTG/MMG): tylko krok 1 (priorytety w dół, jak dotąd).
+    Zwraca pierwszą stawkę > 0, a gdy brak — oryginalny wynik lookupu (None/0/NaN),
+    żeby diagnostyka braków działała jak dotąd.
     """
     cat = str(category or "").strip().upper()
     if not cat:
@@ -130,15 +142,40 @@ def resolve_doctor_price(prices: dict, lek_key: str, category: str):
     if c is not None and c == c and c > 0:   # c == c odrzuca NaN
         return c
     toks = cat.split(" ")
-    for i, prio in enumerate(_PRIORITY_LADDER):
-        if prio in toks:
-            idx = toks.index(prio)
-            for lower in _PRIORITY_LADDER[i + 1:]:
-                cand = " ".join(toks[:idx] + [lower] + toks[idx + 1:])
-                cc = prices.get((lek_key, cand))
-                if cc is not None and cc == cc and cc > 0:
-                    return cc
-            break
+    prio = next((p for p in _PRIORITY_LADDER if p in toks), None)
+    if prio is None:
+        return c
+    pidx = toks.index(prio)
+    size = toks[-1] if toks[-1] in _SIZE_LADDER and len(toks) > pidx + 1 else None
+
+    def _try(p, s):
+        t = toks[:pidx] + [p] + toks[pidx + 1:]
+        if s is not None:
+            t = t[:-1] + [s]
+        cc = prices.get((lek_key, " ".join(t)))
+        return cc if (cc is not None and cc == cc and cc > 0) else None
+
+    if size is None:
+        # bez literki — jak dotąd: tylko priorytety W DÓŁ
+        for lower in _PRIORITY_LADDER[_PRIORITY_LADDER.index(prio) + 1:]:
+            cc = _try(lower, None)
+            if cc is not None:
+                return cc
+        return c
+
+    # 1) własna literka: wszystkie priorytety (bieżący pominięty — już sprawdzony)
+    for p in _prio_order(prio)[1:]:
+        cc = _try(p, size)
+        if cc is not None:
+            return cc
+    # 2) pozostałe literki od najwyższej (D→A), każda po wszystkich priorytetach
+    for s in _SIZE_LADDER:
+        if s == size:
+            continue
+        for p in _prio_order(prio):
+            cc = _try(p, s)
+            if cc is not None:
+                return cc
     return c
 
 
