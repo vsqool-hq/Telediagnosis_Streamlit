@@ -521,8 +521,11 @@ def resolve_unit_price(pmap, klient, badanie, adj_by_unit=None, _seen=None):
     Stawka jednostki dla (klient, badanie) z dziedziczeniem:
       1. dokładny klucz z cennika (jeśli >0),
       2. współczynnik (adjustment): stawka badania bazowego × factor — rekurencyjnie,
-      3. drabinka kluczy zastępczych (_fallback_keys): ONKO/ANGIO→cena główna,
-         potem priorytety w dół CITO→PILNE→PLANOWE (ta sama okolica; MR/TK/RTG).
+      3. MR „inne" bez stawki → WYŻSZA z pozostałych okolic tego samego priorytetu
+         (stawy / GŁ/KRG) — wg klienta „inne" zawsze musi być droższe niż GŁ/KRG,
+      4. drabinka kluczy zastępczych (_fallback_keys): ONKO/ANGIO→cena główna,
+         potem priorytety w dół CITO→PILNE→PLANOWE (ta sama okolica; MR/TK/RTG) —
+         na każdym szczeblu z regułą „inne" jak wyżej.
     pmap: {(jednostka, BADANIE): cena}. adj_by_unit: wynik prepare_adjustments
     (gdy None — pobierany leniwie z ustawień). Zwraca cenę (może 0/None).
     """
@@ -531,6 +534,15 @@ def resolve_unit_price(pmap, klient, badanie, adj_by_unit=None, _seen=None):
     c = pmap.get((k, bk))
     if c is not None and pd.notna(c) and c > 0:
         return c
+
+    def _inne_price(key):
+        # 'MR {PRIO} inne' bez stawki → max(stawy, GŁ/KRG) tego samego priorytetu.
+        m = re.match(r"^(MR \S+) inne$", key)
+        if not m:
+            return None
+        cands = [pmap.get((k, f"{m.group(1)} {an}")) for an in ("stawy", "GŁ/KRG")]
+        cands = [x for x in cands if x is not None and pd.notna(x) and x > 0]
+        return max(cands) if cands else None
 
     # Współczynnik (adjustment) — stawka liczona z innego badania. Ma pierwszeństwo
     # przed heurystykami, bo jest jawnie zapisaną regułą umowną dla tej jednostki.
@@ -550,10 +562,16 @@ def resolve_unit_price(pmap, klient, badanie, adj_by_unit=None, _seen=None):
                     except (TypeError, ValueError):
                         pass
 
+    ip = _inne_price(bk)
+    if ip is not None:
+        return ip
     for fb in _fallback_keys(badanie):
         bc = pmap.get((k, fb))
         if bc is not None and pd.notna(bc) and bc > 0:
             return bc
+        ip = _inne_price(fb)
+        if ip is not None:
+            return ip
     return c
 
 
