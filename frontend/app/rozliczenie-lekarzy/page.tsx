@@ -84,8 +84,6 @@ export default function RozliczenieLekarzyPage() {
     }
   }
 
-  const hasGotowosc = !!result?.by_doctor?.some((d) => (d.gotowosc ?? 0) > 0);
-
   return (
     <div className="space-y-6">
       <header>
@@ -167,11 +165,7 @@ export default function RozliczenieLekarzyPage() {
       {result && !result.empty && result.validation && (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="card"><p className="text-sm text-slate-400">Wartość dla lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(result.validation.total_value)}</p>
-              {(result.validation.value_availability ?? 0) > 0 && (
-                <p className="mt-1 text-xs text-slate-400">badania {zl(result.validation.value_studies ?? 0)} + gotowość/triaż {zl(result.validation.value_availability!)}</p>
-              )}
-            </div>
+            <div className="card"><p className="text-sm text-slate-400">Wartość dla lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(result.validation.total_value)}</p></div>
             <div className="card"><p className="text-sm text-slate-400">Lekarzy</p><p className="mt-2 text-2xl font-extrabold">{result.validation.n_doctors}</p></div>
             <div className="card"><p className="text-sm text-slate-400">Wycenione badania</p><p className="mt-2 text-2xl font-extrabold">{result.validation.priced_studies}/{result.validation.total_studies}</p></div>
             <div className="card"><p className="text-sm text-slate-400">Bez kategorii</p><p className="mt-2 text-2xl font-extrabold text-amber-300">{result.validation.studies_without_category}</p></div>
@@ -233,19 +227,13 @@ export default function RozliczenieLekarzyPage() {
             <div className="max-h-[28rem] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-brand-surface text-slate-400">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th>
-                    <th className="px-3 py-2 text-right text-xs uppercase">Badania</th>
-                    {hasGotowosc && <th className="px-3 py-2 text-right text-xs uppercase">Gotowość/triaż</th>}
-                    <th className="px-3 py-2 text-right text-xs uppercase">Wartość</th>
-                  </tr>
+                  <tr><th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th><th className="px-3 py-2 text-right text-xs uppercase">Badania</th><th className="px-3 py-2 text-right text-xs uppercase">Wartość</th></tr>
                 </thead>
                 <tbody>
                   {result.by_doctor!.map((d, i) => (
                     <tr key={i} className="border-t border-white/10">
                       <td className="px-3 py-2">{d.lekarz}</td>
                       <td className="px-3 py-2 text-right text-slate-400">{d.ilosc}</td>
-                      {hasGotowosc && <td className="px-3 py-2 text-right text-slate-400">{(d.gotowosc ?? 0) > 0 ? zl(d.gotowosc!) : "—"}</td>}
                       <td className="px-3 py-2 text-right font-semibold">{zl(d.wartosc)}</td>
                     </tr>
                   ))}
@@ -254,27 +242,21 @@ export default function RozliczenieLekarzyPage() {
             </div>
           </div>
 
-          {/* Gotowość + triaż (TeamUp) — tylko kwota; szczegóły w osobnym pliku. */}
+          {/* Podsumowanie na dole: badania + gotowość/triaż = razem. */}
           {result.availability_error ? (
             <div className="card border-amber-400/30 text-[13px] text-amber-300">
               <AlertTriangle className="mb-0.5 inline" size={14} /> Gotowość (TeamUp) pominięta: {result.availability_error}
             </div>
-          ) : result.availability ? (
-            <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-              <span className="font-semibold">Gotowość + triaż ({result.availability.period}):</span>
-              <span className="text-slate-300">gotowość {zl(result.availability.sum_gotowosc)}</span>
-              <span className="text-slate-300">triaż {zl(result.availability.sum_triaz)}</span>
-              <span>razem <b className="text-brand-accent2">{zl(result.availability.sum_total)}</b></span>
-              <a className="btn-secondary ml-auto" href={api.doctorsAvailabilityUrl(jobId)}>
-                <Download size={16} /> Pobierz szczegóły (Excel)
+          ) : (result.validation.value_availability ?? 0) > 0 ? (
+            <div className="card">
+              <div className="ml-auto max-w-xs space-y-1 text-sm">
+                <div className="flex justify-between"><span className="text-slate-400">Suma za badania</span><span className="font-semibold">{zl(result.validation.value_studies ?? 0)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Gotowość i triaż</span><span className="font-semibold">{zl(result.validation.value_availability!)}</span></div>
+                <div className="flex justify-between border-t border-white/10 pt-1"><span className="font-semibold">Razem</span><span className="font-extrabold text-brand-accent2">{zl(result.validation.total_value)}</span></div>
+              </div>
+              <a className="btn-secondary mt-3" href={api.doctorsAvailabilityUrl(jobId)}>
+                <Download size={16} /> Pobierz gotowość — szczegóły (Excel)
               </a>
-              {result.availability.unmatched.length > 0 && (
-                <p className="w-full text-[13px] text-amber-300">
-                  <AlertTriangle className="mb-0.5 inline" size={14} /> Nierozpoznane tytuły w grafiku
-                  ({result.availability.unmatched.length}): {result.availability.unmatched.slice(0, 8).join(", ")}
-                  {result.availability.unmatched.length > 8 ? "…" : ""}
-                </p>
-              )}
             </div>
           ) : null}
         </>
