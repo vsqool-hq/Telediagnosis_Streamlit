@@ -179,6 +179,21 @@ def _excluded_keys() -> list:
         return []
 
 
+def _availability_totals(job: dict) -> dict:
+    """Gotowość+triaż per lekarz dla miesiąca zadania — do doliczenia w Porównaniu.
+    Zwraca {} gdy TeamUp nieskonfigurowany / brak miesiąca (nie blokuje liczenia)."""
+    from app.engine.periods import period_from_filename
+    period = period_from_filename((job or {}).get("input_name"))
+    if not period:
+        return {}
+    try:
+        from app.engine.teamup import compute_availability
+        av = compute_availability(period)
+        return {lk: d["total"] for lk, d in av["doctors"].items()}
+    except RuntimeError:
+        return {}
+
+
 def _compare_cache_fresh(c: dict | None) -> bool:
     """Czy zapisane porównanie jest aktualne względem WYŁĄCZONYCH JEDNOSTEK.
     Zmiana wyłączeń → zapis traktujemy jako „do przeliczenia" (nie kasujemy go)."""
@@ -301,7 +316,8 @@ async def doctor_compare(job_id: str, recompute: bool = False, peek: bool = Fals
     else:
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
         from app.engine.compare import build_comparison
-        out = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
+        out = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek,
+                               availability_by_doctor=_availability_totals(_job))
         if not out.get("empty"):
             out["computed_at"] = _now()
             _save_cache(paths, "compare.json", out)  # zapis ZAWSZE bez grupowania
@@ -397,7 +413,8 @@ async def doctor_compare_download(job_id: str):
     if not _compare_cache_fresh(res):   # brak zapisu LUB nieaktualne wyłączenia jednostek
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
         from app.engine.compare import build_comparison
-        res = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek)
+        res = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek,
+                               availability_by_doctor=_availability_totals(_job))
         if res.get("empty"):
             raise HTTPException(400, res.get("reason", "Brak danych do porównania."))
         res["computed_at"] = _now()

@@ -91,11 +91,28 @@ def compute(job_id: str) -> dict:
         period_ym = period_from_filename((_job or {}).get("input_name"))  # "YYYY-MM"
         period_mm = period_to_mmyyyy(period_ym) or None
         pliki_dir = os.path.join(_lekarze_dir(paths), "pliki")
+
+        # Gotowość + triaż z TeamUp (godziny × stawki z pliku ZOBOWIĄZAŃ).
+        # Brak konfiguracji/API nie blokuje rozliczenia — tylko notka w wyniku.
+        availability = None
+        if period_ym:
+            try:
+                from app.engine.teamup import compute_availability
+                availability = compute_availability(period_ym)
+                result["availability"] = availability
+                print(f"✓ TeamUp {period_ym}: gotowość {availability['sum_gotowosc']} zł, "
+                      f"triaż {availability['sum_triaz']} zł, lekarzy {len(availability['doctors'])}"
+                      + (f", NIEDOPASOWANE tytuły: {len(availability['unmatched'])}"
+                         if availability["unmatched"] else ""), flush=True)
+            except RuntimeError as e:
+                result["availability_error"] = str(e)
+                print(f"! TeamUp — pominięto: {e}", flush=True)
         try:
             gen = generate_doctor_billing_files(
                 paths["sprawdzone"], slownik, cennik_lek,
                 pliki_dir, excluded_keys=excluded,
                 period_mmyyyy=period_mm,
+                availability=(availability or {}).get("doctors") if availability else None,
             )
             result["files_count"] = gen["count"]
             print(f"✓ Wygenerowano plików lekarzy: {gen['count']}.", flush=True)

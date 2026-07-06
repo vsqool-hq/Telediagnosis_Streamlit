@@ -209,11 +209,23 @@ export interface DoctorCoverage {
   ready: boolean;
 }
 
+export interface AvailabilityItem { label: string; hours: number; rate: number; amount: number; no_rate?: boolean }
+export interface Availability {
+  period: string;
+  doctors: Record<string, { name: string; items: AvailabilityItem[]; total: number }>;
+  sum_total: number;
+  sum_gotowosc: number;
+  sum_triaz: number;
+  unmatched: string[];
+}
+
 export interface DoctorBilling {
   empty: boolean;
   reason?: string;
   computed_at?: string | null;
   files_count?: number;
+  availability?: Availability;
+  availability_error?: string;
   rows?: { lekarz: string; kategoria: string; ilosc: number; stawka: number; wartosc: number }[];
   by_doctor?: { lekarz: string; ilosc: number; wartosc: number }[];
   validation?: {
@@ -267,6 +279,7 @@ export interface DoctorComparison {
     studies: number; studies_without_category: number;
     studies_with_category?: number; przychod_jednostki_bez_kategorii?: number;
     przychod_jednostki_total?: number;
+    gotowosc_triaz?: number; gotowosc_triaz_nieprzypisane?: number;
   };
 }
 
@@ -438,6 +451,16 @@ export const api = {
     }),
   unitsList: () =>
     req<{ job_id: string | null; units: { name: string; key: string; excluded: boolean }[] }>("/api/units"),
+  teamupConfig: () =>
+    req<{ has_key: boolean; key_from_env: boolean; cal_gotowosc: string; cal_triaz: string }>("/api/teamup/config"),
+  saveTeamupConfig: (payload: { api_key?: string; cal_gotowosc?: string; cal_triaz?: string }) =>
+    req<{ ok: boolean; has_key: boolean }>("/api/teamup/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  teamupTest: () =>
+    req<Record<string, { ok: boolean; events?: number; sample?: string[]; error?: string }>>("/api/teamup/test"),
   setUnitsExcluded: (keys: string[]) =>
     req<{ ok: boolean; units_excluded: string[] }>("/api/units/excluded", {
       method: "PUT",

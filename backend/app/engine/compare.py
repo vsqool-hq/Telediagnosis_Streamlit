@@ -55,7 +55,11 @@ def regroup_by_unit(rows, group_map):
 
 
 def build_comparison(sprawdzone_dir: str, slownik_path: str,
-                     units_cennik_dir: str, doctor_cennik_csv: str) -> dict:
+                     units_cennik_dir: str, doctor_cennik_csv: str,
+                     availability_by_doctor: dict | None = None) -> dict:
+    """availability_by_doctor: {klucz_lekarza: kwota gotowość+triaż za miesiąc} —
+    rozbijana PROPORCJONALNIE na badania lekarza (z kategorią) i doliczana do
+    kosztu każdego badania, więc wchodzi do marży per kategoria/lekarz/jednostkę."""
     import pandas as pd
     from app.engine.billing import (
         build_price_key, bill_extract_multiplier, resolve_unit_price,
@@ -149,6 +153,22 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     df["_doc_price"] = df.apply(_doc_price, axis=1)
     df["_units_rev"] = df["_mult"] * df["_unit_price"].fillna(0) + df.apply(_porown_rev, axis=1)
     df["_doc_cost"] = df["_mult_doc"] * df["_doc_price"].fillna(0)   # okolice lekarza (oryg.)
+
+    # Gotowość + triaż (TeamUp): kwotę miesięczną lekarza rozbijamy RÓWNO na jego
+    # badania z kategorią i doliczamy do kosztu każdego badania — dzięki temu
+    # wchodzi w marżę per kategoria, per lekarz, per jednostkę i per priorytet.
+    avail_total = avail_alloc = 0.0
+    if availability_by_doctor:
+        avail_total = round(sum(float(v or 0) for v in availability_by_doctor.values()), 2)
+        cat_mask = df["_kategoria"] != ""
+        counts = df.loc[cat_mask, "_lek_key"].value_counts().to_dict()
+        per_study = {lk: float(amt) / counts[lk]
+                     for lk, amt in availability_by_doctor.items() if counts.get(lk)}
+        avail_alloc = round(sum(float(availability_by_doctor[lk]) for lk in per_study), 2)
+        df["_doc_cost"] = df["_doc_cost"] + [
+            per_study.get(lk, 0.0) if has_cat else 0.0
+            for lk, has_cat in zip(df["_lek_key"], cat_mask)
+        ]
 
     grp = df[df["_kategoria"] != ""].groupby(["Modalność", "_kategoria"]).agg(
         ilosc=("_mult_doc", "sum"),
@@ -270,5 +290,9 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
             "studies_with_category": int(len(cat)),
             "studies_without_category": int(len(nocat)),
             "przychod_jednostki_bez_kategorii": round(float(nocat["_units_rev"].sum()), 2),
+            # Gotowość+triaż doliczona do kosztu (i część nieprzypisana — lekarze
+            # z gotowością, ale bez badań z kategorią w tym miesiącu).
+            "gotowosc_triaz": avail_alloc,
+            "gotowosc_triaz_nieprzypisane": round(avail_total - avail_alloc, 2),
         },
     }

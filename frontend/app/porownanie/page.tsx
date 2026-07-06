@@ -284,7 +284,13 @@ export default function PorownaniePage() {
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="card"><p className="text-sm text-slate-400">Przychód jednostek (z kategorią)</p><p className="mt-2 text-2xl font-extrabold">{zl(t.przychod_jednostki)}</p></div>
-              <div className="card"><p className="text-sm text-slate-400">Koszt lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(t.koszt_lekarzy)}</p></div>
+              <div className="card"><p className="text-sm text-slate-400">Koszt lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(t.koszt_lekarzy)}</p>
+                {(t.gotowosc_triaz ?? 0) > 0 && (
+                  <p className="mt-1 text-xs text-slate-400">w tym gotowość + triaż: {zl(t.gotowosc_triaz!)}
+                    {(t.gotowosc_triaz_nieprzypisane ?? 0) > 0 && <span className="text-amber-300"> (+{zl(t.gotowosc_triaz_nieprzypisane!)} nieprzypisane)</span>}
+                  </p>
+                )}
+              </div>
               <div className="card border-brand-accent/40"><p className="text-sm text-slate-400">Marża</p><p className="mt-2 text-2xl font-extrabold text-brand-accent2">{zl(t.marza)} <span className="text-base font-bold text-slate-400">({pct(t.marza, t.przychod_jednostki)})</span></p></div>
             </div>
           </div>
