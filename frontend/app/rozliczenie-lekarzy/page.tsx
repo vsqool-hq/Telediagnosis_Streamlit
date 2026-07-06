@@ -257,6 +257,17 @@ export default function RozliczenieLekarzyPage() {
               <a className="btn-secondary mt-3" href={api.doctorsAvailabilityUrl(jobId)}>
                 <Download size={16} /> Pobierz gotowość — szczegóły (Excel)
               </a>
+              {result.availability && (
+                <p className="mt-2 text-[13px] text-slate-400">
+                  Triaż: {zl(result.availability.sum_triaz)} ({(result.availability.hours_triaz ?? 0).toLocaleString("pl-PL")} godz.)
+                  {(result.availability.unbilled_hours ?? 0) > 0 && (
+                    <span className="text-amber-300"> · godzin bez stawki: {result.availability.unbilled_hours!.toLocaleString("pl-PL")} (rozliczone na 0)</span>
+                  )}
+                  {(result.availability.unmatched_hours ?? 0) > 0 && (
+                    <span className="text-amber-300"> · godzin nierozpoznanych: {result.availability.unmatched_hours!.toLocaleString("pl-PL")}</span>
+                  )}
+                </p>
+              )}
             </div>
           ) : null}
         </>

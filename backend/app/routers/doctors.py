@@ -411,12 +411,19 @@ async def doctor_availability_download(job_id: str):
         rows.append({"Lekarz": doc["name"], "Pozycja": "RAZEM", "Godziny": None,
                      "Stawka": None, "Wartość": doc.get("total", 0)})
         rows.append({})  # pusty wiersz-separator między lekarzami
-    rows.append({"Lekarz": "SUMA — gotowość", "Wartość": av.get("sum_gotowosc", 0)})
-    rows.append({"Lekarz": "SUMA — triaż", "Wartość": av.get("sum_triaz", 0)})
+    rows.append({"Lekarz": "SUMA — gotowość", "Godziny": av.get("hours_gotowosc", 0), "Wartość": av.get("sum_gotowosc", 0)})
+    rows.append({"Lekarz": "SUMA — triaż", "Godziny": av.get("hours_triaz", 0), "Wartość": av.get("sum_triaz", 0)})
     rows.append({"Lekarz": "SUMA — razem", "Wartość": av.get("sum_total", 0)})
+
+    # Diagnostyka: godziny NIEROZLICZONE (stawka 0/brak) oraz z nierozpoznanych tytułów.
+    rows.append({})
+    rows.append({"Lekarz": "GODZINY BEZ STAWKI (rozliczone na 0)", "Godziny": av.get("unbilled_hours", 0)})
+    for u in av.get("unbilled", []):
+        rows.append({"Lekarz": u["name"], "Pozycja": u["label"], "Godziny": u["hours"], "Stawka": 0, "Wartość": 0})
     if av.get("unmatched"):
         rows.append({})
-        rows.append({"Lekarz": "NIEROZPOZNANE TYTUŁY (pominięte):", "Pozycja": ", ".join(av["unmatched"])})
+        rows.append({"Lekarz": "GODZINY NIEROZPOZNANE (brak lekarza)", "Godziny": av.get("unmatched_hours", 0)})
+        rows.append({"Lekarz": "Tytuły:", "Pozycja": ", ".join(av["unmatched"])})
 
     return _xlsx_response({f"Gotowość {av.get('period', '')}".strip(): rows},
                           f"Gotowosc_triaz_{av.get('period', 'okres')}.xlsx")

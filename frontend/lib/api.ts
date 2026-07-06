@@ -216,6 +216,11 @@ export interface Availability {
   sum_total: number;
   sum_gotowosc: number;
   sum_triaz: number;
+  hours_gotowosc?: number;
+  hours_triaz?: number;
+  unbilled_hours?: number;
+  unbilled?: { name: string; label: string; hours: number }[];
+  unmatched_hours?: number;
   unmatched: string[];
 }
 

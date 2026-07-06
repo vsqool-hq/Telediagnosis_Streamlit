@@ -321,16 +321,21 @@ def compute_availability(period: str) -> dict:
 
     doctors: dict = {}
     unmatched: list = []
+    unmatched_hours = 0.0
     for title, variants in per_title.items():
         lk = match_doctor(title, rates_by_doc)
         if lk is None:
             unmatched.append(title)
+            unmatched_hours += sum(variants.values())   # godziny nierozliczone (brak lekarza)
             continue
         doc = doctors.setdefault(lk, {"name": rates_by_doc[lk]["name"], "variants": {}})
         for k, v in variants.items():
             doc["variants"][k] = doc["variants"].get(k, 0.0) + v
 
     sum_g = sum_t = 0.0
+    hours_g = hours_t = 0.0        # łączne GODZINY (niezależnie od stawki)
+    unbilled_hours = 0.0          # godziny ze stawką ≤ 0 (nierozliczone kwotowo)
+    unbilled = []                 # [{name, label, hours}]
     for lk, doc in doctors.items():
         rates = rates_by_doc[lk]["rates"]
         items, total = [], 0.0
@@ -339,9 +344,13 @@ def compute_availability(period: str) -> dict:
             amount = round(hours * rate, 2)
             total += amount
             if k[0] == "G":
-                sum_g += amount
+                sum_g += amount; hours_g += hours
             else:
-                sum_t += amount
+                sum_t += amount; hours_t += hours
+            if rate <= 0 and hours > 0:
+                unbilled_hours += hours
+                unbilled.append({"name": doc["name"], "label": VARIANTS.get(k, str(k)),
+                                 "hours": round(hours, 2)})
             items.append({"label": VARIANTS.get(k, str(k)), "hours": round(hours, 2),
                           "rate": rate, "amount": amount, "no_rate": rate <= 0})
         doc["items"] = items
@@ -352,5 +361,10 @@ def compute_availability(period: str) -> dict:
         "sum_total": round(sum_g + sum_t, 2),
         "sum_gotowosc": round(sum_g, 2),
         "sum_triaz": round(sum_t, 2),
+        "hours_gotowosc": round(hours_g, 2),
+        "hours_triaz": round(hours_t, 2),
+        "unbilled_hours": round(unbilled_hours, 2),
+        "unbilled": sorted(unbilled, key=lambda x: -x["hours"])[:80],
+        "unmatched_hours": round(unmatched_hours, 2),
         "unmatched": sorted(set(unmatched)),
     }
