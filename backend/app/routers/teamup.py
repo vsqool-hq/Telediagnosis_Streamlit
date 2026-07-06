@@ -15,6 +15,8 @@ async def get_config():
     return {
         "has_key": bool(cfg["api_key"]),
         "key_from_env": cfg["key_from_env"],
+        "key_source": cfg["key_source"],
+        "env_names": cfg["env_names"],
         "cal_gotowosc": cfg["cal_gotowosc"],
         "cal_triaz": cfg["cal_triaz"],
     }

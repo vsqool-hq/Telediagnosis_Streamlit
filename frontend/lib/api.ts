@@ -453,7 +453,8 @@ export const api = {
   unitsList: () =>
     req<{ job_id: string | null; units: { name: string; key: string; excluded: boolean }[] }>("/api/units"),
   teamupConfig: () =>
-    req<{ has_key: boolean; key_from_env: boolean; cal_gotowosc: string; cal_triaz: string }>("/api/teamup/config"),
+    req<{ has_key: boolean; key_from_env: boolean; key_source: string; env_names: string[];
+      cal_gotowosc: string; cal_triaz: string }>("/api/teamup/config"),
   saveTeamupConfig: (payload: { api_key?: string; cal_gotowosc?: string; cal_triaz?: string }) =>
     req<{ ok: boolean; has_key: boolean }>("/api/teamup/config", {
       method: "PUT",

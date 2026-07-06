@@ -7,7 +7,8 @@ import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 
 export default function TeamupSettings() {
-  const [cfg, setCfg] = useState<{ has_key: boolean; key_from_env: boolean; cal_gotowosc: string; cal_triaz: string } | null>(null);
+  const [cfg, setCfg] = useState<{ has_key: boolean; key_from_env: boolean; key_source: string; env_names: string[]; cal_gotowosc: string; cal_triaz: string } | null>(null);
+  const [notDeployed, setNotDeployed] = useState(false);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -15,7 +16,11 @@ export default function TeamupSettings() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.teamupConfig().then(setCfg).catch((e) => setErr(e.message));
+    api.teamupConfig().then(setCfg).catch((e) => {
+      // 404 = backend bez wdrożonej integracji (stary obraz przed fly deploy).
+      if (String(e.message).includes("404")) setNotDeployed(true);
+      else setErr(e.message);
+    });
   }, []);
 
   async function saveKey() {
@@ -49,13 +54,35 @@ export default function TeamupSettings() {
         pole poniżej to alternatywa (zapis na dysku serwera).
       </p>
 
+      {notDeployed && (
+        <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[13px] text-amber-200">
+          Backend nie ma jeszcze wdrożonej integracji TeamUp (endpoint nie istnieje).
+          Zrób <code className="text-amber-100">fly deploy</code> najnowszego kodu — sam sekret nie wystarczy.
+        </div>
+      )}
+
       {cfg && (
-        <p className="mt-3 text-sm">
-          Status klucza:{" "}
-          {cfg.has_key
-            ? <span className="pill pill-ok">{cfg.key_from_env ? "ustawiony (sekret Fly)" : "ustawiony (zapisany na serwerze)"}</span>
-            : <span className="pill pill-warn">brak klucza</span>}
-        </p>
+        <div className="mt-3 space-y-1 text-sm">
+          <p>
+            Status klucza:{" "}
+            {cfg.has_key
+              ? <span className="pill pill-ok">{cfg.key_from_env ? "ustawiony (sekret Fly)" : "ustawiony (na serwerze)"}</span>
+              : <span className="pill pill-warn">brak klucza</span>}
+          </p>
+          {!cfg.has_key && cfg.env_names.length > 0 && (
+            <p className="text-[13px] text-amber-300">
+              Uwaga: backend widzi zmienną {cfg.env_names.map((n) => <code key={n} className="mx-1 text-amber-100">{n}</code>)}
+              — ale nazwa musi być <b>dokładnie</b> <code className="text-amber-100">TEAMUP_API_KEY</code> (wielkość liter ma znaczenie).
+              Ustaw: <code className="text-amber-100">fly secrets set TEAMUP_API_KEY="…"</code>.
+            </p>
+          )}
+          {!cfg.has_key && cfg.env_names.length === 0 && (
+            <p className="text-[13px] text-slate-400">
+              Backend nie widzi żadnego sekretu „teamup". Sprawdź <code>fly secrets list</code> (czy jest <code>TEAMUP_API_KEY</code>)
+              i czy po jego dodaniu apka wstała z nowym obrazem. Alternatywnie wpisz klucz w polu poniżej.
+            </p>
+          )}
+        </div>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">

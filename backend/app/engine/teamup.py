@@ -48,6 +48,19 @@ def _config_path() -> str:
     return os.path.join(DATA_DIR, "teamup.json")
 
 
+def _env_key() -> str:
+    """Klucz z ENV — odporny na wielkość liter nazwy (sekret na Fly bywa
+    'teamup_api_key' zamiast 'TEAMUP_API_KEY', a zmienne środowiskowe są
+    case-sensitive)."""
+    v = os.environ.get("TEAMUP_API_KEY")
+    if v:
+        return v.strip()
+    for k, val in os.environ.items():
+        if k.lower() == "teamup_api_key" and val:
+            return val.strip()
+    return ""
+
+
 def load_config() -> dict:
     cfg = {}
     try:
@@ -55,11 +68,17 @@ def load_config() -> dict:
             cfg = json.load(f) or {}
     except (OSError, ValueError):
         cfg = {}
+    env_key = _env_key()
+    file_key = (cfg.get("api_key") or "").strip()
     return {
-        "api_key": os.environ.get("TEAMUP_API_KEY") or cfg.get("api_key") or "",
+        "api_key": env_key or file_key,
         "cal_gotowosc": cfg.get("cal_gotowosc") or DEFAULT_CAL_GOTOWOSC,
         "cal_triaz": cfg.get("cal_triaz") or DEFAULT_CAL_TRIAZ,
-        "key_from_env": bool(os.environ.get("TEAMUP_API_KEY")),
+        "key_from_env": bool(env_key),
+        "key_source": "env" if env_key else ("file" if file_key else "none"),
+        # Nazwy zmiennych środowiskowych zawierające „teamup" (BEZ wartości) —
+        # do diagnostyki „mam sekret, a apka go nie widzi".
+        "env_names": sorted(k for k in os.environ if "teamup" in k.lower()),
     }
 
 
