@@ -227,13 +227,15 @@ export interface DoctorBilling {
   availability?: Availability;
   availability_error?: string;
   rows?: { lekarz: string; kategoria: string; ilosc: number; stawka: number; wartosc: number }[];
-  by_doctor?: { lekarz: string; ilosc: number; wartosc: number }[];
+  by_doctor?: { lekarz: string; ilosc: number; wartosc: number; gotowosc?: number }[];
   validation?: {
     total_studies: number;
     priced_studies: number;
     studies_without_category: number;
     n_doctors: number;
     total_value: number;
+    value_studies?: number;
+    value_availability?: number;
     doctors_unmatched: string[];
     pairs_without_price: { _lek_disp: string; _kategoria: string; n: number }[];
     zero_rate_studies?: number;

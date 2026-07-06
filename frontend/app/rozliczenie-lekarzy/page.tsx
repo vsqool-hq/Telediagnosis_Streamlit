@@ -84,6 +84,8 @@ export default function RozliczenieLekarzyPage() {
     }
   }
 
+  const hasGotowosc = !!result?.by_doctor?.some((d) => (d.gotowosc ?? 0) > 0);
+
   return (
     <div className="space-y-6">
       <header>
@@ -165,7 +167,11 @@ export default function RozliczenieLekarzyPage() {
       {result && !result.empty && result.validation && (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="card"><p className="text-sm text-slate-400">Wartość dla lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(result.validation.total_value)}</p></div>
+            <div className="card"><p className="text-sm text-slate-400">Wartość dla lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(result.validation.total_value)}</p>
+              {(result.validation.value_availability ?? 0) > 0 && (
+                <p className="mt-1 text-xs text-slate-400">badania {zl(result.validation.value_studies ?? 0)} + gotowość/triaż {zl(result.validation.value_availability!)}</p>
+              )}
+            </div>
             <div className="card"><p className="text-sm text-slate-400">Lekarzy</p><p className="mt-2 text-2xl font-extrabold">{result.validation.n_doctors}</p></div>
             <div className="card"><p className="text-sm text-slate-400">Wycenione badania</p><p className="mt-2 text-2xl font-extrabold">{result.validation.priced_studies}/{result.validation.total_studies}</p></div>
             <div className="card"><p className="text-sm text-slate-400">Bez kategorii</p><p className="mt-2 text-2xl font-extrabold text-amber-300">{result.validation.studies_without_category}</p></div>
@@ -227,13 +233,19 @@ export default function RozliczenieLekarzyPage() {
             <div className="max-h-[28rem] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-brand-surface text-slate-400">
-                  <tr><th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th><th className="px-3 py-2 text-right text-xs uppercase">Badania</th><th className="px-3 py-2 text-right text-xs uppercase">Wartość</th></tr>
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th>
+                    <th className="px-3 py-2 text-right text-xs uppercase">Badania</th>
+                    {hasGotowosc && <th className="px-3 py-2 text-right text-xs uppercase">Gotowość/triaż</th>}
+                    <th className="px-3 py-2 text-right text-xs uppercase">Wartość</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {result.by_doctor!.map((d, i) => (
                     <tr key={i} className="border-t border-white/10">
                       <td className="px-3 py-2">{d.lekarz}</td>
                       <td className="px-3 py-2 text-right text-slate-400">{d.ilosc}</td>
+                      {hasGotowosc && <td className="px-3 py-2 text-right text-slate-400">{(d.gotowosc ?? 0) > 0 ? zl(d.gotowosc!) : "—"}</td>}
                       <td className="px-3 py-2 text-right font-semibold">{zl(d.wartosc)}</td>
                     </tr>
                   ))}

@@ -107,6 +107,36 @@ def compute(job_id: str) -> dict:
             except RuntimeError as e:
                 result["availability_error"] = str(e)
                 print(f"! TeamUp — pominięto: {e}", flush=True)
+
+        # Gotowość+triaż DOLICZAMY do rozliczenia lekarzy: kwota lekarza wchodzi do
+        # jego wiersza (by_doctor) i do sumy „Wartość dla lekarzy". Lekarze wyłączeni
+        # są pomijani (rozliczani osobno). Lekarz z samą gotowością (bez badań) dostaje
+        # osobny wiersz.
+        if availability and availability.get("doctors"):
+            from app.engine.doctors import doctor_key
+            excl_set = set(excluded or [])
+            av_by_key = {k: float(d.get("total") or 0)
+                         for k, d in availability["doctors"].items() if k not in excl_set}
+            by_doc = result.get("by_doctor", []) or []
+            seen = set()
+            for row in by_doc:
+                k = doctor_key(row.get("lekarz", ""))
+                seen.add(k)
+                g = round(av_by_key.get(k, 0.0), 2)
+                row["gotowosc"] = g
+                row["wartosc"] = round(float(row.get("wartosc") or 0) + g, 2)
+            for k, total in av_by_key.items():
+                if k not in seen and total:
+                    by_doc.append({"lekarz": availability["doctors"][k]["name"], "ilosc": 0,
+                                   "wartosc": round(total, 2), "gotowosc": round(total, 2)})
+            by_doc.sort(key=lambda r: -float(r.get("wartosc") or 0))
+            result["by_doctor"] = by_doc
+            v = result.setdefault("validation", {})
+            av_sum = round(sum(av_by_key.values()), 2)
+            v["value_studies"] = round(float(v.get("total_value") or 0), 2)
+            v["value_availability"] = av_sum
+            v["total_value"] = round(float(v.get("total_value") or 0) + av_sum, 2)
+
         try:
             gen = generate_doctor_billing_files(
                 paths["sprawdzone"], slownik, cennik_lek,
