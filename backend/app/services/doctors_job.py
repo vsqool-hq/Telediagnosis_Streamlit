@@ -112,7 +112,6 @@ def compute(job_id: str) -> dict:
                 paths["sprawdzone"], slownik, cennik_lek,
                 pliki_dir, excluded_keys=excluded,
                 period_mmyyyy=period_mm,
-                availability=(availability or {}).get("doctors") if availability else None,
             )
             result["files_count"] = gen["count"]
             print(f"✓ Wygenerowano plików lekarzy: {gen['count']}.", flush=True)

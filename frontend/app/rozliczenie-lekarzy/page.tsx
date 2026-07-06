@@ -171,60 +171,6 @@ export default function RozliczenieLekarzyPage() {
             <div className="card"><p className="text-sm text-slate-400">Bez kategorii</p><p className="mt-2 text-2xl font-extrabold text-amber-300">{result.validation.studies_without_category}</p></div>
           </div>
 
-          {/* Gotowość + triaż z TeamUp (godziny × stawki z pliku ZOBOWIĄZAŃ) */}
-          {result.availability_error && (
-            <div className="card border-amber-400/30 text-[13px] text-amber-300">
-              <AlertTriangle className="mb-0.5 inline" size={14} /> Gotowość (TeamUp) pominięta: {result.availability_error}
-            </div>
-          )}
-          {result.availability && (
-            <div className="card space-y-3">
-              <h2 className="text-base font-bold">Gotowość i triaż (TeamUp · {result.availability.period})</h2>
-              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-300">
-                <span>Gotowość: <b className="text-slate-100">{zl(result.availability.sum_gotowosc)}</b></span>
-                <span>Triaż: <b className="text-slate-100">{zl(result.availability.sum_triaz)}</b></span>
-                <span>Razem: <b className="text-brand-accent2">{zl(result.availability.sum_total)}</b></span>
-              </div>
-              {result.availability.unmatched.length > 0 && (
-                <p className="text-[13px] text-amber-300">
-                  <AlertTriangle className="mb-0.5 inline" size={14} /> Nie rozpoznano lekarza w tytułach
-                  ({result.availability.unmatched.length}): {result.availability.unmatched.slice(0, 8).join(", ")}
-                  {result.availability.unmatched.length > 8 ? "…" : ""}
-                </p>
-              )}
-              <div className="max-h-56 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-brand-surface text-slate-400">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th>
-                      <th className="px-3 py-2 text-right text-xs uppercase">Godziny</th>
-                      <th className="px-3 py-2 text-right text-xs uppercase">Kwota</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.values(result.availability.doctors)
-                      .sort((a, b) => b.total - a.total)
-                      .map((d) => (
-                        <tr key={d.name} className="border-t border-white/5">
-                          <td className="px-3 py-2">{d.name}
-                            {d.items.some((it) => it.no_rate && it.hours > 0) &&
-                              <span className="pill pill-warn ml-2">brak stawki dla części godzin</span>}
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-400">
-                            {d.items.reduce((s, it) => s + it.hours, 0).toLocaleString("pl-PL")}
-                          </td>
-                          <td className="px-3 py-2 text-right font-semibold">{zl(d.total)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-xs text-slate-500">
-                Szczegóły wariantów (dzień/noc, weekend, święta) — w arkuszu „Gotowość" w pliku każdego lekarza.
-              </p>
-            </div>
-          )}
-
           {(result.validation.doctors_unmatched.length > 0 || result.validation.pairs_without_price.length > 0) && (
             <div className="card space-y-3 border-amber-400/30">
               <h2 className="flex items-center gap-2 text-base font-bold text-amber-300"><AlertTriangle size={18} /> Niedopasowania (do przeglądu)</h2>
@@ -295,6 +241,30 @@ export default function RozliczenieLekarzyPage() {
               </table>
             </div>
           </div>
+
+          {/* Gotowość + triaż (TeamUp) — tylko kwota; szczegóły w osobnym pliku. */}
+          {result.availability_error ? (
+            <div className="card border-amber-400/30 text-[13px] text-amber-300">
+              <AlertTriangle className="mb-0.5 inline" size={14} /> Gotowość (TeamUp) pominięta: {result.availability_error}
+            </div>
+          ) : result.availability ? (
+            <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span className="font-semibold">Gotowość + triaż ({result.availability.period}):</span>
+              <span className="text-slate-300">gotowość {zl(result.availability.sum_gotowosc)}</span>
+              <span className="text-slate-300">triaż {zl(result.availability.sum_triaz)}</span>
+              <span>razem <b className="text-brand-accent2">{zl(result.availability.sum_total)}</b></span>
+              <a className="btn-secondary ml-auto" href={api.doctorsAvailabilityUrl(jobId)}>
+                <Download size={16} /> Pobierz szczegóły (Excel)
+              </a>
+              {result.availability.unmatched.length > 0 && (
+                <p className="w-full text-[13px] text-amber-300">
+                  <AlertTriangle className="mb-0.5 inline" size={14} /> Nierozpoznane tytuły w grafiku
+                  ({result.availability.unmatched.length}): {result.availability.unmatched.slice(0, 8).join(", ")}
+                  {result.availability.unmatched.length > 8 ? "…" : ""}
+                </p>
+              )}
+            </div>
+          ) : null}
         </>
       )}
     </div>

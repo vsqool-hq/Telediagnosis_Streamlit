@@ -389,24 +389,8 @@ def _period_mmyyyy(frame) -> str:
     return ""
 
 
-def _append_availability_sheet(path: str, av_doc: dict):
-    """Dokłada do pliku lekarza arkusz „Gotowość" (godziny × stawki z TeamUp)."""
-    from openpyxl import load_workbook
-    wb = load_workbook(path)
-    ws = wb.create_sheet("Gotowość")
-    ws.append(["Pozycja", "Godziny", "Stawka", "Wartość"])
-    for it in av_doc.get("items", []):
-        ws.append([it["label"], it["hours"], it["rate"], it["amount"]])
-    ws.append([])
-    ws.append(["RAZEM gotowość + triaż", None, None, av_doc.get("total", 0)])
-    for col, w in (("A", 34), ("B", 10), ("C", 10), ("D", 12)):
-        ws.column_dimensions[col].width = w
-    wb.save(path)
-
-
 def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
-                                  out_dir: str, excluded_keys=None, period_mmyyyy=None,
-                                  availability=None) -> dict:
+                                  out_dir: str, excluded_keys=None, period_mmyyyy=None) -> dict:
     """
     Tworzy OSOBNY plik Excel dla KAŻDEGO lekarza — w układzie identycznym jak
     rozliczenia jednostek (arkusz „Szczegółowe" z jego badaniami + „Rozliczenie"
@@ -484,14 +468,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         period = period_mmyyyy or _period_mmyyyy(sub)
         fname = (_safe_filename(f"{period} dr {_surname_first(disp)}") or "dr lekarz") + ".xlsx"
         try:
-            fpath = _os.path.join(out_dir, fname)
-            bill_finalize_to_excel(grouped, det, fpath, for_doctor=True, rate_resolver=_rate)
-            # Gotowość + triaż (TeamUp) — osobny arkusz w pliku lekarza.
-            if availability and lek_key in availability:
-                try:
-                    _append_availability_sheet(fpath, availability[lek_key])
-                except Exception as e:  # noqa: BLE001
-                    print(f"! Arkusz Gotowość ({disp}): {e}", flush=True)
+            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
+                                   for_doctor=True, rate_resolver=_rate)
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)

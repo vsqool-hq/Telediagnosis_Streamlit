@@ -380,6 +380,48 @@ async def doctor_billing_download(job_id: str):
     )
 
 
+@router.get("/billing/{job_id}/availability")
+async def doctor_availability_download(job_id: str):
+    """Roboczy plik: gotowość + triaż (TeamUp) SZCZEGÓŁOWO per lekarz, w jednym
+    Excelu. Bierze wynik z cache rozliczenia lekarzy; gdy brak — liczy z miesiąca
+    zadania. 400 gdy TeamUp nieskonfigurowany / brak pliku zobowiązań."""
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    res = _load_cache(job_paths(job_id), "billing.json")
+    av = (res or {}).get("availability")
+    if not av:
+        from app.engine.periods import period_from_filename
+        period = period_from_filename(job.get("input_name"))
+        if not period:
+            raise HTTPException(400, "Nie rozpoznano miesiąca z nazwy pliku — brak danych gotowości.")
+        try:
+            from app.engine.teamup import compute_availability
+            av = compute_availability(period)
+        except RuntimeError as e:
+            raise HTTPException(400, str(e))
+
+    rows = []
+    for doc in sorted(av.get("doctors", {}).values(), key=lambda d: d["name"].lower()):
+        for it in doc.get("items", []):
+            rows.append({
+                "Lekarz": doc["name"], "Pozycja": it["label"],
+                "Godziny": round(it["hours"], 2), "Stawka": it["rate"], "Wartość": it["amount"],
+            })
+        rows.append({"Lekarz": doc["name"], "Pozycja": "RAZEM", "Godziny": None,
+                     "Stawka": None, "Wartość": doc.get("total", 0)})
+        rows.append({})  # pusty wiersz-separator między lekarzami
+    rows.append({"Lekarz": "SUMA — gotowość", "Wartość": av.get("sum_gotowosc", 0)})
+    rows.append({"Lekarz": "SUMA — triaż", "Wartość": av.get("sum_triaz", 0)})
+    rows.append({"Lekarz": "SUMA — razem", "Wartość": av.get("sum_total", 0)})
+    if av.get("unmatched"):
+        rows.append({})
+        rows.append({"Lekarz": "NIEROZPOZNANE TYTUŁY (pominięte):", "Pozycja": ", ".join(av["unmatched"])})
+
+    return _xlsx_response({f"Gotowość {av.get('period', '')}".strip(): rows},
+                          f"Gotowosc_triaz_{av.get('period', 'okres')}.xlsx")
+
+
 @router.get("/billing/{job_id}/files")
 async def doctor_billing_files(job_id: str):
     """ZIP z osobnym plikiem Excel dla każdego lekarza (układ jak jednostki).

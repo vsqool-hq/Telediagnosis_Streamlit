@@ -436,6 +436,7 @@ export const api = {
       `/api/doctors/billing/${jobId}/status`),
   doctorsBillingDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/download`),
   doctorsBillingFilesUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/files`),
+  doctorsAvailabilityUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/billing/${jobId}/availability`),
   doctorsCompare: (jobId: string, opts: { peek?: boolean; recompute?: boolean } = {}) =>
     req<DoctorComparison>(`/api/doctors/compare/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
   doctorsCompareLatest: () => req<DoctorComparison>("/api/doctors/compare/latest"),
