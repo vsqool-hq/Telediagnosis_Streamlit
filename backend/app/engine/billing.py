@@ -644,7 +644,7 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
     return pd.Series(vals, index=grouped.index), porown_keys
 
 
-def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False):
+def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False, gotowosc_amount=None):
     ws = workbook[sheet_name]
     priority_colors = PRIORITY_COLORS
     procedure_type_colors = PROCEDURE_TYPE_COLORS
@@ -745,7 +745,9 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
             got_row = last_row + 3
             ws.cell(row=got_row, column=1).value = "GOTOWOŚĆ"
             ws.cell(row=got_row, column=1).font = bold_font
-            got_cell = ws.cell(row=got_row, column=2)  # puste — do ręcznego uzupełnienia
+            got_cell = ws.cell(row=got_row, column=2)  # kwota z TeamUp; gdy brak — puste (ręczne)
+            if gotowosc_amount is not None:
+                got_cell.value = gotowosc_amount
             got_cell.style = "accounting"
             got_cell.fill = medium_blue_fill
 
@@ -803,7 +805,7 @@ def bill_make_grouped(df_details, entity_col):
     return grouped, df_details
 
 
-def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False, rate_resolver=None):
+def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False, rate_resolver=None, gotowosc_amount=None):
     """
     Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
     „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
@@ -944,7 +946,7 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
                 formula_parts = [f"{col_letter}{r}" for r in subtotal_rows]
                 if formula_parts:
                     ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
-        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True, for_doctor=for_doctor)
+        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True, for_doctor=for_doctor, gotowosc_amount=gotowosc_amount)
 
         if for_doctor and 'Rozliczenie' in wb.sheetnames:
             # LEKARZE: „Rozliczenie" jako pierwszy i domyślnie otwarty arkusz

@@ -390,7 +390,8 @@ def _period_mmyyyy(frame) -> str:
 
 
 def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
-                                  out_dir: str, excluded_keys=None, period_mmyyyy=None) -> dict:
+                                  out_dir: str, excluded_keys=None, period_mmyyyy=None,
+                                  availability=None) -> dict:
     """
     Tworzy OSOBNY plik Excel dla KAŻDEGO lekarza — w układzie identycznym jak
     rozliczenia jednostek (arkusz „Szczegółowe" z jego badaniami + „Rozliczenie"
@@ -467,9 +468,13 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         # a w razie braku — z dat w danych (zapas).
         period = period_mmyyyy or _period_mmyyyy(sub)
         fname = (_safe_filename(f"{period} dr {_surname_first(disp)}") or "dr lekarz") + ".xlsx"
+        # Kwota gotowości + triażu (TeamUp) do wiersza GOTOWOŚĆ w pliku lekarza.
+        got_amount = None
+        if availability and lek_key in availability:
+            got_amount = round(float(availability[lek_key].get("total") or 0), 2)
         try:
             bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
-                                   for_doctor=True, rate_resolver=_rate)
+                                   for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount)
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)
