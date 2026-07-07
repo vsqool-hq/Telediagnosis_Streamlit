@@ -188,7 +188,7 @@ def _availability_totals(job: dict) -> dict:
         return {}
     try:
         from app.engine.teamup import compute_availability
-        av = compute_availability(period)
+        av = compute_availability(period, excluded_keys=_excluded_keys())
         return {lk: d["total"] for lk, d in av["doctors"].items()}
     except RuntimeError:
         return {}
@@ -200,7 +200,8 @@ def _compare_cache_fresh(c: dict | None) -> bool:
     if not c or c.get("empty"):
         return False
     from app.engine.billing import get_excluded_units
-    return c.get("_units_excluded", []) == sorted(get_excluded_units())
+    return (c.get("_units_excluded", []) == sorted(get_excluded_units())
+            and c.get("_doctors_excluded", []) == _excluded_keys())
 
 
 @router.get("/billing/{job_id}")
@@ -317,7 +318,8 @@ async def doctor_compare(job_id: str, recompute: bool = False, peek: bool = Fals
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
         from app.engine.compare import build_comparison
         out = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek,
-                               availability_by_doctor=_availability_totals(_job))
+                               availability_by_doctor=_availability_totals(_job),
+                               excluded_doctor_keys=_excluded_keys())
         if not out.get("empty"):
             out["computed_at"] = _now()
             _save_cache(paths, "compare.json", out)  # zapis ZAWSZE bez grupowania
@@ -463,7 +465,8 @@ async def doctor_compare_download(job_id: str):
         _job, paths, slownik, cennik_lek = _resolve_job(job_id)
         from app.engine.compare import build_comparison
         res = build_comparison(paths["sprawdzone"], slownik, paths["cennik"], cennik_lek,
-                               availability_by_doctor=_availability_totals(_job))
+                               availability_by_doctor=_availability_totals(_job),
+                               excluded_doctor_keys=_excluded_keys())
         if res.get("empty"):
             raise HTTPException(400, res.get("reason", "Brak danych do porównania."))
         res["computed_at"] = _now()

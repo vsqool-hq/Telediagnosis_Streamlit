@@ -98,7 +98,7 @@ def compute(job_id: str) -> dict:
         if period_ym:
             try:
                 from app.engine.teamup import compute_availability
-                availability = compute_availability(period_ym)
+                availability = compute_availability(period_ym, excluded_keys=excluded)
                 result["availability"] = availability
                 print(f"✓ TeamUp {period_ym}: gotowość {availability['sum_gotowosc']} zł, "
                       f"triaż {availability['sum_triaz']} zł, lekarzy {len(availability['doctors'])}"

@@ -56,7 +56,8 @@ def regroup_by_unit(rows, group_map):
 
 def build_comparison(sprawdzone_dir: str, slownik_path: str,
                      units_cennik_dir: str, doctor_cennik_csv: str,
-                     availability_by_doctor: dict | None = None) -> dict:
+                     availability_by_doctor: dict | None = None,
+                     excluded_doctor_keys=None) -> dict:
     """availability_by_doctor: {klucz_lekarza: kwota gotowość+triaż za miesiąc} —
     rozbijana PROPORCJONALNIE na badania lekarza (z kategorią) i doliczana do
     kosztu każdego badania, więc wchodzi do marży per kategoria/lekarz/jednostkę."""
@@ -119,6 +120,14 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
         for (_, r), rk in zip(df.iterrows(), df["_rodzaj_doc_key"])
     ]
     df["_lek_key"] = df["Opisujący"].map(doctor_key) if "Opisujący" in df.columns else ""
+
+    # Lekarze wyłączeni w ustawieniach — pomijamy ich badania po OBU stronach marży
+    # (rozliczani osobno), spójnie z zakładką „Rozliczenie lekarzy".
+    _excl_docs = set(excluded_doctor_keys or [])
+    if _excl_docs and "_lek_key" in df.columns:
+        df = df[~df["_lek_key"].isin(_excl_docs)]
+        if df.empty:
+            return {"empty": True, "reason": "Wszystkie badania wyłączone (lekarze/jednostki)."}
 
     adj_by_unit = prepare_adjustments(get_unit_adjustments())
 
@@ -274,6 +283,7 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
         "empty": False,
         # Migawka wyłączonych jednostek — pozwala wykryć nieaktualny zapis (cache).
         "_units_excluded": sorted(_excl_units),
+        "_doctors_excluded": sorted(_excl_docs),
         "rows": grp.to_dict("records"),
         "rows_units": grp_u.to_dict("records"),
         "rows_priority": rows_priority,

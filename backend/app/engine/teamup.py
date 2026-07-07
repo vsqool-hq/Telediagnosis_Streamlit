@@ -281,7 +281,7 @@ def match_doctor(title: str, known: dict) -> str | None:
 
 # --- Główne liczenie ---------------------------------------------------------
 
-def compute_availability(period: str) -> dict:
+def compute_availability(period: str, excluded_keys=None) -> dict:
     """
     Gotowość + triaż za miesiąc rozliczenia „YYYY-MM": godziny z TeamUp × stawki
     z pliku ZOBOWIĄZAŃ. Zwraca:
@@ -319,11 +319,14 @@ def compute_availability(period: str) -> dict:
             for k, v in variants.items():
                 agg[k] = agg.get(k, 0.0) + v
 
+    excl = set(excluded_keys or [])
     doctors: dict = {}
     unmatched: list = []
     unmatched_hours = 0.0
     for title, variants in per_title.items():
         lk = match_doctor(title, rates_by_doc)
+        if lk is not None and lk in excl:
+            continue                                    # lekarz wyłączony — pomijamy jego gotowość
         if lk is None:
             unmatched.append(title)
             unmatched_hours += sum(variants.values())   # godziny nierozliczone (brak lekarza)
