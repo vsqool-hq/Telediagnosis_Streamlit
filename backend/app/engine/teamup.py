@@ -169,6 +169,54 @@ def _skip_title(title: str) -> bool:
     return any(tok in t for tok in SKIP_TOKENS)
 
 
+def _first_str(v) -> str:
+    """Wyciąga tekst z wartości pola własnego TeamUp (str / lista / słownik)."""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, (list, tuple)):
+        return _first_str(v[0]) if v else ""
+    if isinstance(v, dict):
+        for x in v.values():
+            s = _first_str(x)
+            if s:
+                return s
+        return ""
+    return "" if v is None else str(v)
+
+
+def _tryb_dyzuru(ev) -> str | None:
+    """
+    Zwraca 'Tryb dyżuru' zdarzenia: 'S' (święto) / 'W' (weekend) / 'T' (triaż)
+    / '' (puste = powszedni). None gdy pola w ogóle nie ma → wtedy klasyfikujemy
+    z daty (fallback). Pole rozpoznajemy po kluczu zawierającym 'tryb', a gdy klucz
+    jest nietypowy — po wartości równej S/W/T (pozostałe pola nie mają takich wartości).
+    """
+    custom = ev.get("custom") or {}
+    if not isinstance(custom, dict):
+        return None
+
+    def _norm(val) -> str:
+        v = _first_str(val).strip().upper()
+        if not v:
+            return ""
+        if v[0] == "T" or "TRIA" in v:
+            return "T"
+        if v[0] == "W" or "WEEK" in v:
+            return "W"
+        if v[0] == "S" or "ŚWI" in v or "SWI" in v:
+            return "S"
+        return ""
+
+    for k, v in custom.items():
+        if "tryb" in str(k).lower().replace("_", " "):
+            return _norm(v)
+    for v in custom.values():
+        n = _norm(v)
+        if n in ("S", "W", "T"):
+            return n
+    return None
+
+
 def _slices(start: dt.datetime, end: dt.datetime):
     """Tnie przedział na kawałki w obrębie pełnych godzin zegarowych.
     Zwraca (data, godzina, ułamek_godziny)."""
@@ -193,16 +241,32 @@ def hours_by_variant(events: list, kind: str, month_start: dt.date, month_end: d
             e = dt.datetime.fromisoformat(ev["end_dt"])
         except (KeyError, ValueError):
             continue
+        # Koniec 23:59 traktujemy jak 24:00 (tak jak kalkulator TeamUp) — inaczej
+        # każdy taki dyżur gubi 1 minutę, a takich rekordów są dziesiątki.
+        if e.hour == 23 and e.minute == 59:
+            e = e + dt.timedelta(minutes=1)
         if e <= s:
             continue
         title = str(ev.get("title") or "").strip()
         if not title:
             continue
+        # Weekend/święto bierzemy z ręcznego pola „Tryb dyżuru" (jak kalkulator
+        # TeamUp) — całe zdarzenie ma jeden typ dnia. Fallback na datę, gdy pola brak.
+        tryb = _tryb_dyzuru(ev) if kind == "G" else None
         for d, hour, frac in _slices(s, e):
             if not (month_start <= d <= month_end):
                 continue
             band = "D" if 8 <= hour < 21 else "N"
-            day_t = _day_type(d, holidays) if kind == "G" else "*"
+            if kind != "G":
+                day_t = "*"
+            elif tryb is None:
+                day_t = _day_type(d, holidays)        # brak pola Tryb → z daty
+            elif tryb == "S":
+                day_t = "SW"
+            elif tryb == "W":
+                day_t = "WKD"
+            else:                                     # "" (powszedni) lub inne
+                day_t = "POW"
             key = (kind, band, day_t)
             per = out.setdefault(title, {})
             per[key] = per.get(key, 0.0) + frac
@@ -215,30 +279,44 @@ def parse_availability_rates(workbook_path: str) -> dict:
     """
     Czyta stawki gotowości/triażu z KAŻDEJ zakładki (zakładka = lekarz).
     Zwraca { doctor_key(nazwa zakładki): {"name": zakładka, "rates": {wariant: stawka}} }.
-    Wiersz rozpoznajemy po kolumnie A: GOTOWOŚĆ/TRIAŻ (+ ŚWIĘTA/WEEKEND) i godzinie
-    startu pasma (8→dzień, 21→noc). Stawka w kolumnie B.
+
+    Stawki bierzemy z NAJNOWSZEGO ANEKSU (skrajnie prawy blok) — dokładnie tak samo
+    jak ceny badań: kolumnę-etykietę i kolumnę stawki wyznacza _find_newest_block
+    (po nagłówkach sekcji RTG/TK/MR/MMG). Wiersze GOTOWOŚĆ/TRIAŻ są powielone pod
+    kategoriami badań w tym samym bloku, więc czytamy je z tej samej pary kolumn.
+    Wariant: godzina startu pasma (8→dzień, inaczej→noc) + ŚWIĘTA/WEEKEND/powszedni.
     """
     import re
     from openpyxl import load_workbook
-    from app.engine.cennik_lekarzy_convert import doctor_key
+    from app.engine.cennik_lekarzy_convert import (
+        doctor_key, _find_newest_block, _clean, _try_number,
+    )
 
     wb = load_workbook(workbook_path, data_only=True, read_only=True)
     out = {}
     for sheet in wb.sheetnames:
-        ws = wb[sheet]
+        if _clean(sheet).upper().startswith("ZBIORCZO"):
+            continue
+        grid = list(wb[sheet].iter_rows(values_only=True))
+        if not grid:
+            continue
+        ncols = max((len(r) for r in grid), default=0)
+        label_col, price_col = _find_newest_block(grid, ncols)
+        if label_col is None:
+            continue
+
         rates = {}
-        for row in ws.iter_rows(min_col=1, max_col=2, values_only=True):
-            label = str(row[0] or "").strip().upper()
+        for r in grid:
+            label = _clean(r[label_col] if label_col < len(r) else None).upper()
             if not label or ("GOTOW" not in label and "TRIA" not in label):
                 continue
             m = re.search(r"(\d{1,2})[:.]?\d{0,2}\s*[-–]", label)
             if not m:
                 continue
             band = "D" if int(m.group(1)) == 8 else "N"
-            try:
-                rate = float(row[1] or 0)
-            except (TypeError, ValueError):
-                continue
+            rate, _rep, _orig = _try_number(r[price_col] if price_col < len(r) else None)
+            if rate is None:
+                rate = 0.0
             if "TRIA" in label:
                 rates[("T", band, "*")] = rate
             else:
@@ -246,7 +324,7 @@ def parse_availability_rates(workbook_path: str) -> dict:
                         ("WKD" if "WEEKEND" in label else "POW")
                 rates[("G", band, day_t)] = rate
         if rates:
-            out[doctor_key(sheet)] = {"name": sheet.strip(), "rates": rates}
+            out[doctor_key(sheet)] = {"name": _clean(sheet), "rates": rates}
     wb.close()
     return out
 
