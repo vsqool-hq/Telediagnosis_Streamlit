@@ -228,10 +228,73 @@ def _slices(start: dt.datetime, end: dt.datetime):
         cur = nb
 
 
+def _merge_intervals(intervals: list) -> list:
+    """Sortuje i scala nakładające/stykające się przedziały (start, koniec)."""
+    if not intervals:
+        return []
+    ivs = sorted(intervals)
+    merged = [ivs[0]]
+    for s, e in ivs[1:]:
+        ls, le = merged[-1]
+        if s <= le:
+            merged[-1] = (ls, max(le, e))
+        else:
+            merged.append((s, e))
+    return merged
+
+
+def _subtract_covered(s: dt.datetime, e: dt.datetime, covering: list) -> list:
+    """Zwraca fragmenty [s,e) NIEpokryte żadnym przedziałem z `covering`
+    (posortowana, scalona lista (start,koniec))."""
+    out = []
+    cur = s
+    for cs, ce in covering:
+        if ce <= cur or cs >= e:
+            continue
+        if cs > cur:
+            out.append((cur, min(cs, e)))
+        cur = max(cur, ce)
+        if cur >= e:
+            break
+    if cur < e:
+        out.append((cur, e))
+    return out
+
+
+def triaz_intervals_by_title(events: list) -> dict:
+    """Przedziały czasu triażu per lekarz (tytuł), scalone. Używane do wykluczenia
+    pokrywającego się dyżuru — gdy triaż biegnie w tych samych godzinach co dyżur
+    RTG tej samej osoby, płacimy tylko za triaż (patrz hours_by_variant)."""
+    raw: dict = {}
+    for ev in events:
+        if ev.get("all_day"):
+            continue
+        try:
+            s = dt.datetime.fromisoformat(ev["start_dt"])
+            e = dt.datetime.fromisoformat(ev["end_dt"])
+        except (KeyError, ValueError):
+            continue
+        if e.hour == 23 and e.minute == 59:
+            e = e + dt.timedelta(minutes=1)
+        if e <= s:
+            continue
+        title = str(ev.get("title") or "").strip()
+        if not title:
+            continue
+        raw.setdefault(title, []).append((s, e))
+    return {t: _merge_intervals(v) for t, v in raw.items()}
+
+
 def hours_by_variant(events: list, kind: str, month_start: dt.date, month_end: dt.date,
-                     holidays: set) -> dict:
+                     holidays: set, exclude_by_title: dict | None = None) -> dict:
     """Sumuje godziny wydarzeń per (tytuł, wariant). kind: 'G' (gotowość) / 'T' (triaż).
-    Godziny spoza miesiąca (wydarzenia na styku) są przycinane do miesiąca."""
+    Godziny spoza miesiąca (wydarzenia na styku) są przycinane do miesiąca.
+
+    exclude_by_title (tylko kind='G'): {tytuł: [(start,koniec), ...]} — godziny
+    dyżuru pokrywające się z triażem TEJ SAMEJ osoby są wycinane przed liczeniem,
+    bo jeśli triaż jest prowadzony podczas dyżuru RTG, płacimy tylko za triaż
+    (część dyżuru bywa pokryta tylko częściowo — stąd odejmowanie przedziałów,
+    nie całych zdarzeń)."""
     out: dict = {}
     for ev in events:
         if ev.get("all_day") or _skip_title(ev.get("title")):
@@ -253,23 +316,31 @@ def hours_by_variant(events: list, kind: str, month_start: dt.date, month_end: d
         # Weekend/święto bierzemy z ręcznego pola „Tryb dyżuru" (jak kalkulator
         # TeamUp) — całe zdarzenie ma jeden typ dnia. Fallback na datę, gdy pola brak.
         tryb = _tryb_dyzuru(ev) if kind == "G" else None
-        for d, hour, frac in _slices(s, e):
-            if not (month_start <= d <= month_end):
-                continue
-            band = "D" if 8 <= hour < 21 else "N"
-            if kind != "G":
-                day_t = "*"
-            elif tryb is None:
-                day_t = _day_type(d, holidays)        # brak pola Tryb → z daty
-            elif tryb == "S":
-                day_t = "SW"
-            elif tryb == "W":
-                day_t = "WKD"
-            else:                                     # "" (powszedni) lub inne
-                day_t = "POW"
-            key = (kind, band, day_t)
-            per = out.setdefault(title, {})
-            per[key] = per.get(key, 0.0) + frac
+
+        segments = [(s, e)]
+        if kind == "G" and exclude_by_title:
+            covering = exclude_by_title.get(title)
+            if covering:
+                segments = _subtract_covered(s, e, covering)
+
+        for seg_s, seg_e in segments:
+            for d, hour, frac in _slices(seg_s, seg_e):
+                if not (month_start <= d <= month_end):
+                    continue
+                band = "D" if 8 <= hour < 21 else "N"
+                if kind != "G":
+                    day_t = "*"
+                elif tryb is None:
+                    day_t = _day_type(d, holidays)        # brak pola Tryb → z daty
+                elif tryb == "S":
+                    day_t = "SW"
+                elif tryb == "W":
+                    day_t = "WKD"
+                else:                                     # "" (powszedni) lub inne
+                    day_t = "POW"
+                key = (kind, band, day_t)
+                per = out.setdefault(title, {})
+                per[key] = per.get(key, 0.0) + frac
     return out
 
 
@@ -386,12 +457,26 @@ def compute_availability(period: str, excluded_keys=None) -> dict:
     # poprzedniego miesiąca) — i tak przycinamy godziny do miesiąca.
     fetch_from = month_start - dt.timedelta(days=1)
     fetch_to = month_end + dt.timedelta(days=1)
+
+    # Triaż NAJPIERW: gdy triaż biegnie w tych samych godzinach co dyżur RTG tej
+    # samej osoby, płacimy tylko za triaż — te przedziały wycinamy z dyżuru.
+    triaz_events: list = []
+    triaz_exclude: dict = {}
+    if cfg["cal_triaz"]:
+        triaz_events = fetch_events(cfg["cal_triaz"], fetch_from, fetch_to, cfg["api_key"])
+        triaz_exclude = triaz_intervals_by_title(triaz_events)
+
     per_title: dict = {}
-    for kind, cal in (("G", cfg["cal_gotowosc"]), ("T", cfg["cal_triaz"])):
-        if not cal:
-            continue
-        events = fetch_events(cal, fetch_from, fetch_to, cfg["api_key"])
-        part = hours_by_variant(events, kind, month_start, month_end, holidays)
+    if cfg["cal_gotowosc"]:
+        g_events = fetch_events(cfg["cal_gotowosc"], fetch_from, fetch_to, cfg["api_key"])
+        part = hours_by_variant(g_events, "G", month_start, month_end, holidays,
+                                 exclude_by_title=triaz_exclude)
+        for title, variants in part.items():
+            agg = per_title.setdefault(title, {})
+            for k, v in variants.items():
+                agg[k] = agg.get(k, 0.0) + v
+    if triaz_events:
+        part = hours_by_variant(triaz_events, "T", month_start, month_end, holidays)
         for title, variants in part.items():
             agg = per_title.setdefault(title, {})
             for k, v in variants.items():
