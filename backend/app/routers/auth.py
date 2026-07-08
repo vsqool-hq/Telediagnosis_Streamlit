@@ -23,6 +23,7 @@ async def login(payload: dict):
     if not u or not db.verify_password(password, u["password_hash"]):
         raise HTTPException(401, "Nieprawidłowy login lub hasło.")
     token = db.create_session(u["id"])
+    db.add_audit(u["username"], "Logowanie", None)
     return {"token": token, "username": u["username"], "role": u["role"]}
 
 
@@ -42,6 +43,12 @@ async def me(request: Request):
         "username": getattr(request.state, "username", None),
         "auth_enabled": getattr(request.state, "auth_enabled", True),
     }
+
+
+@router.get("/audit")
+async def audit_log(limit: int = 300):
+    """Dziennik zdarzeń (audyt akcji) — tylko admin (wymuszane w auth_guard)."""
+    return {"entries": db.list_audit(limit)}
 
 
 # ---- Zarządzanie kontami (tylko admin — wymuszane w auth_guard: /api/users) ----

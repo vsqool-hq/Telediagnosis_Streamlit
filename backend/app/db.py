@@ -58,6 +58,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id    INTEGER NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts       TEXT NOT NULL,
+    username TEXT,
+    action   TEXT NOT NULL,   -- czytelny opis akcji
+    detail   TEXT             -- ścieżka / dodatkowe info
+);
 """
 
 
@@ -72,10 +80,20 @@ def get_conn():
         conn.close()
 
 
+def _add_column(conn, table: str, column: str, decl: str):
+    """Dokłada kolumnę, jeśli jej nie ma (migracja istniejącej bazy na produkcji)."""
+    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def init_db():
     ensure_dirs()
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        # Migracje kolumn „kto dodał" (istniejące bazy sprzed audytu).
+        _add_column(conn, "versions", "uploaded_by", "TEXT")
+        _add_column(conn, "jobs", "created_by", "TEXT")
         row = conn.execute("SELECT json FROM settings WHERE id = 1").fetchone()
         if row is None:
             conn.execute("INSERT INTO settings (id, json) VALUES (1, ?)",
@@ -115,10 +133,11 @@ def get_active_version(kind: str):
 
 
 def add_version(rec: dict):
+    rec.setdefault("uploaded_by", None)
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO versions (id, kind, filename, original_name, label, size, is_active, uploaded_at)
-               VALUES (:id, :kind, :filename, :original_name, :label, :size, :is_active, :uploaded_at)""",
+            """INSERT INTO versions (id, kind, filename, original_name, label, size, is_active, uploaded_at, uploaded_by)
+               VALUES (:id, :kind, :filename, :original_name, :label, :size, :is_active, :uploaded_at, :uploaded_by)""",
             rec,
         )
 
@@ -144,10 +163,11 @@ def delete_version(version_id: str):
 # ---- Zadania ----------------------------------------------------------------
 
 def create_job(rec: dict):
+    rec.setdefault("created_by", None)
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO jobs (id, mode, status, input_name, wzorcowe_version, cennik_version, created_at)
-               VALUES (:id, :mode, :status, :input_name, :wzorcowe_version, :cennik_version, :created_at)""",
+            """INSERT INTO jobs (id, mode, status, input_name, wzorcowe_version, cennik_version, created_at, created_by)
+               VALUES (:id, :mode, :status, :input_name, :wzorcowe_version, :cennik_version, :created_at, :created_by)""",
             rec,
         )
 
@@ -274,3 +294,25 @@ def get_session_user(token: str):
 def delete_session(token: str):
     with get_conn() as conn:
         conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+
+
+# ---- Dziennik zdarzeń (audyt akcji administratorów) -------------------------
+
+def add_audit(username: str | None, action: str, detail: str | None = None):
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                "INSERT INTO audit_log (ts, username, action, detail) VALUES (?,?,?,?)",
+                (_now(), username, action, detail),
+            )
+    except Exception:  # noqa: BLE001
+        pass   # audyt nie może wywrócić żądania
+
+
+def list_audit(limit: int = 300) -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, ts, username, action, detail FROM audit_log ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]

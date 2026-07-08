@@ -97,7 +97,7 @@ def cancel_job(job_id: str):
     return db.get_job(job_id)
 
 
-def create_and_start_job(mode: str, upload_filename: str, upload_bytes: bytes) -> dict:
+def create_and_start_job(mode: str, upload_filename: str, upload_bytes: bytes, created_by: str | None = None) -> dict:
     """Tworzy zadanie, przygotowuje katalog i startuje proces liczący."""
     ensure_dirs()
     job_id = uuid.uuid4().hex[:12]
@@ -132,6 +132,7 @@ def create_and_start_job(mode: str, upload_filename: str, upload_bytes: bytes) -
         "wzorcowe_version": wzorcowe_v,
         "cennik_version": cennik_v,
         "created_at": _now(),
+        "created_by": created_by,
     })
 
     # Walidacje wstępne — zanim odpalimy proces

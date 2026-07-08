@@ -135,6 +135,7 @@ export default function VersionManager({
                   <p className="text-xs text-slate-400">
                     {v.label && <span>{v.label} · </span>}
                     {fmtSize(v.size)} · {new Date(v.uploaded_at).toLocaleString("pl-PL")}
+                    {v.uploaded_by && <span> · wgrał(a): {v.uploaded_by}</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

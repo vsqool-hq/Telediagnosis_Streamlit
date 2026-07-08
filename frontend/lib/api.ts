@@ -91,6 +91,7 @@ export interface Version {
   size: number;
   is_active: number;
   uploaded_at: string;
+  uploaded_by?: string | null;
 }
 
 export interface Job {
@@ -108,6 +109,7 @@ export interface Job {
   files?: string[];
   elapsed_seconds?: number;
   period?: string | null;   // miesiąc rozliczenia „YYYY-MM" (z nazwy pliku − 1 mies.)
+  created_by?: string | null;
 }
 
 // Unikalny wgrany plik (bez mnożenia przez kolejne przeliczenia). „monthly" =
@@ -328,6 +330,7 @@ export interface SyncResult {
 }
 
 export interface Account { id: number; username: string; role: string; created_at: string }
+export interface AuditEntry { id: number; ts: string; username: string | null; action: string; detail: string | null }
 export interface Me { role: string | null; username: string | null; auth_enabled: boolean }
 
 export const api = {
@@ -357,6 +360,8 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteUser: (id: number) => req(`/api/users/${id}`, { method: "DELETE" }),
+  listAudit: (limit = 300) =>
+    req<{ entries: AuditEntry[] }>(`/api/audit?limit=${limit}`).then((r) => r.entries),
 
   // Pobiera aktywne pliki (słownik/cennik/cennik lekarzy) z chmury do bieżącego
   // (lokalnego) backendu. Wywoływane gdy liczymy „na tym komputerze".

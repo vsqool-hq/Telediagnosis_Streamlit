@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, UserPlus, Trash2, Loader2, ShieldCheck, Eye } from "lucide-react";
-import { api, Account } from "@/lib/api";
+import { Users, UserPlus, Trash2, Loader2, ScrollText } from "lucide-react";
+import { api, Account, AuditEntry } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "@/lib/toast";
 
@@ -16,10 +16,12 @@ export default function UzytkownicyPage() {
   const [np, setNp] = useState("");
   const [nr, setNr] = useState("user");
   const [busy, setBusy] = useState(false);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
 
   function reload() {
     setLoading(true);
     api.listUsers().then(setUsers).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+    api.listAudit().then(setAudit).catch(() => {});
   }
   useEffect(() => { if (isAdmin) reload(); else setLoading(false); }, [isAdmin]);
 
@@ -130,6 +132,34 @@ export default function UzytkownicyPage() {
         <p className="mt-3 text-xs text-slate-500">
           Wspólne „hasło główne" (dotychczasowe) nadal działa jako administrator — konta poniżej są dodatkowe.
         </p>
+      </div>
+
+      <div className="card">
+        <h2 className="mb-3 flex items-center gap-2 font-bold">
+          <ScrollText size={18} className="text-brand-accent" /> Dziennik zdarzeń ({audit.length})
+        </h2>
+        <p className="mb-3 text-[13px] text-slate-400">
+          Kto i kiedy: wgrania plików, zmiany ustawień, usunięcia, przeliczenia, logowania.
+        </p>
+        <div className="max-h-[28rem] overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-brand-surface text-left text-xs uppercase text-slate-400">
+              <tr><th className="py-2 pr-4">Kiedy</th><th className="py-2 pr-4">Kto</th><th className="py-2 pr-4">Akcja</th></tr>
+            </thead>
+            <tbody>
+              {audit.map((e) => (
+                <tr key={e.id} className="border-t border-white/10">
+                  <td className="py-2 pr-4 whitespace-nowrap text-slate-400">{new Date(e.ts).toLocaleString("pl-PL")}</td>
+                  <td className="py-2 pr-4 font-semibold">{e.username ?? "—"}</td>
+                  <td className="py-2 pr-4">{e.action}</td>
+                </tr>
+              ))}
+              {audit.length === 0 && (
+                <tr><td colSpan={3} className="py-3 text-slate-500">Dziennik jest pusty.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -19,13 +19,14 @@ ALLOWED_MODES = {"full", "unmatched"}
 
 
 @router.post("")
-async def create_job(file: UploadFile = File(...), mode: str = Form("full")):
+async def create_job(request: Request, file: UploadFile = File(...), mode: str = Form("full")):
     if mode not in ALLOWED_MODES:
         raise HTTPException(400, f"Nieprawidłowy tryb: {mode}")
     if not file.filename.lower().endswith((".xlsx", ".xls")):
         raise HTTPException(400, "Wgraj plik Excel (.xlsx lub .xls).")
     content = await file.read()
-    job = runner.create_and_start_job(mode, file.filename, content)
+    job = runner.create_and_start_job(mode, file.filename, content,
+                                      created_by=getattr(request.state, "username", None))
     return job
 
 

@@ -35,7 +35,7 @@ async def list_versions(kind: str):
 
 
 @router.post("/{kind}")
-async def upload_version(kind: str, file: UploadFile = File(...), label: str = Form("")):
+async def upload_version(kind: str, request: Request, file: UploadFile = File(...), label: str = Form("")):
     if kind not in KINDS:
         raise HTTPException(404, "Nieznany rodzaj plików.")
     if not file.filename.lower().endswith(KINDS[kind]):
@@ -63,6 +63,7 @@ async def upload_version(kind: str, file: UploadFile = File(...), label: str = F
         "size": len(content),
         "is_active": 1 if make_active else 0,
         "uploaded_at": _now(),
+        "uploaded_by": getattr(request.state, "username", None),
     })
     return db.get_version(version_id)
 

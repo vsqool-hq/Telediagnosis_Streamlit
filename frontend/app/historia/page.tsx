@@ -115,7 +115,7 @@ export default function HistoriaPage() {
                       <h3 className="text-lg font-extrabold">{j.period ? periodLabel(j.period) : monthLabel(when)}</h3>
                       <span className={`pill ${latest ? "pill-ok" : "pill-muted"}`}>Finalne</span>
                     </div>
-                    <p className="text-xs text-slate-400">Zapisano {new Date(when).toLocaleString("pl-PL")}</p>
+                    <p className="text-xs text-slate-400">Zapisano {new Date(when).toLocaleString("pl-PL")}{j.created_by ? ` · uruchomił(a): ${j.created_by}` : ""}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">

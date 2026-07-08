@@ -39,6 +39,43 @@ API_TOKEN = os.environ.get("TELEDIAG_API_TOKEN", "").strip()
 PUBLIC_PATHS = {"/api/auth/login"}
 
 
+def _audit_label(method: str, path: str):
+    """Czytelny opis akcji do dziennika. None = nie logujemy (szum)."""
+    if path.startswith("/api/auth") or path.startswith("/api/sync"):
+        return None
+    if path.startswith("/api/versions"):
+        if method == "DELETE":
+            return "Usunięcie wersji pliku"
+        if path.endswith("/activate"):
+            return "Aktywacja wersji pliku"
+        if path.endswith("/import"):
+            return "Import wersji (synchronizacja)"
+        return "Wgranie pliku (wzorzec/cennik)"
+    if path.startswith("/api/jobs"):
+        return "Usunięcie rozliczenia" if method == "DELETE" else "Uruchomienie rozliczenia (wgranie pliku)"
+    if path.startswith("/api/settings"):
+        return "Zmiana ustawień"
+    if path.startswith("/api/cennik-lekarzy"):
+        return "Zapis cennika lekarzy"
+    if path.startswith("/api/cennik"):
+        return "Zapis cennika jednostek"
+    if path.startswith("/api/doctors/billing"):
+        return "Przeliczenie lekarzy"
+    if path.startswith("/api/doctors/compare"):
+        return "Przeliczenie porównania"
+    if path.startswith("/api/doctors/excluded"):
+        return "Zmiana wyłączonych lekarzy"
+    if path.startswith("/api/units/excluded"):
+        return "Zmiana wyłączonych jednostek"
+    if path.startswith("/api/reference-image"):
+        return "Zmiana obrazka-wzoru" + (" (usunięcie)" if method == "DELETE" else "")
+    if path.startswith("/api/teamup"):
+        return "Zmiana konfiguracji TeamUp"
+    if path.startswith("/api/users"):
+        return "Zarządzanie kontami"
+    return f"Zmiana danych ({method})"
+
+
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
     """
@@ -72,11 +109,19 @@ async def auth_guard(request: Request, call_next):
 
         if auth_enabled and role is None:
             return JSONResponse({"detail": "Brak autoryzacji."}, status_code=401)
-        needs_admin = request.method not in ("GET", "HEAD") or path.startswith("/api/users")
+        needs_admin = (request.method not in ("GET", "HEAD")
+                       or path.startswith("/api/users") or path.startswith("/api/audit"))
         if needs_admin and role != "admin" and path != "/api/auth/logout":
             return JSONResponse({"detail": "Wymagane uprawnienia administratora."}, status_code=403)
 
     response = await call_next(request)
+
+    # Audyt: udane zmiany (POST/PUT/DELETE) trafiają do dziennika z loginem sprawcy.
+    if (path.startswith("/api") and request.method in ("POST", "PUT", "DELETE", "PATCH")
+            and path not in PUBLIC_PATHS and getattr(response, "status_code", 500) < 400):
+        label = _audit_label(request.method, path)
+        if label:
+            db.add_audit(getattr(request.state, "username", None), label, f"{request.method} {path}")
     # Private Network Access: pozwól stronie z HTTPS (Vercel) łączyć się z lokalnym
     # backendem (http://localhost) przy wyborze „Ten komputer" — Chrome tego wymaga.
     if request.headers.get("access-control-request-private-network"):
