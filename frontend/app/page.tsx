@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid,
 } from "recharts";
 import { Building2, Layers, TrendingUp, Coins, AlertTriangle } from "lucide-react";
-import { api, Overview, JobStats, TrendPoint } from "@/lib/api";
+import { api, TrendPoint, DashboardData } from "@/lib/api";
 import { useCachedData } from "@/lib/cache";
 import CountUp from "@/components/CountUp";
 import Skeleton from "@/components/Skeleton";
@@ -41,12 +41,13 @@ function StatCard({
 export default function Dashboard() {
   // Cache po stronie przeglądarki: powrót na Pulpit pokazuje liczby od razu,
   // odświeżenie leci w tle.
-  const { data: overview, error } = useCachedData<Overview>("overview", () => api.overview());
-  // KPI z NAJLEPSZEGO (najwyższy przychód) przeliczenia najnowszego miesiąca,
-  // a nie z ostatniego uruchomienia — odporne na błędne re-runy (np. niepełny plik).
-  const { data: stats } = useCachedData<JobStats>("statsCurrent", () => api.statsCurrent());
-  const { data: trendsData } = useCachedData<{ points: TrendPoint[] }>("trends", () => api.trends());
-  const trends: TrendPoint[] = trendsData?.points ?? [];
+  // Cały Pulpit w JEDNYM żądaniu (overview + KPI + trend) — mniej round-tripów,
+  // a backend liczy „najlepsze przeliczenie miesiąca" raz. KPI z NAJLEPSZEGO
+  // (najwyższy przychód) przeliczenia najnowszego miesiąca, nie z ostatniego runu.
+  const { data: dash, error } = useCachedData<DashboardData>("dashboard", () => api.dashboard());
+  const overview = dash?.overview;
+  const stats = dash?.current;
+  const trends: TrendPoint[] = dash?.trends.points ?? [];
 
   const hasStats = !!stats && !stats.empty;
   const avgNum =

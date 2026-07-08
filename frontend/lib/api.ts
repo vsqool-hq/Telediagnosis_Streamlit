@@ -314,6 +314,12 @@ export interface TrendPoint {
   revenue: number;
 }
 
+export interface DashboardData {
+  overview: Overview;
+  current: JobStats;
+  trends: { points: TrendPoint[] };
+}
+
 // ---- Wywołania --------------------------------------------------------------
 
 export interface SyncResult {
@@ -356,6 +362,7 @@ export const api = {
   jobStats: (id: string) => req<JobStats>(`/api/stats/job/${id}`),
   statsCurrent: () => req<JobStats>("/api/stats/current"),
   trends: () => req<{ points: TrendPoint[] }>("/api/stats/trends"),
+  dashboard: () => req<DashboardData>("/api/stats/dashboard"),
   mapData: () => req<MapData>("/api/stats/map"),
   importExportUrl: (id: string, fmt: "csv" | "xlsx") =>
     withToken(`${API_BASE}/api/jobs/${id}/import-export?fmt=${fmt}`),

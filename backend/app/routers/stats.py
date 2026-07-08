@@ -16,6 +16,9 @@ from app.storage import job_paths
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
+# Memoizacja best_jobs_by_month (patrz funkcja) — współdzielona w procesie.
+_BJM_CACHE: dict = {"sig": None, "val": None}
+
 # Współrzędne jednostek (geokodowane raz ze słownika adresów) — do zakładki „Mapa".
 _GEO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "unit_geo.json")
 _geo_cache = None
@@ -77,8 +80,29 @@ def best_jobs_by_month() -> dict:
     """
     from app.engine.revenue import cached_summary
     from app.engine.periods import period_from_filename
+    from app.engine.config import load_config
+    from app.engine import ENGINE_VERSION
+    from app.engine.billing import get_excluded_units
+
+    jobs = db.list_jobs(limit=200)
+    cfg = load_config()
+    # Memoizacja: wynik zależy tylko od zestawu zadań (id/status/finished_at/nazwa)
+    # oraz ustawień wpływających na przychód (grupy, wersja silnika, wyłączone
+    # jednostki). Gdy sygnatura bez zmian — zwracamy zapamiętany wynik, pomijając
+    # pętlę i N odczytów stats.json (best_jobs_by_month jest wołane na prawie każdej
+    # karcie, na Pulpicie 2×). Tania sygnatura — bez czytania plików wyników.
+    sig = json.dumps({
+        "jobs": [(j["id"], j.get("status"), j.get("finished_at"), j.get("input_name"))
+                 for j in jobs if j.get("mode") == "full"],
+        "groups": cfg.get("unit_groups", []),
+        "engine": ENGINE_VERSION,
+        "units_excluded": sorted(get_excluded_units()),
+    }, ensure_ascii=False, sort_keys=True, default=str)
+    if _BJM_CACHE.get("sig") == sig:
+        return _BJM_CACHE["val"]
+
     best: dict = {}
-    for j in db.list_jobs(limit=200):
+    for j in jobs:
         if j["status"] != "done" or j["mode"] != "full":
             continue
         # Tylko pliki MIESIĘCZNE (data z 1. dniem miesiąca w nazwie). Pliki jednorazowe
@@ -100,6 +124,8 @@ def best_jobs_by_month() -> dict:
                 "input_name": j.get("input_name"),
                 "computed_at": j.get("finished_at") or j.get("created_at"),
             }
+    _BJM_CACHE["sig"] = sig
+    _BJM_CACHE["val"] = best
     return best
 
 
@@ -128,6 +154,38 @@ async def current_stats():
     paths = job_paths(latest["job_id"])
     s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
     return {**s, "job_id": latest["job_id"], "period": latest["period"]}
+
+
+@router.get("/dashboard")
+async def dashboard():
+    """Pulpit w JEDNYM żądaniu: overview + bieżące statystyki + trend.
+    best_jobs_by_month liczone RAZ (zamiast 2× jak przy osobnych /current i /trends),
+    mniej round-tripów i mniej pracy na jednym workerze."""
+    from app.engine.revenue import cached_summary
+    best = best_jobs_by_month()
+
+    points = [
+        {"job_id": b["job_id"], "date": b["date"], "label": p,
+         "studies": b["studies"], "revenue": b["revenue"]}
+        for p, b in sorted(best.items())
+    ]
+
+    current = {"empty": True}
+    if best:
+        latest = max(best.values(), key=lambda b: b["period"])
+        paths = job_paths(latest["job_id"])
+        s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
+        current = {**s, "job_id": latest["job_id"], "period": latest["period"]}
+
+    jobs = db.list_jobs(limit=100)
+    done = [j for j in jobs if j["status"] == "done"]
+    overview = {
+        "jobs_total": len(jobs),
+        "jobs_done": len(done),
+        "active_cennik": db.get_active_version("cennik"),
+        "active_wzorcowe": db.get_active_version("wzorcowe"),
+    }
+    return {"overview": overview, "current": current, "trends": {"points": points}}
 
 
 def _job_revenue_by_client(job_id: str) -> dict:
