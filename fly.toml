@@ -26,7 +26,7 @@ primary_region = "fra"   # Warszawa — najbliżej
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"     # scale-to-zero: usypianie po bezczynności
+  auto_stop_machines = "suspend"  # zamrożenie zamiast gaszenia — wybudzanie w ~1-2 s
   auto_start_machines = true      # budzenie na żądanie
   min_machines_running = 0
 

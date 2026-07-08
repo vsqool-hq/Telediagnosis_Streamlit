@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw } from "lucide-react";
 import { api, CompareMonth, DoctorBilling, DoctorCoverage } from "@/lib/api";
 import { useCachedData } from "@/lib/cache";
+import { useAuth } from "@/lib/auth";
 
 const zl = (n: number) =>
   n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
@@ -14,6 +15,7 @@ const periodLabel = (p: string) =>
   /^\d{4}-\d{2}$/.test(p) ? `${MONTHS_PL[parseInt(p.slice(5)) - 1]} ${p.slice(0, 4)}` : p;
 
 export default function RozliczenieLekarzyPage() {
+  const { isAdmin } = useAuth();
   const [jobId, setJobId] = useState<string>("");
   const [result, setResult] = useState<DoctorBilling | null>(null);
   const [busy, setBusy] = useState(false);
@@ -120,10 +122,12 @@ export default function RozliczenieLekarzyPage() {
             ))}
           </select>
         </label>
-        <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
-          {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
-          Policz rozliczenie lekarzy
-        </button>
+        {isAdmin && (
+          <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
+            {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
+            Policz rozliczenie lekarzy
+          </button>
+        )}
         {result && !result.empty && (
           <>
             {!!result.files_count && (
@@ -134,9 +138,11 @@ export default function RozliczenieLekarzyPage() {
             <a className="btn-secondary" href={api.doctorsBillingDownloadUrl(jobId)}>
               <Download size={18} /> Podsumowanie badań (Excel)
             </a>
-            <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
-              <RefreshCw size={18} /> Przelicz ponownie
-            </button>
+            {isAdmin && (
+              <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
+                <RefreshCw size={18} /> Przelicz ponownie
+              </button>
+            )}
             {result.computed_at && (
               <span className="text-xs text-slate-400">
                 Zapisano: {new Date(result.computed_at).toLocaleString("pl-PL")}

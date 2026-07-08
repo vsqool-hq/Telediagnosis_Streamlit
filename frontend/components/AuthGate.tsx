@@ -1,21 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lock, LogIn, Loader2 } from "lucide-react";
-import { api, setToken, clearToken } from "@/lib/api";
+import { Lock, LogIn, Loader2, User } from "lucide-react";
+import { api, setToken, clearToken, Me } from "@/lib/api";
+import { AuthContext } from "@/lib/auth";
 import BackendSwitcher from "@/components/BackendSwitcher";
 
 type State = "checking" | "locked" | "open";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>("checking");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
 
   function check() {
-    api.validate()
-      .then(() => setState("open"))
+    api.me()
+      .then((m) => { setMe(m); setState("open"); })
       .catch(() => setState("locked"));
   }
   useEffect(check, []);
@@ -24,16 +27,33 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    setToken(password.trim());
     try {
-      await api.validate();
+      if (username.trim()) {
+        // Konto z rolą (nowe logowanie).
+        const res = await api.login(username.trim(), password);
+        setToken(res.token);
+      } else {
+        // Zgodność wstecz: samo hasło = wspólny token (master-admin).
+        setToken(password.trim());
+      }
+      const m = await api.me();
+      setMe(m);
       setState("open");
+      setPassword("");
     } catch {
       clearToken();
-      setError("Nieprawidłowe hasło.");
+      setError("Nieprawidłowy login lub hasło.");
     } finally {
       setBusy(false);
     }
+  }
+
+  function logout() {
+    api.logout();
+    clearToken();
+    setMe(null);
+    setUsername("");
+    setState("locked");
   }
 
   if (state === "checking") {
@@ -58,14 +78,26 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="relative">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+            <input
+              autoFocus
+              className="input pl-9"
+              placeholder="Login (puste = hasło główne)"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+            />
+          </div>
+
+          <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
             <input
               type="password"
-              autoFocus
               className="input pl-9"
               placeholder="Hasło"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
             />
           </div>
 
@@ -85,5 +117,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  const role = me?.role ?? (me && !me.auth_enabled ? "admin" : null);
+  return (
+    <AuthContext.Provider
+      value={{
+        role,
+        username: me?.username ?? null,
+        authEnabled: me?.auth_enabled ?? true,
+        isAdmin: role === "admin",
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }

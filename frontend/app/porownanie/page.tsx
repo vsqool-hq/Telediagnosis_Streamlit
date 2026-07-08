@@ -6,6 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
 } from "recharts";
 import { api, CompareMonth, DoctorComparison } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const zl = (n: number) =>
   n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
@@ -146,6 +147,7 @@ const periodLabel = (p: string) =>
   /^\d{4}-\d{2}$/.test(p) ? `${MONTHS_PL[parseInt(p.slice(5)) - 1]} ${p.slice(0, 4)}` : p;
 
 export default function PorownaniePage() {
+  const { isAdmin } = useAuth();
   // Miesiące rozliczeniowe — każdy spięty z jego NAJWIĘKSZYM przeliczeniem
   // (jak wykres na Pulpicie). Nowe, większe przeliczenie przejmuje miesiąc.
   const [months, setMonths] = useState<CompareMonth[]>([]);
@@ -233,18 +235,22 @@ export default function PorownaniePage() {
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
-            {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
-            Policz porównanie
-          </button>
+          {isAdmin && (
+            <button className="btn-primary" disabled={!jobId || busy} onClick={() => run(false)}>
+              {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
+              Policz porównanie
+            </button>
+          )}
         {result && !result.empty && (
           <>
             <a className="btn-secondary" href={api.doctorsCompareDownloadUrl(jobId)}>
               <Download size={18} /> Pobierz Excel
             </a>
-            <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
-              <RefreshCw size={18} /> Przelicz ponownie
-            </button>
+            {isAdmin && (
+              <button className="btn-secondary" disabled={busy} onClick={() => run(true)}>
+                <RefreshCw size={18} /> Przelicz ponownie
+              </button>
+            )}
             {result.computed_at && (
               <span className="text-xs text-slate-400">
                 Zapisano: {new Date(result.computed_at).toLocaleString("pl-PL")}

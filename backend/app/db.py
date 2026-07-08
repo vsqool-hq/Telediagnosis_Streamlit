@@ -5,6 +5,9 @@ Pojedynczy użytkownik, więc prosty model połączenia-na-operację wystarcza.
 
 import sqlite3
 import json
+import hashlib
+import secrets
+import datetime
 from contextlib import contextmanager
 
 from app.storage import DB_PATH, ensure_dirs
@@ -40,6 +43,20 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE TABLE IF NOT EXISTS settings (
     id   INTEGER PRIMARY KEY CHECK (id = 1),
     json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role          TEXT NOT NULL DEFAULT 'user',   -- 'admin' | 'user'
+    created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token      TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    created_at TEXT NOT NULL
 );
 """
 
@@ -160,3 +177,100 @@ def list_jobs(limit: int = 50):
             "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ---- Użytkownicy i sesje (role: admin / user) -------------------------------
+
+def _hash_password(password: str, salt: str | None = None, iters: int = 200_000) -> str:
+    salt = salt or secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), iters).hex()
+    return f"pbkdf2${iters}${salt}${h}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        algo, iters, salt, h = str(stored).split("$")
+        calc = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), int(iters)).hex()
+        return secrets.compare_digest(calc, h)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _now() -> str:
+    return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def has_users() -> bool:
+    with get_conn() as conn:
+        return conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is not None
+
+
+def list_users() -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, username, role, created_at FROM users ORDER BY username"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_user_by_username(username: str):
+    with get_conn() as conn:
+        r = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        return dict(r) if r else None
+
+
+def create_user(username: str, password: str, role: str = "user") -> dict:
+    username = str(username).strip()
+    role = "admin" if role == "admin" else "user"
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?,?,?,?)",
+            (username, _hash_password(password), role, _now()),
+        )
+        r = conn.execute("SELECT id, username, role, created_at FROM users WHERE username = ?",
+                         (username,)).fetchone()
+        return dict(r)
+
+
+def update_user(user_id: int, password: str | None = None, role: str | None = None):
+    with get_conn() as conn:
+        if password:
+            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                         (_hash_password(password), user_id))
+        if role in ("admin", "user"):
+            conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+
+
+def delete_user(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+
+def count_admins() -> int:
+    with get_conn() as conn:
+        return conn.execute("SELECT COUNT(*) c FROM users WHERE role = 'admin'").fetchone()["c"]
+
+
+def create_session(user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    with get_conn() as conn:
+        conn.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?,?,?)",
+                     (token, user_id, _now()))
+    return token
+
+
+def get_session_user(token: str):
+    if not token:
+        return None
+    with get_conn() as conn:
+        r = conn.execute(
+            "SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id "
+            "WHERE s.token = ?", (token,)
+        ).fetchone()
+        return dict(r) if r else None
+
+
+def delete_session(token: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))

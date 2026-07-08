@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
-from app.routers import jobs, files, settings, stats, cennik, cennik_lekarzy, doctors, sync, reference, units, teamup
+from app.routers import jobs, files, settings, stats, cennik, cennik_lekarzy, doctors, sync, reference, units, teamup, auth
 
 app = FastAPI(title="Automatyzator Rozliczeń Medycznych", version="0.1.0")
 
@@ -31,17 +31,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import secrets as _secrets
+
 API_TOKEN = os.environ.get("TELEDIAG_API_TOKEN", "").strip()
+
+# Ścieżki dostępne bez tokenu (logowanie — token dopiero powstaje).
+PUBLIC_PATHS = {"/api/auth/login"}
 
 
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
-    """Opcjonalna ochrona /api tokenem (gdy TELEDIAG_API_TOKEN ustawiony)."""
+    """
+    Autoryzacja /api z rolami:
+      • token = TELEDIAG_API_TOKEN → „master-admin" (zgodność wstecz),
+      • token = sesja użytkownika  → rola z konta (admin | user),
+      • brak/niepoprawny token, gdy ochrona włączona → 401.
+    Zmiany danych (metody != GET) oraz zarządzanie kontami (/api/users) — TYLKO
+    admin. Podgląd (GET) — każdy zalogowany. Gdy ochrona wyłączona (brak tokenu
+    i brak kont — lokalnie) → wszystko dozwolone jako admin.
+    """
     path = request.url.path
-    if API_TOKEN and path.startswith("/api") and request.method != "OPTIONS":
+    request.state.role = None
+    request.state.username = None
+    auth_enabled = bool(API_TOKEN) or db.has_users()
+    request.state.auth_enabled = auth_enabled
+
+    if path.startswith("/api") and request.method != "OPTIONS" and path not in PUBLIC_PATHS:
         token = request.headers.get("X-API-Token") or request.query_params.get("token")
-        if token != API_TOKEN:
+        role = username = None
+        if API_TOKEN and token and _secrets.compare_digest(token, API_TOKEN):
+            role, username = "admin", "administrator"
+        elif token:
+            u = db.get_session_user(token)
+            if u:
+                role, username = u["role"], u["username"]
+        if not auth_enabled:
+            role = role or "admin"          # lokalnie bez ochrony → admin
+        request.state.role = role
+        request.state.username = username
+
+        if auth_enabled and role is None:
             return JSONResponse({"detail": "Brak autoryzacji."}, status_code=401)
+        needs_admin = request.method not in ("GET", "HEAD") or path.startswith("/api/users")
+        if needs_admin and role != "admin" and path != "/api/auth/logout":
+            return JSONResponse({"detail": "Wymagane uprawnienia administratora."}, status_code=403)
+
     response = await call_next(request)
     # Private Network Access: pozwól stronie z HTTPS (Vercel) łączyć się z lokalnym
     # backendem (http://localhost) przy wyborze „Ten komputer" — Chrome tego wymaga.
@@ -89,3 +123,4 @@ app.include_router(sync.router)
 app.include_router(reference.router)
 app.include_router(units.router)
 app.include_router(teamup.router)
+app.include_router(auth.router)

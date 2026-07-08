@@ -3,14 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LogOut, Cloud, Laptop } from "lucide-react";
-import { clearToken, getToken, isLocalBackend } from "@/lib/api";
+import { LogOut, Cloud, Laptop, ShieldCheck, Eye } from "lucide-react";
+import { isLocalBackend } from "@/lib/api";
 import { NAV, isActive } from "@/components/nav";
+import { useAuth } from "@/lib/auth";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [local, setLocal] = useState(false);
   useEffect(() => setLocal(isLocalBackend()), []);
+  const { isAdmin, role, username, logout } = useAuth();
+  const items = NAV.filter((n) => !n.adminOnly || isAdmin);
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-black/20 px-4 py-6 md:flex">
@@ -24,7 +27,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1.5">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = isActive(href, pathname);
           return (
             <Link key={href} href={href} className={`navlink ${active ? "navlink-active" : ""}`}>
@@ -35,11 +38,14 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {getToken() && (
-        <button
-          onClick={() => { clearToken(); window.location.reload(); }}
-          className="navlink !text-slate-400"
-        >
+      {role && (
+        <div className="mx-1 mb-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-400">
+          {isAdmin ? <ShieldCheck size={14} className="text-brand-accent2" /> : <Eye size={14} />}
+          {username ? `${username} · ` : ""}{isAdmin ? "administrator" : "podgląd"}
+        </div>
+      )}
+      {role && (
+        <button onClick={logout} className="navlink !text-slate-400">
           <LogOut size={19} />
           Wyloguj
         </button>

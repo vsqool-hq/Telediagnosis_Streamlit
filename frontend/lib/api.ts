@@ -327,9 +327,36 @@ export interface SyncResult {
   errors: Record<string, string>;
 }
 
+export interface Account { id: number; username: string; role: string; created_at: string }
+export interface Me { role: string | null; username: string | null; auth_enabled: boolean }
+
 export const api = {
   // Walidacja tokenu/sesji — 200 oznacza autoryzację (lub wyłączony token w backendzie).
   validate: () => req("/api/settings"),
+
+  // ---- Logowanie / role -----------------------------------------------------
+  login: (username: string, password: string) =>
+    req<{ token: string; username: string; role: string }>("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    }),
+  me: () => req<Me>("/api/auth/me"),
+  logout: () => req("/api/auth/logout", { method: "POST" }).catch(() => {}),
+  listUsers: () => req<{ users: Account[] }>("/api/users").then((r) => r.users),
+  createUser: (username: string, password: string, role: string) =>
+    req<Account>("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, role }),
+    }),
+  updateUser: (id: number, payload: { password?: string; role?: string }) =>
+    req(`/api/users/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteUser: (id: number) => req(`/api/users/${id}`, { method: "DELETE" }),
 
   // Pobiera aktywne pliki (słownik/cennik/cennik lekarzy) z chmury do bieżącego
   // (lokalnego) backendu. Wywoływane gdy liczymy „na tym komputerze".
