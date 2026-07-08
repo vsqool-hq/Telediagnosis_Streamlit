@@ -2,11 +2,13 @@
 Integracja z TeamUp — godziny gotowości i triażu lekarzy.
 
 Źródła:
-  * TeamUp API (https://apidocs.teamup.com): dwa kalendarze — GRAFIK DYŻURÓW
-    (gotowość) i TRIAŻ. Lekarz jest w TYTULE wydarzenia (np. „Piłat Krzysztof",
-    czasem z dopiskiem typu „RTG"). Wydarzenia całodniowe i wpisy URLOP/L4
-    pomijamy. Klucz API: zmienna środowiskowa TEAMUP_API_KEY (sekret Fly) albo
-    plik /data/teamup.json (ustawiany w Ustawieniach).
+  * TeamUp API (https://apidocs.teamup.com): JEDEN kalendarz (grafik dyżurów).
+    Lekarz jest w TYTULE wydarzenia (np. „Piłat Krzysztof", czasem z dopiskiem
+    typu „RTG"). TRIAŻ to wydarzenie z dopiskiem „TRIAGE"/„TRIAŻ" w tytule
+    (np. „TRIAGE Jan Kowalski") — nie osobny kalendarz. Gdy triaż nakłada się z
+    dyżurem tej samej osoby, w godzinach wspólnych płacimy tylko triaż.
+    Wydarzenia całodniowe i wpisy URLOP/L4 pomijamy. Klucz API: zmienna
+    środowiskowa TEAMUP_API_KEY (sekret Fly) albo plik /data/teamup.json.
   * Stawki: plik ZOBOWIĄZAŃ (source.xlsx aktywnego cennika lekarzy) — każda
     zakładka to lekarz, na dole wiersze GOTOWOŚĆ/GODZINA TRIAŻ w wariantach
     (powszedni/weekend/święta × 8:00-21:00/21:00-8:00).
@@ -17,6 +19,7 @@ pasmo 8:00–21:00 = dzień, reszta = noc. Triaż ma tylko dzień/noc.
 """
 
 import os
+import re
 import json
 import datetime as dt
 import urllib.request
@@ -169,6 +172,24 @@ def _skip_title(title: str) -> bool:
     return any(tok in t for tok in SKIP_TOKENS)
 
 
+# Triaż i zwykły dyżur są w TYM SAMYM kalendarzu — triaż poznajemy po dopisku
+# „TRIAGE"/„TRIAŻ" w tytule (np. „TRIAGE Jan Kowalski").
+_TRIAGE_RE = re.compile(r"\bTRIA\w*", re.IGNORECASE)
+
+
+def _is_triage(title) -> bool:
+    return bool(_TRIAGE_RE.search(str(title or "")))
+
+
+def _strip_triage(title) -> str:
+    """Usuwa dopisek TRIAGE z tytułu → zostaje sam lekarz
+    („TRIAGE Jan Kowalski" → „Jan Kowalski"). Sprząta też puste nawiasy/interpunkcję."""
+    s = _TRIAGE_RE.sub(" ", str(title or ""))
+    s = re.sub(r"\(\s*\)|\[\s*\]", " ", s)          # puste nawiasy po usunięciu dopisku
+    s = re.sub(r"\s+", " ", s).strip(" -–—:;,/()[]")
+    return s
+
+
 def _first_str(v) -> str:
     """Wyciąga tekst z wartości pola własnego TeamUp (str / lista / słownik)."""
     if isinstance(v, str):
@@ -262,9 +283,10 @@ def _subtract_covered(s: dt.datetime, e: dt.datetime, covering: list) -> list:
 
 
 def triaz_intervals_by_title(events: list) -> dict:
-    """Przedziały czasu triażu per lekarz (tytuł), scalone. Używane do wykluczenia
-    pokrywającego się dyżuru — gdy triaż biegnie w tych samych godzinach co dyżur
-    RTG tej samej osoby, płacimy tylko za triaż (patrz hours_by_variant)."""
+    """Przedziały czasu triażu per lekarz (klucz: doctor_key tytułu), scalone.
+    Używane do wykluczenia pokrywającego się dyżuru — gdy triaż biegnie w tych
+    samych godzinach co dyżur tej samej osoby, płacimy tylko za triaż."""
+    from app.engine.cennik_lekarzy_convert import doctor_key
     raw: dict = {}
     for ev in events:
         if ev.get("all_day"):
@@ -278,10 +300,10 @@ def triaz_intervals_by_title(events: list) -> dict:
             e = e + dt.timedelta(minutes=1)
         if e <= s:
             continue
-        title = str(ev.get("title") or "").strip()
-        if not title:
+        key = doctor_key(ev.get("title") or "")
+        if not key:
             continue
-        raw.setdefault(title, []).append((s, e))
+        raw.setdefault(key, []).append((s, e))
     return {t: _merge_intervals(v) for t, v in raw.items()}
 
 
@@ -319,7 +341,8 @@ def hours_by_variant(events: list, kind: str, month_start: dt.date, month_end: d
 
         segments = [(s, e)]
         if kind == "G" and exclude_by_title:
-            covering = exclude_by_title.get(title)
+            from app.engine.cennik_lekarzy_convert import doctor_key
+            covering = exclude_by_title.get(doctor_key(title))
             if covering:
                 segments = _subtract_covered(s, e, covering)
 
@@ -458,25 +481,31 @@ def compute_availability(period: str, excluded_keys=None) -> dict:
     fetch_from = month_start - dt.timedelta(days=1)
     fetch_to = month_end + dt.timedelta(days=1)
 
-    # Triaż NAJPIERW: gdy triaż biegnie w tych samych godzinach co dyżur RTG tej
-    # samej osoby, płacimy tylko za triaż — te przedziały wycinamy z dyżuru.
-    triaz_events: list = []
-    triaz_exclude: dict = {}
-    if cfg["cal_triaz"]:
-        triaz_events = fetch_events(cfg["cal_triaz"], fetch_from, fetch_to, cfg["api_key"])
-        triaz_exclude = triaz_intervals_by_title(triaz_events)
+    # JEDEN kalendarz (grafik dyżurów). Triaż vs zwykły dyżur rozróżniamy po dopisku
+    # „TRIAGE"/„TRIAŻ" w tytule; z tytułu triażu zdejmujemy dopisek → zostaje lekarz.
+    g_events: list = []
+    t_events: list = []
+    if cfg["cal_gotowosc"]:
+        for ev in fetch_events(cfg["cal_gotowosc"], fetch_from, fetch_to, cfg["api_key"]):
+            if _is_triage(ev.get("title")):
+                t_events.append({**ev, "title": _strip_triage(ev.get("title"))})
+            else:
+                g_events.append(ev)
+
+    # Gdy triaż biegnie w tych samych godzinach co dyżur TEJ SAMEJ osoby — płacimy
+    # tylko triaż: pokrywające się przedziały wycinamy z dyżuru.
+    triaz_exclude = triaz_intervals_by_title(t_events)
 
     per_title: dict = {}
-    if cfg["cal_gotowosc"]:
-        g_events = fetch_events(cfg["cal_gotowosc"], fetch_from, fetch_to, cfg["api_key"])
+    if g_events:
         part = hours_by_variant(g_events, "G", month_start, month_end, holidays,
                                  exclude_by_title=triaz_exclude)
         for title, variants in part.items():
             agg = per_title.setdefault(title, {})
             for k, v in variants.items():
                 agg[k] = agg.get(k, 0.0) + v
-    if triaz_events:
-        part = hours_by_variant(triaz_events, "T", month_start, month_end, holidays)
+    if t_events:
+        part = hours_by_variant(t_events, "T", month_start, month_end, holidays)
         for title, variants in part.items():
             agg = per_title.setdefault(title, {})
             for k, v in variants.items():
