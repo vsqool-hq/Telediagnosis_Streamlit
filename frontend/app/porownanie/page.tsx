@@ -283,7 +283,13 @@ export default function PorownaniePage() {
               Rentowność na badaniach z kategorią lekarską ({t.studies_with_category ?? "—"} z {t.studies})
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="card"><p className="text-sm text-slate-400">Przychód jednostek (z kategorią)</p><p className="mt-2 text-2xl font-extrabold">{zl(t.przychod_jednostki)}</p></div>
+              <div className="card"><p className="text-sm text-slate-400">Przychód jednostek (z kategorią)</p><p className="mt-2 text-2xl font-extrabold">{zl(t.przychod_jednostki)}</p>
+                {(t.wsparcie ?? 0) > 0 && (
+                  <p className="mt-1 text-xs text-slate-400">w tym wsparcie: {zl(t.wsparcie!)}
+                    {(t.wsparcie_nieprzypisane ?? 0) > 0 && <span className="text-amber-300"> (+{zl(t.wsparcie_nieprzypisane!)} nieprzypisane)</span>}
+                  </p>
+                )}
+              </div>
               <div className="card"><p className="text-sm text-slate-400">Koszt lekarzy</p><p className="mt-2 text-2xl font-extrabold">{zl(t.koszt_lekarzy)}</p>
                 {(t.gotowosc_triaz ?? 0) > 0 && (
                   <p className="mt-1 text-xs text-slate-400">w tym gotowość + triaż: {zl(t.gotowosc_triaz!)}

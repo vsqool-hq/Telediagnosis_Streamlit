@@ -287,6 +287,7 @@ export interface DoctorComparison {
     studies_with_category?: number; przychod_jednostki_bez_kategorii?: number;
     przychod_jednostki_total?: number;
     gotowosc_triaz?: number; gotowosc_triaz_nieprzypisane?: number;
+    wsparcie?: number; wsparcie_nieprzypisane?: number;
   };
 }
 

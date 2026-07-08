@@ -179,6 +179,28 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
             for lk, has_cat in zip(df["_lek_key"], cat_mask)
         ]
 
+    # WSPARCIE: stała miesięczna opłata jednostki (wiersz „WSPARCIE" w cenniku).
+    # Rozbijamy ją RÓWNO na badania z kategorią danej jednostki i doliczamy do
+    # przychodu — per jednostka wpada cała kwota, per lekarz/kategoria/priorytet
+    # proporcjonalnie. „Całość (jak w rozliczeniu)" liczymy PRZED dodaniem wsparcia,
+    # by nadal zgadzała się z Pulpitem/fakturą (badania + porównawcze).
+    _total_rev_studies = round(float(df["_units_rev"].sum()), 2)
+    wspar_alloc = wspar_unalloc = 0.0
+    wsparcie_by_unit = {str(u).strip(): float(c) for (u, b), c in unit_prices.items()
+                        if str(b).strip().upper() == "WSPARCIE" and c and float(c) > 0}
+    if wsparcie_by_unit:
+        _km = df["_kategoria"] != ""
+        _klient = df["Klient"].astype(str).str.strip()
+        _present = set(_klient.unique())
+        _cat_counts = _klient[_km].value_counts().to_dict()
+        per_unit_w = {u: amt / _cat_counts[u] for u, amt in wsparcie_by_unit.items() if _cat_counts.get(u)}
+        df["_units_rev"] = df["_units_rev"] + [
+            per_unit_w.get(k, 0.0) if hc else 0.0 for k, hc in zip(_klient, _km)
+        ]
+        wspar_alloc = round(sum(wsparcie_by_unit[u] for u in per_unit_w), 2)
+        wspar_unalloc = round(sum(wsparcie_by_unit[u] for u in wsparcie_by_unit
+                                  if u in _present and u not in per_unit_w), 2)
+
     grp = df[df["_kategoria"] != ""].groupby(["Modalność", "_kategoria"]).agg(
         ilosc=("_mult_doc", "sum"),
         przychod_jednostki=("_units_rev", "sum"),
@@ -290,9 +312,11 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
         "by_doctor": by_doctor,
         "by_unit": by_unit,
         "totals": {
-            # Pełny przychód jednostek (wszystkie badania) — zgodny z rozliczeniem/Pulpitem.
-            "przychod_jednostki_total": round(float(df["_units_rev"].sum()), 2),
-            # Marża liczona na badaniach Z kategorią lekarską (ten sam zbiór po obu stronach).
+            # Pełny przychód jednostek (badania + porównawcze) — zgodny z Pulpitem,
+            # BEZ wsparcia (liczony przed jego doliczeniem do marży).
+            "przychod_jednostki_total": _total_rev_studies,
+            # Marża liczona na badaniach Z kategorią lekarską (ten sam zbiór po obu
+            # stronach); przychód obejmuje doliczone WSPARCIE.
             "przychod_jednostki": round(float(cat["_units_rev"].sum()), 2),
             "koszt_lekarzy": round(float(cat["_doc_cost"].sum()), 2),
             "marza": round(float(cat["_units_rev"].sum() - cat["_doc_cost"].sum()), 2),
@@ -304,5 +328,9 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
             # z gotowością, ale bez badań z kategorią w tym miesiącu).
             "gotowosc_triaz": avail_alloc,
             "gotowosc_triaz_nieprzypisane": round(avail_total - avail_alloc, 2),
+            # WSPARCIE doliczone do przychodu marży (i część nieprzypisana — jednostki
+            # z badaniami, ale bez ani jednego badania z kategorią lekarską).
+            "wsparcie": wspar_alloc,
+            "wsparcie_nieprzypisane": wspar_unalloc,
         },
     }
