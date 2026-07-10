@@ -7,6 +7,7 @@ import { toast } from "@/lib/toast";
 import BackendSwitcher from "@/components/BackendSwitcher";
 import DoctorsSettings from "@/components/DoctorsSettings";
 import UnitsSettings from "@/components/UnitsSettings";
+import PaymentTermsSettings from "@/components/PaymentTermsSettings";
 import TeamupSettings from "@/components/TeamupSettings";
 
 type MapPair = { from: string; to: string };
@@ -506,6 +507,7 @@ export default function UstawieniaPage() {
 
       <DoctorsSettings />
       <UnitsSettings />
+      <PaymentTermsSettings />
       <TeamupSettings />
     </div>
   );

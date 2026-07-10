@@ -150,6 +150,67 @@ export interface JobStats {
   top_clients?: { client: string; count: number; revenue: number }[];
 }
 
+// ---- Windykacja ---------------------------------------------------------------
+
+export type ReceivableStatus =
+  | "wystawiona" | "czesciowo_oplacona" | "oplacona" | "sporna" | "odpisana";
+
+export interface Installment {
+  id: string;
+  receivable_id: string;
+  label: string | null;
+  amount: number;
+  due_date: string | null;
+  status: string;
+  paid_amount: number;
+  paid_at: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface ReceivableHistoryEntry {
+  id: string;
+  field: string;
+  old_value: string | null;
+  new_value: string | null;
+  reason: string | null;
+  changed_at: string;
+}
+
+export interface Receivable {
+  id: string;
+  unit_key: string;
+  unit_name: string;
+  period: string | null;
+  source_amount: number;
+  amount_due: number;
+  paid_amount: number;
+  status: ReceivableStatus;
+  due_date: string | null;
+  note: string | null;
+  source_run_id: string | null;
+  source_changed: number;
+  created_at: string;
+  updated_at: string;
+  remaining: number;
+  is_overdue: boolean;
+  days_overdue: number;
+  installments: Installment[];
+  installments_count: number;
+  installments_balanced: boolean;
+  history?: ReceivableHistoryEntry[];
+}
+
+export interface WindykacjaSummary {
+  overdue_amount: number;
+  overdue_count: number;
+  due_this_week_amount: number;
+  due_this_week_count: number;
+  paid_this_month_amount: number;
+  paid_this_month_count: number;
+  total_balance: number;
+}
+
 export interface CennikValidation {
   n_rows: number;
   n_badania: number;
@@ -530,4 +591,53 @@ export const api = {
       "/api/settings/adjustments/reseed",
       { method: "POST" },
     ),
+
+  windykacjaList: (params: { period?: string; status?: string; unit?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.period) q.set("period", params.period);
+    if (params.status) q.set("status", params.status);
+    if (params.unit) q.set("unit", params.unit);
+    const qs = q.toString();
+    return req<{ receivables: Receivable[] }>(`/api/windykacja/receivables${qs ? `?${qs}` : ""}`);
+  },
+  windykacjaSummary: (period?: string) =>
+    req<WindykacjaSummary>(`/api/windykacja/summary${period ? `?period=${period}` : ""}`),
+  windykacjaGet: (id: string) => req<Receivable>(`/api/windykacja/receivables/${id}`),
+  windykacjaCreate: (payload: {
+    unit_key: string; unit_name?: string; amount_due: number; period?: string;
+    due_date?: string; status?: string; note?: string;
+  }) =>
+    req<Receivable>("/api/windykacja/receivables", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    }),
+  windykacjaEdit: (id: string, payload: {
+    amount_due?: number; due_date?: string; status?: string; note?: string; unit_name?: string; reason?: string;
+  }) =>
+    req<Receivable>(`/api/windykacja/receivables/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    }),
+  windykacjaDelete: (id: string) =>
+    req<{ ok: boolean }>(`/api/windykacja/receivables/${id}`, { method: "DELETE" }),
+  windykacjaSetInstallments: (id: string, items: Array<{
+    id?: string; label?: string; amount: number; due_date?: string; note?: string;
+  }>) =>
+    req<Receivable>(`/api/windykacja/receivables/${id}/installments`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
+    }),
+  windykacjaPayInstallment: (receivableId: string, installmentId: string, amount: number, note?: string) =>
+    req<Receivable>(`/api/windykacja/receivables/${receivableId}/installments/${installmentId}/pay`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, note }),
+    }),
+  windykacjaPay: (id: string, amount: number, note?: string) =>
+    req<Receivable>(`/api/windykacja/receivables/${id}/pay`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, note }),
+    }),
+  windykacjaSync: () =>
+    req<{ created: number; updated: number; flagged: number }>("/api/windykacja/sync", { method: "POST" }),
+  windykacjaPaymentTerms: () =>
+    req<{ default_days: number; terms: Record<string, number> }>("/api/windykacja/payment-terms"),
+  windykacjaSavePaymentTerms: (payload: { default_days?: number; terms?: Record<string, number> }) =>
+    req<{ default_days: number; terms: Record<string, number> }>("/api/windykacja/payment-terms", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    }),
 };

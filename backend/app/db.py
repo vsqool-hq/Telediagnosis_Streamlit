@@ -66,6 +66,57 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action   TEXT NOT NULL,   -- czytelny opis akcji
     detail   TEXT             -- ścieżka / dodatkowe info
 );
+
+-- Windykacja: należności per jednostka per miesiąc rozliczeniowy. Rekordy
+-- z source_run_id='auto' są zarządzane automatyczną synchronizacją z rozliczeń;
+-- source_run_id=NULL to wpisy ręczne (np. zaległości historyczne) — synchronizacja
+-- ich nigdy nie rusza.
+CREATE TABLE IF NOT EXISTS wind_receivables (
+    id            TEXT PRIMARY KEY,
+    unit_key      TEXT NOT NULL,           -- znormalizowany klucz jednostki (jak "Klient")
+    unit_name     TEXT NOT NULL,           -- nazwa do wyświetlenia
+    period        TEXT,                    -- 'YYYY-MM' albo NULL dla wpisów ręcznych bez okresu
+    source_amount REAL NOT NULL DEFAULT 0,  -- kwota z ostatniej synchronizacji (referencja)
+    amount_due    REAL NOT NULL DEFAULT 0,  -- kwota bieżąca (edytowalna)
+    paid_amount   REAL NOT NULL DEFAULT 0,  -- wpłaty odnotowane BEZ podziału na transze
+    status        TEXT NOT NULL DEFAULT 'wystawiona',
+                                            -- 'wystawiona'|'czesciowo_oplacona'|'oplacona'|'sporna'|'odpisana'
+    due_date      TEXT,                     -- 'YYYY-MM-DD'
+    note          TEXT,
+    source_run_id TEXT,                     -- id zadania (job) źródłowego, NULL = ręczny wpis
+    source_changed INTEGER NOT NULL DEFAULT 0,  -- 1 = kwota z rozliczenia zmieniła się od edycji ręcznej
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wind_receivables_unit_period
+    ON wind_receivables (unit_key, period);
+
+CREATE TABLE IF NOT EXISTS wind_installments (
+    id             TEXT PRIMARY KEY,
+    receivable_id  TEXT NOT NULL REFERENCES wind_receivables(id) ON DELETE CASCADE,
+    label          TEXT,
+    amount         REAL NOT NULL,
+    due_date       TEXT,
+    status         TEXT NOT NULL DEFAULT 'oczekuje',   -- 'oczekuje'|'czesciowo_oplacona'|'oplacona'
+    paid_amount    REAL NOT NULL DEFAULT 0,
+    paid_at        TEXT,
+    note           TEXT,
+    created_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wind_installments_receivable
+    ON wind_installments (receivable_id);
+
+CREATE TABLE IF NOT EXISTS wind_receivable_history (
+    id            TEXT PRIMARY KEY,
+    receivable_id TEXT NOT NULL REFERENCES wind_receivables(id) ON DELETE CASCADE,
+    field         TEXT NOT NULL,       -- 'amount_due' | 'due_date' | 'status' | 'note' | 'installment' | ...
+    old_value     TEXT,
+    new_value     TEXT,
+    reason        TEXT,
+    changed_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wind_history_receivable
+    ON wind_receivable_history (receivable_id);
 """
 
 
@@ -316,3 +367,122 @@ def list_audit(limit: int = 300) -> list:
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ---- Windykacja: należności ---------------------------------------------------
+
+def create_receivable(rec: dict):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO wind_receivables
+               (id, unit_key, unit_name, period, source_amount, amount_due, paid_amount, status,
+                due_date, note, source_run_id, source_changed, created_at, updated_at)
+               VALUES (:id, :unit_key, :unit_name, :period, :source_amount, :amount_due, :paid_amount, :status,
+                       :due_date, :note, :source_run_id, :source_changed, :created_at, :updated_at)""",
+            rec,
+        )
+
+
+def get_receivable(receivable_id: str):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM wind_receivables WHERE id = ?", (receivable_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def find_receivable_by_unit_period(unit_key: str, period: str):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM wind_receivables WHERE unit_key = ? AND period = ?", (unit_key, period)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_receivables(period: str | None = None, status: str | None = None, unit_key: str | None = None):
+    q = "SELECT * FROM wind_receivables WHERE 1=1"
+    args = []
+    if period:
+        q += " AND period = ?"
+        args.append(period)
+    if status:
+        q += " AND status = ?"
+        args.append(status)
+    if unit_key:
+        q += " AND unit_key = ?"
+        args.append(unit_key)
+    q += " ORDER BY due_date IS NULL, due_date ASC"
+    with get_conn() as conn:
+        rows = conn.execute(q, args).fetchall()
+        return [dict(r) for r in rows]
+
+
+def update_receivable(receivable_id: str, **fields):
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    with get_conn() as conn:
+        conn.execute(f"UPDATE wind_receivables SET {cols} WHERE id = ?", (*fields.values(), receivable_id))
+
+
+def delete_receivable(receivable_id: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM wind_receivables WHERE id = ?", (receivable_id,))
+
+
+def add_history(entry: dict):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO wind_receivable_history
+               (id, receivable_id, field, old_value, new_value, reason, changed_at)
+               VALUES (:id, :receivable_id, :field, :old_value, :new_value, :reason, :changed_at)""",
+            entry,
+        )
+
+
+def list_history(receivable_id: str):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM wind_receivable_history WHERE receivable_id = ? ORDER BY changed_at DESC",
+            (receivable_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ---- Windykacja: transze -----------------------------------------------------
+
+def add_installment(rec: dict):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO wind_installments
+               (id, receivable_id, label, amount, due_date, status, paid_amount, paid_at, note, created_at)
+               VALUES (:id, :receivable_id, :label, :amount, :due_date, :status, :paid_amount, :paid_at,
+                       :note, :created_at)""",
+            rec,
+        )
+
+
+def list_installments(receivable_id: str):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM wind_installments WHERE receivable_id = ? ORDER BY due_date IS NULL, due_date ASC",
+            (receivable_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_installment(installment_id: str):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM wind_installments WHERE id = ?", (installment_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def update_installment(installment_id: str, **fields):
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    with get_conn() as conn:
+        conn.execute(f"UPDATE wind_installments SET {cols} WHERE id = ?", (*fields.values(), installment_id))
+
+
+def delete_installment(installment_id: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM wind_installments WHERE id = ?", (installment_id,))

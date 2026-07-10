@@ -89,6 +89,9 @@ body {
   .pill-muted {
     @apply border border-white/10 bg-white/[0.06] text-slate-300;
   }
+  .pill-bad {
+    @apply border border-red-400/30 bg-red-400/15 text-red-300;
+  }
 }
 
 /* --- Pakiet „polish": subtelne animacje + szkielety ładowania --- */

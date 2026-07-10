@@ -10,6 +10,7 @@ import {
   Scale,
   Map as MapIcon,
   Users,
+  AlarmClockCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export const NAV: NavItem[] = [
   { href: "/cennik-lekarzy", label: "Cennik lekarzy", short: "Cennik lek.", icon: Wallet, adminOnly: true },
   { href: "/porownanie", label: "Porównanie", short: "Porównanie", icon: Scale },
   { href: "/mapa", label: "Mapa", short: "Mapa", icon: MapIcon },
+  { href: "/windykacja", label: "Windykacja", short: "Windykacja", icon: AlarmClockCheck },
   { href: "/uzytkownicy", label: "Użytkownicy", short: "Konta", icon: Users, adminOnly: true },
   { href: "/ustawienia", label: "Ustawienia", short: "Ustawienia", icon: SlidersHorizontal, adminOnly: true },
 ];
