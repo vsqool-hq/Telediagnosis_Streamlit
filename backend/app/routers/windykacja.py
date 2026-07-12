@@ -99,6 +99,10 @@ async def delete_receivable(receivable_id: str):
     if rec is None:
         raise HTTPException(404, "Nie znaleziono należności.")
     db.delete_receivable(receivable_id)
+    if rec.get("source_run_id") and rec.get("period"):
+        # Bez tego kolejna (leniwa) synchronizacja odtworzyłaby usunięty wpis,
+        # bo źródłowe rozliczenie wciąż istnieje w historii zadań.
+        db.add_sync_skip(rec["unit_key"], rec["period"])
     return {"ok": True}
 
 
@@ -137,6 +141,28 @@ async def pay_receivable(receivable_id: str, payload: dict):
         raise HTTPException(400, str(e))
 
 
+@router.post("/receivables/{receivable_id}/items")
+async def add_item(receivable_id: str, payload: dict):
+    amount = payload.get("amount")
+    if amount is None:
+        raise HTTPException(400, "Podaj kwotę podpozycji.")
+    try:
+        return wnd.add_receivable_item(
+            receivable_id, kind=payload.get("kind") or "inne", amount=float(amount),
+            label=payload.get("label"), item_date=payload.get("item_date"), note=payload.get("note"),
+        )
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, str(e))
+
+
+@router.delete("/receivables/{receivable_id}/items/{item_id}")
+async def remove_item(receivable_id: str, item_id: str):
+    try:
+        return wnd.delete_receivable_item(item_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
 @router.post("/sync")
 async def sync_now():
     return wnd.sync_receivables()
@@ -153,6 +179,8 @@ async def get_payment_terms():
     return {
         "default_days": int(cfg.get("default_payment_term_days")
                             or DEFAULT_CONFIG.get("default_payment_term_days", 14)),
+        "doctor_cost_days": int(cfg.get("doctor_cost_payment_term_days")
+                                or DEFAULT_CONFIG.get("doctor_cost_payment_term_days", 14)),
         "terms": {**seed, **user_map},
     }
 
@@ -163,6 +191,11 @@ async def save_payment_terms(payload: dict):
     if "default_days" in payload:
         try:
             cfg["default_payment_term_days"] = int(payload["default_days"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Nieprawidłowa liczba dni.")
+    if "doctor_cost_days" in payload:
+        try:
+            cfg["doctor_cost_payment_term_days"] = int(payload["doctor_cost_days"])
         except (TypeError, ValueError):
             raise HTTPException(400, "Nieprawidłowa liczba dni.")
     if "terms" in payload:

@@ -11,6 +11,7 @@ import {
   Map as MapIcon,
   Users,
   AlarmClockCheck,
+  LineChart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ export const NAV: NavItem[] = [
   { href: "/porownanie", label: "Porównanie", short: "Porównanie", icon: Scale },
   { href: "/mapa", label: "Mapa", short: "Mapa", icon: MapIcon },
   { href: "/windykacja", label: "Windykacja", short: "Windykacja", icon: AlarmClockCheck },
+  { href: "/cashflow", label: "Cashflow", short: "Cashflow", icon: LineChart },
   { href: "/uzytkownicy", label: "Użytkownicy", short: "Konta", icon: Users, adminOnly: true },
   { href: "/ustawienia", label: "Ustawienia", short: "Ustawienia", icon: SlidersHorizontal, adminOnly: true },
 ];

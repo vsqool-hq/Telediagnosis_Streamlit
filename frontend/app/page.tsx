@@ -4,11 +4,13 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid,
 } from "recharts";
+import { useMemo } from "react";
 import { Building2, Layers, TrendingUp, Coins, AlertTriangle } from "lucide-react";
 import { api, TrendPoint, DashboardData } from "@/lib/api";
 import { useCachedData } from "@/lib/cache";
 import CountUp from "@/components/CountUp";
 import Skeleton from "@/components/Skeleton";
+import { RevenueHistoryHover, HistoryList } from "@/components/RevenueHistoryHover";
 
 const MOD_COLORS: Record<string, string> = {
   RTG: "#1dab5a",
@@ -22,6 +24,32 @@ const TOOLTIP_STYLE = { background: "#0e3b49", border: "1px solid #214652", bord
 
 const zl = (n?: number) =>
   n === undefined ? "—" : n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
+
+const MONTHS_PL = [
+  "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
+];
+const periodLabel = (p: string) =>
+  /^\d{4}-\d{2}$/.test(p) ? `${MONTHS_PL[parseInt(p.slice(5)) - 1]} ${p.slice(0, 4)}` : p;
+
+/** Zawartość dymka na wykresach słupkowych (Recharts) — bieżąca kwota + pełna
+ * historia per miesiąc, wyszukana w `historyMap` po nazwie z danych słupka. */
+function ChartHistoryTooltip({
+  active, payload, historyMap, historyLabel,
+}: {
+  active?: boolean; payload?: Array<{ payload: { name?: string; client?: string }; value: number }>;
+  historyMap?: Record<string, Record<string, number>>; historyLabel?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const name = payload[0].payload.client ?? payload[0].payload.name ?? "";
+  return (
+    <div style={TOOLTIP_STYLE} className="min-w-[180px] whitespace-nowrap p-2.5 text-xs">
+      <div className="mb-1 font-bold text-slate-100">{name}</div>
+      <div className="mb-1 text-slate-300">Ostatnio: <b>{zl(payload[0].value)}</b></div>
+      <HistoryList history={historyMap?.[name]} label={historyLabel} />
+    </div>
+  );
+}
 
 function StatCard({
   icon, label, value, sub,
@@ -48,6 +76,32 @@ export default function Dashboard() {
   const overview = dash?.overview;
   const stats = dash?.current;
   const trends: TrendPoint[] = dash?.trends.points ?? [];
+
+  // Historia kwot per jednostka/lekarz (do dymków po najechaniu na wykresach/tabelach).
+  const { data: unitsHistoryData } = useCachedData("units-revenue-history", () => api.unitsRevenueHistory(), 5 * 60_000);
+  const { data: doctorsHistoryData } = useCachedData("doctors-revenue-history", () => api.doctorsRevenueHistory(), 5 * 60_000);
+  const unitsHistory = unitsHistoryData?.units;
+
+  // Top 15 lekarzy wg wypłaty w NAJNOWSZYM miesiącu, dla którego rozliczenie lekarzy
+  // było już policzone (może być starsze niż najnowszy miesiąc jednostek — liczenie
+  // lekarzy jest ręczne, nie automatyczne jak jednostki).
+  const { topDoctors, doctorsPeriod, doctorsHistoryByName } = useMemo(() => {
+    const docs = doctorsHistoryData?.doctors ?? {};
+    const names = doctorsHistoryData?.names ?? {};
+    const allPeriods = new Set<string>();
+    Object.values(docs).forEach((h) => Object.keys(h).forEach((p) => allPeriods.add(p)));
+    const latest = [...allPeriods].sort().pop();
+    const byName: Record<string, Record<string, number>> = {};
+    Object.entries(docs).forEach(([key, hist]) => { byName[names[key] ?? key] = hist; });
+    const rows = latest
+      ? Object.entries(docs)
+          .map(([key, hist]) => ({ name: names[key] ?? key, revenue: hist[latest] ?? 0 }))
+          .filter((r) => r.revenue > 0)
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 15)
+      : [];
+    return { topDoctors: rows, doctorsPeriod: latest, doctorsHistoryByName: byName };
+  }, [doctorsHistoryData]);
 
   const hasStats = !!stats && !stats.empty;
   const avgNum =
@@ -114,7 +168,9 @@ export default function Dashboard() {
               <tbody>
                 {stats.zero_clients.map((z) => (
                   <tr key={z.client} className="border-t border-white/10">
-                    <td className="py-2 pr-4 font-semibold">{z.client}</td>
+                    <td className="py-2 pr-4 font-semibold">
+                      <RevenueHistoryHover history={unitsHistory?.[z.client]}>{z.client}</RevenueHistoryHover>
+                    </td>
                     <td className="py-2 pr-4 text-slate-400">{z.studies}</td>
                     <td className="py-2 pr-4">
                       {z.in_cennik
@@ -148,7 +204,9 @@ export default function Dashboard() {
               <tbody>
                 {stats.zero_rates.map((z, i) => (
                   <tr key={i} className="border-t border-white/10">
-                    <td className="py-2 pr-4 font-semibold">{z.jednostka}</td>
+                    <td className="py-2 pr-4 font-semibold">
+                      <RevenueHistoryHover history={unitsHistory?.[z.jednostka]}>{z.jednostka}</RevenueHistoryHover>
+                    </td>
                     <td className="py-2 pr-4 text-slate-300">{z.kategoria}</td>
                     <td className="py-2 pr-4 text-right text-slate-400">{z.n}</td>
                   </tr>
@@ -206,7 +264,7 @@ export default function Dashboard() {
               <BarChart data={stats.top_clients} layout="vertical" margin={{ left: 20 }}>
                 <XAxis type="number" stroke="#8aa0a3" fontSize={12} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
                 <YAxis type="category" dataKey="client" width={120} stroke="#8aa0a3" fontSize={11} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => zl(v)} />
+                <Tooltip content={<ChartHistoryTooltip historyMap={unitsHistory} historyLabel="Historia przychodu" />} />
                 <Bar dataKey="revenue" name="Wartość" fill="#1dab5a" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -216,6 +274,24 @@ export default function Dashboard() {
         <div className="card text-slate-400">
           Brak danych do wykresów. Uruchom pełne rozliczenie w zakładce{" "}
           <a href="/rozliczenie" className="text-brand-accent underline">Rozliczenie</a>.
+        </div>
+      )}
+
+      {topDoctors.length > 0 && (
+        <div className="card">
+          <h2 className="mb-1 text-base font-bold">Top 15 lekarzy (wypłata)</h2>
+          <p className="mb-4 text-[13px] text-slate-400">
+            {doctorsPeriod ? `Najnowszy policzony miesiąc: ${periodLabel(doctorsPeriod)}` : ""}
+            {" "}— rozliczenie lekarzy liczy się ręcznie, więc może być starsze niż miesiąc jednostek powyżej.
+          </p>
+          <ResponsiveContainer width="100%" height={Math.max(220, topDoctors.length * 26)}>
+            <BarChart data={topDoctors} layout="vertical" margin={{ left: 20 }}>
+              <XAxis type="number" stroke="#8aa0a3" fontSize={12} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+              <YAxis type="category" dataKey="name" width={150} stroke="#8aa0a3" fontSize={11} interval={0} />
+              <Tooltip content={<ChartHistoryTooltip historyMap={doctorsHistoryByName} historyLabel="Historia wypłaty" />} />
+              <Bar dataKey="revenue" name="Wypłata" fill="#9b6cf0" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>

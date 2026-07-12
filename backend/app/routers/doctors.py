@@ -275,6 +275,33 @@ async def doctor_compare_months():
     return {"months": months}
 
 
+@router.get("/revenue-history")
+async def doctors_revenue_history():
+    """Historia wypłaty per lekarz (badania + gotowość/triaż) za miesiące, dla
+    których rozliczenie lekarzy było już policzone (billing.json w cache zadania) —
+    do dymków „najedź i zobacz historię" na Pulpicie/Porównaniu. W przeciwieństwie
+    do jednostek NIE liczymy tego w locie dla brakujących miesięcy: przeliczenie
+    dzisiejszym, aktualnym cennikiem lekarzy dałoby historycznie nieprawdziwe kwoty,
+    jeśli cennik się od tamtej pory zmienił."""
+    from app.routers.stats import best_jobs_by_month
+    from app.engine.doctors import doctor_key
+
+    best = best_jobs_by_month()
+    history: dict[str, dict[str, float]] = {}
+    names: dict[str, str] = {}
+    for period, info in sorted(best.items()):
+        cache = _load_cache(job_paths(info["job_id"]), "billing.json")
+        if not cache or cache.get("empty"):
+            continue
+        for row in cache.get("by_doctor") or []:
+            key = doctor_key(row.get("lekarz"))
+            if not key:
+                continue
+            history.setdefault(key, {})[period] = round(float(row.get("wartosc") or 0), 2)
+            names[key] = row.get("lekarz")  # nadpisywane w kolejności miesięcy -> zostaje najnowsza nazwa
+    return {"doctors": history, "names": names}
+
+
 @router.get("/compare/latest")
 async def doctor_compare_latest():
     """Najnowsze ZAPISANE porównanie (wg computed_at) spośród wszystkich zadań —

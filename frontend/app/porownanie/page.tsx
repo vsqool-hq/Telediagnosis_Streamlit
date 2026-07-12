@@ -5,8 +5,10 @@ import { Play, Loader2, AlertTriangle, Download, RefreshCw, Search } from "lucid
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
 } from "recharts";
-import { api, CompareMonth, DoctorComparison } from "@/lib/api";
+import { api, CompareMonth, DoctorComparison, doctorKey } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useCachedData } from "@/lib/cache";
+import { RevenueHistoryHover } from "@/components/RevenueHistoryHover";
 
 const zl = (n: number) =>
   n.toLocaleString("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 });
@@ -28,7 +30,13 @@ type MarginRow = {
 };
 
 /* ---------- Widok rentowności (wspólny dla lekarzy i jednostek) ---------- */
-function MarginView({ rows, nameLabel }: { rows: MarginRow[]; nameLabel: string }) {
+function MarginView({
+  rows, nameLabel, historyFor, historyLabel,
+}: {
+  rows: MarginRow[]; nameLabel: string;
+  historyFor?: (name: string) => Record<string, number> | undefined;
+  historyLabel?: string;
+}) {
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -111,7 +119,11 @@ function MarginView({ rows, nameLabel }: { rows: MarginRow[]; nameLabel: string 
               )}
               {filtered.map((r, i) => (
                 <tr key={i} className="border-t border-white/10">
-                  <td className="px-3 py-2 font-medium">{r.name}</td>
+                  <td className="px-3 py-2 font-medium">
+                    {historyFor ? (
+                      <RevenueHistoryHover history={historyFor(r.name)} label={historyLabel}>{r.name}</RevenueHistoryHover>
+                    ) : r.name}
+                  </td>
                   <td className="px-3 py-2 text-right text-slate-400">{r.ilosc}</td>
                   <td className="px-3 py-2 text-right">{zl(r.przychod_jednostki)}</td>
                   <td className="px-3 py-2 text-right">{zl(r.koszt_lekarzy)}</td>
@@ -160,6 +172,11 @@ export default function PorownaniePage() {
 
   const selected = months.find((m) => m.period === period);
   const jobId = selected?.job_id ?? "";
+
+  // Historia kwot per jednostka/lekarz (do dymków po najechaniu) — pobrana raz,
+  // niezależnie od wybranej zakładki/miesiąca.
+  const { data: unitsHistoryData } = useCachedData("units-revenue-history", () => api.unitsRevenueHistory(), 5 * 60_000);
+  const { data: doctorsHistoryData } = useCachedData("doctors-revenue-history", () => api.doctorsRevenueHistory(), 5 * 60_000);
 
   useEffect(() => {
     api.doctorsCompareMonths().then(({ months: ms }) => {
@@ -393,8 +410,18 @@ export default function PorownaniePage() {
                   kliknij „Przelicz ponownie".
                 </div>
           )}
-          {tab === "lekarz" && <MarginView rows={docRows} nameLabel="lekarzy" />}
-          {tab === "jednostka" && <MarginView rows={unitRows} nameLabel="jednostek" />}
+          {tab === "lekarz" && (
+            <MarginView
+              rows={docRows} nameLabel="lekarzy" historyLabel="Historia wypłaty"
+              historyFor={(name) => doctorsHistoryData?.doctors[doctorKey(name)]}
+            />
+          )}
+          {tab === "jednostka" && (
+            <MarginView
+              rows={unitRows} nameLabel="jednostek" historyLabel="Historia przychodu"
+              historyFor={(name) => unitsHistoryData?.units[name]}
+            />
+          )}
         </>
       )}
     </div>

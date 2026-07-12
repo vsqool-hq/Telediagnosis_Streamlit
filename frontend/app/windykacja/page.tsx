@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlarmClockCheck, Search, Plus, X, Loader2, CheckCircle2, AlertTriangle,
-  Wallet, CalendarClock, TrendingUp, Landmark,
+  Wallet, CalendarClock, TrendingUp, Landmark, Trash2,
 } from "lucide-react";
 import { api, Receivable, WindykacjaSummary, ReceivableStatus } from "@/lib/api";
 import { toast } from "@/lib/toast";
@@ -97,8 +97,11 @@ export default function WindykacjaPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [tileFilter, setTileFilter] = useState<null | "overdue" | "week" | "paid">(null);
+  const [showPaid, setShowPaid] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setError(null);
@@ -125,8 +128,54 @@ export default function WindykacjaPage() {
         new Date(r.due_date) <= weekEnd && new Date(r.due_date) >= today);
     }
     if (tileFilter === "paid") list = list.filter((r) => r.status === "oplacona");
+    else if (!showPaid) list = list.filter((r) => r.status !== "oplacona");
     return list;
-  }, [receivables, filter, tileFilter]);
+  }, [receivables, filter, tileFilter, showPaid]);
+
+  useEffect(() => {
+    if (!receivables) return;
+    const ids = new Set(receivables.map((r) => r.id));
+    setSelected((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => { if (ids.has(id)) next.add(id); });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [receivables]);
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const allShownSelected = shown.length > 0 && shown.every((r) => selected.has(r.id));
+
+  function toggleAllShown() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allShownSelected) shown.forEach((r) => next.delete(r.id));
+      else shown.forEach((r) => next.add(r.id));
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`Usunąć ${selected.size} zaznaczonych pozycji? Tej operacji nie można cofnąć.`)) return;
+    setDeleting(true);
+    try {
+      const ids = Array.from(selected);
+      const results = await Promise.allSettled(ids.map((id) => api.windykacjaDelete(id)));
+      const failed = results.filter((res) => res.status === "rejected").length;
+      await load();
+      if (failed > 0) toast(`Nie udało się usunąć ${failed} z ${ids.length} pozycji.`, "error");
+      else toast(`Usunięto ${ids.length} pozycji.`);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function markPaidFull(r: Receivable) {
     setBusyId(r.id);
@@ -152,9 +201,16 @@ export default function WindykacjaPage() {
         <p className="text-[13px] text-slate-400">
           Odświeża się automatycznie po każdym pełnym przeliczeniu jednostek.
         </p>
-        <button className="btn-primary ml-auto" onClick={() => setShowAdd((v) => !v)}>
-          <Plus size={16} /> Dodaj ręcznie
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {selected.size > 0 && (
+            <button className="btn-secondary !border-red-400/40 !text-red-300 hover:!border-red-400" onClick={deleteSelected} disabled={deleting}>
+              {deleting ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />} Usuń zaznaczone ({selected.size})
+            </button>
+          )}
+          <button className="btn-primary" onClick={() => setShowAdd((v) => !v)}>
+            <Plus size={16} /> Dodaj ręcznie
+          </button>
+        </div>
       </div>
 
       {showAdd && <AddManualForm onClose={() => setShowAdd(false)} onSaved={load} />}
@@ -186,9 +242,17 @@ export default function WindykacjaPage() {
         </div>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
-        <input className="input pl-9 sm:w-72" placeholder="Szukaj jednostki…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
+          <input className="input pl-9 sm:w-72" placeholder="Szukaj jednostki…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        </div>
+        {tileFilter !== "paid" && (
+          <label className="flex items-center gap-2 text-[13px] text-slate-400">
+            <input type="checkbox" className="accent-brand-accent" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} />
+            Pokaż zapłacone
+          </label>
+        )}
       </div>
 
       {loading ? (
@@ -203,6 +267,10 @@ export default function WindykacjaPage() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-[#0e3b49] text-left text-[12px] uppercase tracking-wide text-slate-400">
                 <tr>
+                  <th className="px-4 py-3 w-8">
+                    <input type="checkbox" className="accent-brand-accent" checked={allShownSelected}
+                      onChange={toggleAllShown} title="Zaznacz wszystko" />
+                  </th>
                   <th className="px-4 py-3">Jednostka / miesiąc</th>
                   <th className="px-4 py-3 text-right">Należność</th>
                   <th className="px-4 py-3 text-right">Wpłacono</th>
@@ -218,7 +286,11 @@ export default function WindykacjaPage() {
                   const pct = r.amount_due > 0 ? Math.min(100, Math.round((r.paid_amount / r.amount_due) * 100)) : 0;
                   const borderClass = r.is_overdue ? "border-l-2 border-l-red-400/70" : "border-l-2 border-l-transparent";
                   return (
-                    <tr key={r.id} className={`group border-t border-white/5 hover:bg-white/[0.03] ${borderClass}`}>
+                    <tr key={r.id} className={`group border-t border-white/5 hover:bg-white/[0.03] ${borderClass} ${selected.has(r.id) ? "bg-brand-accent/[0.06]" : ""}`}>
+                      <td className="px-4 py-3">
+                        <input type="checkbox" className="accent-brand-accent" checked={selected.has(r.id)}
+                          onChange={() => toggleOne(r.id)} />
+                      </td>
                       <td className="px-4 py-3">
                         <Link href={`/windykacja/${r.id}`} className="font-semibold hover:text-brand-accent2">
                           {r.unit_name}

@@ -120,6 +120,11 @@ DEFAULT_CONFIG = {
     # używany gdy jednostka nie ma własnego wpisu w payment_terms_by_unit.
     "default_payment_term_days": 14,
 
+    # Moduł Cashflow: założony termin zapłaty lekarzom (dni kalendarzowe PO KOŃCU
+    # miesiąca rozliczeniowego) — nie śledzimy jeszcze rzeczywistych wypłat lekarzom,
+    # więc prognoza kosztów zakłada ten stały termin.
+    "doctor_cost_payment_term_days": 14,
+
     # Moduł Windykacja: indywidualne terminy płatności per jednostka (dni), z pliku
     # "Słownik" (kolumna „TERMIN PŁATNOŚCI [DNI]", klucz „NAZWA SYSTEM" = jak „Klient").
     # Edytowalne z Ustawień; wartości spoza tej listy używają default_payment_term_days.

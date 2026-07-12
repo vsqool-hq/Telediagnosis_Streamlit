@@ -15,6 +15,21 @@ source_changed, żeby użytkownik świadomie zdecydował.
 Transze: suma MUSI się równać amount_due (twarda walidacja, ustalone z użytkownikiem)
 — sprawdzana przy zapisie CAŁEGO harmonogramu (nie przy dodawaniu pojedynczej raty,
 bo to uniemożliwiłoby budowanie planu krok po kroku).
+
+Usunięcie: jeśli usuwana należność pochodziła z rozliczenia (source_run_id), samo
+DELETE nie wystarczy — leniwa synchronizacja odtworzyłaby ją przy kolejnym odczycie
+(bo źródłowe zadanie wciąż istnieje w historii). Dlatego usunięcie takiego wpisu
+zapisuje (unit_key, period) w `wind_sync_skip` — sync_receivables() trwale je pomija.
+
+Podpozycje (kary umowne, korekty): dolicza się je do amount_due jako DELTĘ (kwota
+może być ujemna) — nie zastępują ręcznej edycji kwoty, tylko ją korygują o konkretną,
+nazwaną pozycję z własną datą. Jeśli należność ma już harmonogram rat, dodanie
+podpozycji rozjeżdża sumę rat z nową kwotą (installments_balanced=false) — użytkownik
+świadomie poprawia raty, tak samo jak po ręcznej zmianie amount_due.
+
+Wpłaty: oprócz zbiorczego licznika paid_amount (na należności/racie) każda wpłata
+zapisuje się też jako osobny wiersz w wind_payments z RZECZYWISTĄ datą wpłaty —
+dzięki temu można wpisać dowolną, także wsteczną, wpłatę i zobaczyć pełną listę.
 """
 
 import datetime
@@ -64,6 +79,7 @@ def sync_receivables() -> dict:
     cfg = db.get_settings()
     created = updated = flagged = 0
     best = best_jobs_by_month()
+    skip_keys = db.list_sync_skip_keys()
     for period, info in best.items():
         job_id = info["job_id"]
         try:
@@ -74,6 +90,8 @@ def sync_receivables() -> dict:
             amount = round(float(amount or 0), 2)
             if amount <= 0:
                 continue
+            if (unit_key, period) in skip_keys:
+                continue  # użytkownik świadomie usunął ten wpis — nie odtwarzamy go
             existing = db.find_receivable_by_unit_period(unit_key, period)
             if existing is None:
                 due = (_today() + datetime.timedelta(days=resolve_due_days(unit_key, cfg))).isoformat()
@@ -145,6 +163,8 @@ def receivable_view(receivable: dict) -> dict:
             days_overdue = delta
 
     inst_sum = round(sum(float(i.get("amount") or 0) for i in installments), 2)
+    items = db.list_receivable_items(receivable["id"])
+    payments = db.list_payments(receivable["id"])
     return {
         **receivable,
         "status": status,
@@ -155,6 +175,9 @@ def receivable_view(receivable: dict) -> dict:
         "installments": installments,
         "installments_count": len(installments),
         "installments_balanced": (not installments) or abs(inst_sum - total_due) < TOLERANCE,
+        "items": items,
+        "items_total": round(sum(float(i.get("amount") or 0) for i in items), 2),
+        "payments": payments,
     }
 
 
@@ -273,31 +296,92 @@ def pay_installment(installment_id: str, amount: float, paid_at: str | None = No
     inst = db.get_installment(installment_id)
     if inst is None:
         raise ValueError("Nie znaleziono raty.")
+    paid_at = paid_at or _now()[:10]
     new_paid = round(float(inst.get("paid_amount") or 0) + float(amount), 2)
     status = "oplacona" if new_paid >= float(inst["amount"]) - TOLERANCE else "czesciowo_oplacona"
-    db.update_installment(installment_id, paid_amount=new_paid, paid_at=paid_at or _now()[:10],
+    db.update_installment(installment_id, paid_amount=new_paid, paid_at=paid_at,
                           status=status, note=note if note is not None else inst.get("note"))
+    db.add_payment({
+        "id": new_id(), "receivable_id": inst["receivable_id"], "installment_id": installment_id,
+        "amount": round(float(amount), 2), "paid_at": paid_at, "note": note, "created_at": _now(),
+    })
     db.add_history({
         "id": new_id(), "receivable_id": inst["receivable_id"], "field": "installment_payment",
         "old_value": None, "new_value": f"+{float(amount):.2f} zł (rata „{inst.get('label') or installment_id}”)",
-        "reason": note, "changed_at": _now(),
+        "reason": note, "changed_at": paid_at,
     })
     db.update_receivable(inst["receivable_id"], updated_at=_now())
     return receivable_view(db.get_receivable(inst["receivable_id"]))
 
 
 def pay_receivable(receivable_id: str, amount: float, paid_at: str | None = None, note: str | None = None):
-    """Odnotowanie wpłaty BEZ podziału na transze (prosta ścieżka)."""
+    """Odnotowanie wpłaty BEZ podziału na transze (prosta ścieżka). `paid_at` to
+    DOWOLNA data (także wsteczna) — trafia do listy wpłat i do historii."""
     rec = db.get_receivable(receivable_id)
     if rec is None:
         raise ValueError("Nie znaleziono należności.")
     if db.list_installments(receivable_id):
         raise ValueError("Ta należność ma harmonogram rat — odnotuj wpłatę przy konkretnej racie.")
+    paid_at = paid_at or _now()[:10]
     new_paid = round(float(rec.get("paid_amount") or 0) + float(amount), 2)
     db.update_receivable(receivable_id, paid_amount=new_paid, updated_at=_now())
+    db.add_payment({
+        "id": new_id(), "receivable_id": receivable_id, "installment_id": None,
+        "amount": round(float(amount), 2), "paid_at": paid_at, "note": note, "created_at": _now(),
+    })
     db.add_history({
         "id": new_id(), "receivable_id": receivable_id, "field": "payment",
         "old_value": None, "new_value": f"+{float(amount):.2f} zł",
-        "reason": note, "changed_at": _now(),
+        "reason": note, "changed_at": paid_at,
     })
     return receivable_view(db.get_receivable(receivable_id))
+
+
+# ---- Podpozycje (kary umowne, korekty) -----------------------------------------
+
+ITEM_KIND_LABELS = {"kara": "Kara umowna", "korekta": "Korekta", "inne": "Inne"}
+
+
+def add_receivable_item(receivable_id: str, kind: str, amount: float, label: str | None = None,
+                        item_date: str | None = None, note: str | None = None) -> dict:
+    """Dolicza podpozycję (karę umowną, korektę, inne) do faktury — zmienia amount_due
+    o `amount` (może być ujemna). Jeśli są już raty, ich suma przestanie się zgadzać
+    (installments_balanced=false) — to świadomy sygnał, żeby poprawić harmonogram."""
+    rec = db.get_receivable(receivable_id)
+    if rec is None:
+        raise ValueError("Nie znaleziono należności.")
+    kind = kind if kind in ITEM_KIND_LABELS else "inne"
+    amount = round(float(amount), 2)
+    if amount == 0:
+        raise ValueError("Kwota podpozycji nie może być zerowa.")
+    iid = new_id()
+    db.add_receivable_item({
+        "id": iid, "receivable_id": receivable_id, "kind": kind, "label": label or None,
+        "amount": amount, "item_date": item_date or None, "note": note, "created_at": _now(),
+    })
+    new_due = round(float(rec["amount_due"]) + amount, 2)
+    db.update_receivable(receivable_id, amount_due=new_due, updated_at=_now())
+    desc = ITEM_KIND_LABELS[kind] + (f" — {label}" if label else "")
+    db.add_history({
+        "id": new_id(), "receivable_id": receivable_id, "field": "item",
+        "old_value": None, "new_value": f"{desc}: {amount:+.2f} zł",
+        "reason": note, "changed_at": item_date or _now()[:10],
+    })
+    return receivable_view(db.get_receivable(receivable_id))
+
+
+def delete_receivable_item(item_id: str) -> dict:
+    item = db.get_receivable_item(item_id)
+    if item is None:
+        raise ValueError("Nie znaleziono podpozycji.")
+    rec = db.get_receivable(item["receivable_id"])
+    db.delete_receivable_item(item_id)
+    new_due = round(float(rec["amount_due"]) - float(item["amount"]), 2)
+    db.update_receivable(item["receivable_id"], amount_due=new_due, updated_at=_now())
+    desc = ITEM_KIND_LABELS.get(item["kind"], item["kind"]) + (f" — {item['label']}" if item.get("label") else "")
+    db.add_history({
+        "id": new_id(), "receivable_id": item["receivable_id"], "field": "item_removed",
+        "old_value": f"{desc}: {float(item['amount']):+.2f} zł", "new_value": None,
+        "reason": None, "changed_at": _now()[:10],
+    })
+    return receivable_view(db.get_receivable(item["receivable_id"]))

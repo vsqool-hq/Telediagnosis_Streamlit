@@ -35,6 +35,19 @@ export function isLocalBackend(): boolean {
 // Wyliczane przy załadowaniu modułu (w przeglądarce). Zmiana backendu → przeładowanie strony.
 export const API_BASE = getApiBase();
 
+/** Klucz dopasowania lekarza — port `doctor_key()` z backendu (cennik_lekarzy_convert.py),
+ * niewrażliwy na kolejność imię/nazwisko, wielkość liter i łączniki vs spacje. Używany do
+ * odnalezienia historii wypłat lekarza (klucze z /api/doctors/revenue-history są tak liczone). */
+export function doctorKey(name: string | null | undefined): string {
+  const s = (name || "")
+    .replace(/[-‐-―−]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  if (!s) return "";
+  return s.split(" ").sort().join(" ");
+}
+
 export const TOKEN_KEY = "teledag_token";
 
 // Token: najpierw z localStorage (po zalogowaniu), w ostateczności ze zmiennej środowiskowej.
@@ -177,6 +190,29 @@ export interface ReceivableHistoryEntry {
   changed_at: string;
 }
 
+export type ReceivableItemKind = "kara" | "korekta" | "inne";
+
+export interface ReceivableItem {
+  id: string;
+  receivable_id: string;
+  kind: ReceivableItemKind;
+  label: string | null;
+  amount: number;
+  item_date: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface Payment {
+  id: string;
+  receivable_id: string;
+  installment_id: string | null;
+  amount: number;
+  paid_at: string;
+  note: string | null;
+  created_at: string;
+}
+
 export interface Receivable {
   id: string;
   unit_key: string;
@@ -198,6 +234,9 @@ export interface Receivable {
   installments: Installment[];
   installments_count: number;
   installments_balanced: boolean;
+  items: ReceivableItem[];
+  items_total: number;
+  payments: Payment[];
   history?: ReceivableHistoryEntry[];
 }
 
@@ -209,6 +248,34 @@ export interface WindykacjaSummary {
   paid_this_month_amount: number;
   paid_this_month_count: number;
   total_balance: number;
+}
+
+export interface CashflowBucket {
+  index: number;
+  start: string;
+  end: string;
+  label: string;
+  inflow_actual: number;
+  inflow_forecast: number;
+  outflow_forecast: number;
+  balance_actual: number | null;
+  balance_forecast: number | null;
+  net: number;
+}
+
+export interface CashflowOverview {
+  generated_at: string;
+  doctor_cost_payment_term_days: number;
+  buckets: CashflowBucket[];
+  kpis: {
+    balance_to_date: number;
+    overdue_amount: number;
+    forecast_inflow_90d: number;
+    forecast_outflow_90d: number;
+    forecast_net_90d: number;
+    revenue_forecast_total: number;
+    doctor_cost_forecast_total: number;
+  };
 }
 
 export interface CennikValidation {
@@ -457,6 +524,8 @@ export const api = {
   trends: () => req<{ points: TrendPoint[] }>("/api/stats/trends"),
   dashboard: () => req<DashboardData>("/api/stats/dashboard"),
   mapData: () => req<MapData>("/api/stats/map"),
+  unitsRevenueHistory: () =>
+    req<{ units: Record<string, Record<string, number>> }>("/api/stats/revenue-history/units"),
   importExportUrl: (id: string, fmt: "csv" | "xlsx") =>
     withToken(`${API_BASE}/api/jobs/${id}/import-export?fmt=${fmt}`),
 
@@ -550,6 +619,10 @@ export const api = {
   doctorsCompareLatest: () => req<DoctorComparison>("/api/doctors/compare/latest"),
   doctorsCompareMonths: () => req<{ months: CompareMonth[] }>("/api/doctors/compare/months"),
   doctorsCompareDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/compare/${jobId}/download`),
+  doctorsRevenueHistory: () =>
+    req<{ doctors: Record<string, Record<string, number>>; names: Record<string, string> }>(
+      "/api/doctors/revenue-history",
+    ),
   doctorsList: () =>
     req<{ job_id: string | null; doctors: { name: string; key: string; excluded: boolean }[] }>("/api/doctors/list"),
   setDoctorsExcluded: (keys: string[]) =>
@@ -624,20 +697,37 @@ export const api = {
     req<Receivable>(`/api/windykacja/receivables/${id}/installments`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
     }),
-  windykacjaPayInstallment: (receivableId: string, installmentId: string, amount: number, note?: string) =>
+  windykacjaPayInstallment: (receivableId: string, installmentId: string, amount: number, paidAt?: string, note?: string) =>
     req<Receivable>(`/api/windykacja/receivables/${receivableId}/installments/${installmentId}/pay`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, note }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, paid_at: paidAt, note }),
     }),
-  windykacjaPay: (id: string, amount: number, note?: string) =>
+  windykacjaPay: (id: string, amount: number, paidAt?: string, note?: string) =>
     req<Receivable>(`/api/windykacja/receivables/${id}/pay`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, note }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, paid_at: paidAt, note }),
     }),
+  windykacjaAddItem: (id: string, payload: {
+    kind: ReceivableItemKind; amount: number; label?: string; item_date?: string; note?: string;
+  }) =>
+    req<Receivable>(`/api/windykacja/receivables/${id}/items`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    }),
+  windykacjaDeleteItem: (id: string, itemId: string) =>
+    req<Receivable>(`/api/windykacja/receivables/${id}/items/${itemId}`, { method: "DELETE" }),
   windykacjaSync: () =>
     req<{ created: number; updated: number; flagged: number }>("/api/windykacja/sync", { method: "POST" }),
   windykacjaPaymentTerms: () =>
-    req<{ default_days: number; terms: Record<string, number> }>("/api/windykacja/payment-terms"),
-  windykacjaSavePaymentTerms: (payload: { default_days?: number; terms?: Record<string, number> }) =>
-    req<{ default_days: number; terms: Record<string, number> }>("/api/windykacja/payment-terms", {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-    }),
+    req<{ default_days: number; doctor_cost_days: number; terms: Record<string, number> }>(
+      "/api/windykacja/payment-terms",
+    ),
+  windykacjaSavePaymentTerms: (payload: {
+    default_days?: number; doctor_cost_days?: number; terms?: Record<string, number>;
+  }) =>
+    req<{ default_days: number; doctor_cost_days: number; terms: Record<string, number> }>(
+      "/api/windykacja/payment-terms",
+      { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+    ),
+
+  cashflowOverview: () => req<CashflowOverview>("/api/cashflow/overview"),
 };

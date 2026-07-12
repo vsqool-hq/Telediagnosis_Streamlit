@@ -9,6 +9,7 @@ import { toast } from "@/lib/toast";
 
 export default function PaymentTermsSettings() {
   const [defaultDays, setDefaultDays] = useState(14);
+  const [doctorCostDays, setDoctorCostDays] = useState(14);
   const [terms, setTerms] = useState<Record<string, number>>({});
   const [units, setUnits] = useState<{ name: string; key: string }[]>([]);
   const [filter, setFilter] = useState("");
@@ -21,6 +22,7 @@ export default function PaymentTermsSettings() {
     Promise.all([api.windykacjaPaymentTerms(), api.unitsList()])
       .then(([pt, u]) => {
         setDefaultDays(pt.default_days);
+        setDoctorCostDays(pt.doctor_cost_days);
         setTerms(pt.terms);
         setUnits(u.units.map(({ name, key }) => ({ name, key })));
       })
@@ -38,11 +40,12 @@ export default function PaymentTermsSettings() {
     return f ? all.filter((u) => u.name.toLowerCase().includes(f) || u.key.includes(f)) : all;
   }, [units, terms, filter]);
 
-  async function persist(nextTerms: Record<string, number>, nextDefault?: number) {
+  async function persist(nextTerms: Record<string, number>, nextDefault?: number, nextDoctorCost?: number) {
     setSaving(true); setErr(null); setMsg(null);
     try {
       await api.windykacjaSavePaymentTerms({
         default_days: nextDefault ?? defaultDays,
+        doctor_cost_days: nextDoctorCost ?? doctorCostDays,
         terms: nextTerms,
       });
       setMsg("Zapisano.");
@@ -63,6 +66,10 @@ export default function PaymentTermsSettings() {
     persist(terms, defaultDays);
   }
 
+  function saveDoctorCostDays() {
+    persist(terms, defaultDays, doctorCostDays);
+  }
+
   return (
     <div className="card">
       <h2 className="flex items-center gap-2 text-base font-bold">
@@ -78,6 +85,11 @@ export default function PaymentTermsSettings() {
           <span className="text-slate-400">Domyślny termin (dni), gdy jednostka nie ma własnego:</span>
           <input type="number" className="input !w-24" value={defaultDays}
             onChange={(e) => setDefaultDays(parseInt(e.target.value) || 0)} onBlur={saveDefault} />
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400">Założony termin zapłaty lekarzom (dni po końcu miesiąca, Cashflow):</span>
+          <input type="number" className="input !w-24" value={doctorCostDays}
+            onChange={(e) => setDoctorCostDays(parseInt(e.target.value) || 0)} onBlur={saveDoctorCostDays} />
         </label>
         <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
           {saving ? <><Loader2 className="animate-spin" size={14} /> Zapisywanie…</> : <><Save size={14} /> Zmiany zapisują się automatycznie</>}

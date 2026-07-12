@@ -117,6 +117,45 @@ CREATE TABLE IF NOT EXISTS wind_receivable_history (
 );
 CREATE INDEX IF NOT EXISTS idx_wind_history_receivable
     ON wind_receivable_history (receivable_id);
+
+-- Trwałe usunięcie należności zsynchronizowanej z rozliczenia: bez tego wpisu
+-- leniwa synchronizacja (przy każdym odczycie) odtworzyłaby usunięty rekord,
+-- bo z jej punktu widzenia "brak rekordu" = "jeszcze nie utworzony".
+CREATE TABLE IF NOT EXISTS wind_sync_skip (
+    unit_key   TEXT NOT NULL,
+    period     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (unit_key, period)
+);
+
+-- Podpozycje doliczane do faktury (kary umowne, korekty, inne) — każda zmienia
+-- amount_due o swoją kwotę (dodatnią lub ujemną); patrz add_receivable_item.
+CREATE TABLE IF NOT EXISTS wind_receivable_items (
+    id            TEXT PRIMARY KEY,
+    receivable_id TEXT NOT NULL REFERENCES wind_receivables(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL DEFAULT 'inne',   -- 'kara' | 'korekta' | 'inne'
+    label         TEXT,
+    amount        REAL NOT NULL,                  -- może być ujemna (korekta zmniejszająca)
+    item_date     TEXT,                           -- data naliczenia 'YYYY-MM-DD', opcjonalna
+    note          TEXT,
+    created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wind_items_receivable
+    ON wind_receivable_items (receivable_id);
+
+-- Zapis KAŻDEJ wpłaty osobno (kwota + faktyczna data) — nie tylko zbiorczy licznik
+-- paid_amount. Pozwala pokazać pełną listę wpłat z ich prawdziwymi datami.
+CREATE TABLE IF NOT EXISTS wind_payments (
+    id             TEXT PRIMARY KEY,
+    receivable_id  TEXT NOT NULL REFERENCES wind_receivables(id) ON DELETE CASCADE,
+    installment_id TEXT REFERENCES wind_installments(id) ON DELETE SET NULL,
+    amount         REAL NOT NULL,
+    paid_at        TEXT NOT NULL,   -- 'YYYY-MM-DD'
+    note           TEXT,
+    created_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wind_payments_receivable
+    ON wind_payments (receivable_id);
 """
 
 
@@ -124,6 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_wind_history_receivable
 def get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
         conn.commit()
@@ -428,6 +468,20 @@ def delete_receivable(receivable_id: str):
         conn.execute("DELETE FROM wind_receivables WHERE id = ?", (receivable_id,))
 
 
+def add_sync_skip(unit_key: str, period: str):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO wind_sync_skip (unit_key, period, created_at) VALUES (?, ?, ?)",
+            (unit_key, period, datetime.datetime.now().isoformat(timespec="seconds")),
+        )
+
+
+def list_sync_skip_keys() -> set:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT unit_key, period FROM wind_sync_skip").fetchall()
+        return {(r["unit_key"], r["period"]) for r in rows}
+
+
 def add_history(entry: dict):
     with get_conn() as conn:
         conn.execute(
@@ -486,3 +540,56 @@ def update_installment(installment_id: str, **fields):
 def delete_installment(installment_id: str):
     with get_conn() as conn:
         conn.execute("DELETE FROM wind_installments WHERE id = ?", (installment_id,))
+
+
+# ---- Windykacja: podpozycje (kary, korekty) -----------------------------------
+
+def add_receivable_item(entry: dict):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO wind_receivable_items
+               (id, receivable_id, kind, label, amount, item_date, note, created_at)
+               VALUES (:id, :receivable_id, :kind, :label, :amount, :item_date, :note, :created_at)""",
+            entry,
+        )
+
+
+def list_receivable_items(receivable_id: str):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM wind_receivable_items WHERE receivable_id = ? ORDER BY created_at",
+            (receivable_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_receivable_item(item_id: str):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM wind_receivable_items WHERE id = ?", (item_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def delete_receivable_item(item_id: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM wind_receivable_items WHERE id = ?", (item_id,))
+
+
+# ---- Windykacja: wpłaty (lista, z datami) -------------------------------------
+
+def add_payment(entry: dict):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO wind_payments
+               (id, receivable_id, installment_id, amount, paid_at, note, created_at)
+               VALUES (:id, :receivable_id, :installment_id, :amount, :paid_at, :note, :created_at)""",
+            entry,
+        )
+
+
+def list_payments(receivable_id: str):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM wind_payments WHERE receivable_id = ? ORDER BY paid_at DESC, created_at DESC",
+            (receivable_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]

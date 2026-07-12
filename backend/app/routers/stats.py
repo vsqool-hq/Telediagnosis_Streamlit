@@ -258,3 +258,33 @@ async def map_data(months: int = 1):
         })
     return {"months": recent, "units": units,
             "missing_geo": sorted(set(missing_geo))[:50], "geocoded": len(geo)}
+
+
+@router.get("/revenue-history/units")
+async def units_revenue_history():
+    """Historia przychodu per jednostka za WSZYSTKIE rozliczone miesiące (zawsze z
+    najlepszego przeliczenia danego miesiąca — patrz best_jobs_by_month), do dymków
+    „najedź i zobacz historię" na Pulpicie/Porównaniu. Klucz = etykieta grupy jednostek
+    (jak w top_clients/by_unit), żeby dymek trafiał też w wiersze będące grupą kilku
+    jednostek."""
+    from app.engine.billing import get_excluded_units, _norm_unit
+    from app.engine.config import load_config, build_unit_group_map, group_label
+
+    gmap = build_unit_group_map(load_config().get("unit_groups", []))
+    excl = get_excluded_units()
+    best = best_jobs_by_month()
+
+    history: dict[str, dict[str, float]] = {}
+    for period, info in sorted(best.items()):
+        try:
+            by_client = _job_revenue_by_client(info["job_id"])
+        except Exception:  # noqa: BLE001
+            continue
+        for raw_key, amount in by_client.items():
+            if _norm_unit(raw_key) in excl:
+                continue
+            label = group_label(raw_key, gmap)
+            history.setdefault(label, {})[period] = round(
+                history.get(label, {}).get(period, 0.0) + float(amount or 0), 2
+            )
+    return {"units": history}
