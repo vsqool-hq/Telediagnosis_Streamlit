@@ -1,5 +1,5 @@
 # Backend: FastAPI + silnik rozliczeniowy (pandas/openpyxl + multiprocessing)
-# Budowane z korzenia repo, by mieć dostęp do backend/ oraz seed_data/.
+# Budowane z korzenia repo (dostęp do backend/). seed_data/ jest poza repo.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -15,8 +15,12 @@ RUN pip install --no-cache-dir -r /srv/requirements.txt
 
 # Kod aplikacji
 COPY backend/ /srv/
-# Dane startowe (seed) — importowane przy pierwszym uruchomieniu, jeśli baza pusta
-COPY seed_data/ /srv/seed_data/
+# Dane startowe (seed) NIE są w repo (higiena bezpieczeństwa — realne dane klientów
+# poza publicznym GitHubem). Tworzymy pusty katalog: app.seed.seed_if_empty znosi jego
+# brak (globy zwracają pusto), a istniejące wdrożenie ma dane na wolumenie /data.
+# Aby doseedować świeżą instalację, wgraj pliki przez aplikację albo zamontuj je
+# w /srv/seed_data (TELEDIAG_SEED_DIR).
+RUN mkdir -p /srv/seed_data
 
 # Wolumen na dane trwałe (SQLite, wersje plików, katalogi zadań)
 RUN mkdir -p /data
