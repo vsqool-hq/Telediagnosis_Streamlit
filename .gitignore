@@ -9,6 +9,12 @@ venv/
 backend/data/
 data/
 
+# Dane startowe (seed) — realne pliki biznesowe klienta (cennik, słownik kontrahentów).
+# Nie wersjonujemy; potrzebne lokalnie/na serwerze tylko przy ZUPEŁNIE świeżej instalacji
+# (patrz TELEDIAG_SEED_DIR w backend/start-local.command) — istniejące wdrożenia mają
+# dane już zaimportowane i nigdy do tych plików nie wracają (app/seed.py: seed_if_empty).
+seed_data/
+
 # Node / Next.js
 node_modules/
 .next/

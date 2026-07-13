@@ -125,36 +125,12 @@ DEFAULT_CONFIG = {
     # więc prognoza kosztów zakłada ten stały termin.
     "doctor_cost_payment_term_days": 14,
 
-    # Moduł Windykacja: indywidualne terminy płatności per jednostka (dni), z pliku
-    # "Słownik" (kolumna „TERMIN PŁATNOŚCI [DNI]", klucz „NAZWA SYSTEM" = jak „Klient").
-    # Edytowalne z Ustawień; wartości spoza tej listy używają default_payment_term_days.
-    "payment_terms_by_unit": {
-        "alfasochaczew": 14, "almed": 14, "arterieart": 14, "bialogard": 14, "bimed": 14,
-        "brodnica": 30, "brzesko": 30, "centermedpoznan": 14, "cobydgoszcz": 14,
-        "dabrowatarnowska": 14, "dcmdolmed": 14, "diamed": 14, "domchojna": 14,
-        "dzierzoniow": 30, "faceclinic": 14, "goleniow": 30, "gorlice": 30, "grajewo": 30,
-        "grodzisk": 30, "grupazdrowie": 14, "gz": 14, "gzplonsk": 14, "kamienpomorski": 60,
-        "kartuzy": 30, "klodzko": 14, "komed": 14, "kosmowroclaw": 14, "lubaczow": 14,
-        "medflow": 14, "medinet": 14, "mswiapoznan": 60, "mswsiedlce": 14, "nml": 14,
-        "nrkrakow": 14, "nzozevita": 14, "ostrow": 30, "poddebice": 25, "powiatsredzki": 14,
-        "puszczykowo": 14, "radiomedica": 14, "rodamed": 30, "rybnik": 30, "scanmed": 14,
-        "smtorun": 60, "sokolow": 60, "spzozgrodzisk": 14, "spzozlezajsk": 14, "spzozmc": 30,
-        "spzozswidnica": 14, "spzzozsierpc": 14, "starachowice": 30, "swk": 30, "swp": 14,
-        "szpitaldzieciecy": 14, "szpitaljaslo": 14, "szpitallubartow": 25, "szpitalmikolow": 60,
-        "szpitalopole": 21, "szpitalrydygier": 21, "szpitalsiemiatycze": 45,
-        "szpitalzakopane": 21, "szpitalzawiercie": 30, "td7szmw": 60, "tdblachownia": 14,
-        "tdbonifratrzy": 14, "tdemcpiaseczno": 14, "tdgammaknife": 14, "tdgniezno": 30,
-        "tdgvmcarint": 14, "tdipin": 30, "tdkolbuszowa": 14, "tdksskrakow": 30, "tdmilicz": 14,
-        "tdneuromedyka": 14, "tdnowomedica": 14, "tdorzesze": 30, "tdparczew": 14,
-        "tdprzemysl": 14, "tdscanmed2": 14, "tdscanmedak5": 14, "tdscanmedpila": 14,
-        "tdsmswinoujscie": 28, "tdspzozkolo": 30, "tdspzozsiedlce": 30, "tdstalowawola": 14,
-        "tdsuchab": 14, "tdsulechow": 30, "tdszpitalkolno": 30, "tdtargowek": 14,
-        "tduskszczecin": 28, "tdwszplock": 30, "tomograf": 14, "tworki": 30,
-        "uskbialystok": 14, "uskpoznan": 30, "wegorzewo": 30, "wimed": 14, "wizjamed": 14,
-        "wlodawa": 30, "wsswroclaw": 30, "wysmaz": 14, "zambrow": 14,
-        "zarywojskowy105": 30, "zgorzelec": 14, "zozbiala": 14, "zozbol": 14,
-        "zozboleslawiec": 14, "zozolawa": 60, "zozswietochlowice": 30,
-    },
+    # Moduł Windykacja: indywidualne terminy płatności per jednostka (dni). Puste
+    # domyślnie celowo — to realne dane biznesowe klienta (nazwy kontrahentów), więc
+    # NIE wersjonujemy ich w kodzie. Wczytywane raz do bazy przy starcie z pliku
+    # seed_data/payment_terms_by_unit.json (gitignored — patrz app/seed.py), potem
+    # edytowalne z Ustawień; wartości spoza tej listy używają default_payment_term_days.
+    "payment_terms_by_unit": {},
 }
 
 

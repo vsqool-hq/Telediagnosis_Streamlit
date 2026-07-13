@@ -79,6 +79,38 @@ def seed_adjustments_if_absent():
     print(f"[seed] Wczytano startowe współczynniki cen: {len(seed)} jednostek, {total} reguł.", flush=True)
 
 
+def load_seed_payment_terms() -> dict:
+    """Wczytuje startowe terminy płatności per jednostka z seed_data/payment_terms_by_unit.json."""
+    path = os.path.join(SEED_DIR, "payment_terms_by_unit.json")
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {str(k): int(v) for k, v in data.items()} if isinstance(data, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def seed_payment_terms_if_absent():
+    """
+    Jednorazowo wczytuje terminy płatności per jednostka (Windykacja) do ustawień,
+    jeśli tam jeszcze ich nie ma (klucz pusty — patrz DEFAULT_CONFIG). Tak jak
+    współczynniki cen: istniejąca baza w chmurze zostaje wypełniona przy najbliższym
+    starcie, a późniejsze edycje/usuwanie z panelu Ustawienia są trwałe (dane już w
+    bazie → nie nadpisujemy).
+    """
+    settings = db.get_settings()
+    if settings.get("payment_terms_by_unit"):
+        return
+    seed = load_seed_payment_terms()
+    if not seed:
+        return
+    settings["payment_terms_by_unit"] = seed
+    db.save_settings(settings)
+    print(f"[seed] Wczytano startowe terminy płatności: {len(seed)} jednostek.", flush=True)
+
+
 def seed_if_empty():
     if not os.path.isdir(SEED_DIR):
         return
@@ -86,3 +118,4 @@ def seed_if_empty():
     _seed_kind("wzorcowe", ["*.xlsx", "*.xls"])
     _seed_kind("cennik", ["*.csv"])
     seed_adjustments_if_absent()
+    seed_payment_terms_if_absent()
