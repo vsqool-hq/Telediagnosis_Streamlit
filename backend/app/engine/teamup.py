@@ -205,32 +205,35 @@ def _first_str(v) -> str:
     return "" if v is None else str(v)
 
 
-_DAYTYPE_KEY_RE = re.compile(r"tryb|weekend|swi|świ|dzie[nń]|wolne", re.IGNORECASE)
+# Pole z typem dnia: „tryb" (u klienta „tryb_dyz_uru2"), ewentualnie „weekend"/
+# „święto"/„wolne". UWAGA: NIE dopasowujemy „dzień" — bo koliduje z polem-flagą
+# „dyżur dzienny" (dyz_ur_dzienny), które nie mówi nic o weekendzie.
+_DAYTYPE_KEY_RE = re.compile(r"tryb|weekend|świ|swi|wolne", re.IGNORECASE)
 
 
 def _tryb_dyzuru(ev) -> str | None:
     """
-    Typ dnia z POLA WŁASNEGO o pasującej nazwie (tryb/weekend/święto/dzień):
-      'W' = weekend, 'S' = święto (tag „Ś"/„S"), '' = pole jest, ale puste
-      (powszedni). None gdy TAKIEGO pola brak → klasyfikujemy z daty (fallback).
-    NIE skanujemy przypadkowych wartości (np. modalność „tk" NIE może zostać wzięta
-    za triaż) i NIE zwracamy 'T' — triaż rozpoznajemy wyłącznie po tytule.
+    Typ dnia z POLA WŁASNEGO o nazwie „tryb…"/„weekend"/„święto"/„wolne":
+      'W' = weekend (tag „W"), 'S' = święto (tag „Ś"/„S"), '' = takie pole jest,
+      ale bez W/Ś (np. puste albo „dodatkowy" → powszedni). None gdy TAKIEGO pola
+      w ogóle nie ma → klasyfikujemy z daty (fallback).
+    Wartości W/Ś mają PIERWSZEŃSTWO — gdyby pasowało kilka pól, wygrywa to z W/Ś.
+    NIE skanujemy przypadkowych wartości i NIE zwracamy 'T' (triaż jest z tytułu).
     """
     custom = ev.get("custom") or {}
     if not isinstance(custom, dict):
         return None
+    found = False
     for k, v in custom.items():
         if not _DAYTYPE_KEY_RE.search(str(k).replace("_", " ")):
             continue
+        found = True
         val = _first_str(v).strip().upper()
-        if not val:
-            return ""                       # pole trybu jest, ale puste → powszedni
-        if val[0] == "W" or "WEEK" in val:
+        if val[:1] == "W" or "WEEK" in val:
             return "W"
-        if val[0] in ("S", "Ś") or "ŚWI" in val or "SWI" in val:
+        if val[:1] in ("S", "Ś") or "ŚWI" in val or "SWI" in val:
             return "S"
-        return ""
-    return None                             # brak pola trybu → typ dnia z daty
+    return "" if found else None            # pole trybu bez W/Ś → powszedni; brak → z daty
 
 
 def _slices(start: dt.datetime, end: dt.datetime):
