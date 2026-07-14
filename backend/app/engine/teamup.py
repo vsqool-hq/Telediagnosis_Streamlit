@@ -228,12 +228,30 @@ def _tryb_dyzuru(ev) -> str | None:
         if not _DAYTYPE_KEY_RE.search(str(k).replace("_", " ")):
             continue
         found = True
-        val = _first_str(v).strip().upper()
-        if val[:1] == "W" or "WEEK" in val:
-            return "W"
-        if val[:1] in ("S", "Ś") or "ŚWI" in val or "SWI" in val:
-            return "S"
+        dt_ = _classify_daytype_value(_first_str(v))
+        if dt_:
+            return dt_
     return "" if found else None            # pole trybu bez W/Ś → powszedni; brak → z daty
+
+
+# Mapowanie polskich znaków na bazowe — odporność na to, JAK TeamUp zwróci „Ś"
+# (może przyjść jako „Ś", „ś", „S" albo „święto"/„swieto"; nazwy pól i tak są
+# ze slugami „_", ale WARTOŚCI czytamy jako UTF-8).
+_PL_STRIP = str.maketrans("śżęąółćńźŚŻĘĄÓŁĆŃŹ", "szeaolcnzSZEAOLCNZ")
+
+
+def _classify_daytype_value(raw) -> str:
+    """Wartość pola trybu → 'W' (weekend) / 'S' (święto) / '' (inne, np. „dodatkowy")."""
+    v = str(raw or "").strip()
+    if not v:
+        return ""
+    low = v.lower()
+    if low[0] == "w" or "weekend" in low:
+        return "W"
+    strp = low.translate(_PL_STRIP)              # ś→s, święto→swieto itd.
+    if v in ("Ś", "ś", "S", "s") or strp.startswith("swi") or "swiet" in strp:
+        return "S"
+    return ""
 
 
 def _slices(start: dt.datetime, end: dt.datetime):
