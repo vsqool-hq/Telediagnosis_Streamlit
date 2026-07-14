@@ -12,7 +12,7 @@ export default function TeamupSettings() {
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [test, setTest] = useState<Record<string, { ok: boolean; events?: number; sample?: string[]; error?: string }> | null>(null);
+  const [test, setTest] = useState<Awaited<ReturnType<typeof api.teamupTest>> | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,12 +101,38 @@ export default function TeamupSettings() {
       {test && (
         <div className="mt-3 space-y-2 text-sm">
           {Object.entries(test).map(([name, r]) => (
-            <div key={name} className="soft flex flex-wrap items-center gap-2 px-3 py-2">
-              {r.ok ? <CheckCircle2 className="text-brand-accent2" size={16} /> : <XCircle className="text-red-300" size={16} />}
-              <b>{name === "gotowosc" ? "Grafik gotowości" : "Triaż"}</b>
-              {r.ok
-                ? <span className="text-slate-300">wydarzeń (7 dni): {r.events}{r.sample && r.sample.length > 0 ? ` · np. ${r.sample.slice(0, 3).join(", ")}` : ""}</span>
-                : <span className="text-red-300">{r.error}</span>}
+            <div key={name} className="soft space-y-2 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {r.ok ? <CheckCircle2 className="text-brand-accent2" size={16} /> : <XCircle className="text-red-300" size={16} />}
+                <b>{name === "gotowosc" ? "Grafik" : "Triaż (ten sam link)"}</b>
+                {r.ok
+                  ? <span className="text-slate-300">wydarzeń (14 dni): {r.events}{r.sample && r.sample.length > 0 ? ` · np. ${r.sample.slice(0, 3).join(", ")}` : ""}</span>
+                  : <span className="text-red-300">{r.error}</span>}
+              </div>
+              {r.ok && r.pola_wlasne && r.pola_wlasne.length > 0 && (
+                <div className="text-[12px] text-slate-400">
+                  <p className="mb-1">Pola własne przykładowych zdarzeń (tu szukamy tagów W / Ś):</p>
+                  {r.pola_wlasne.map((s, i) => (
+                    <div key={i} className="border-t border-white/5 py-1">
+                      <span className="text-slate-300">{s.title}</span>
+                      {" — "}
+                      {Object.entries(s.custom).map(([k, v]) => (
+                        <code key={k} className="mx-1 text-slate-200">{k}={v || "∅"}</code>
+                      ))}
+                      {" → wykryty tryb: "}
+                      <b className={s.wykryty_tryb ? "text-brand-accent2" : "text-amber-300"}>
+                        {s.wykryty_tryb === "W" ? "weekend" : s.wykryty_tryb === "S" ? "święto"
+                          : s.wykryty_tryb === "T" ? "triaż" : s.wykryty_tryb === "" ? "powszedni" : "z daty (brak pola)"}
+                      </b>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {r.ok && (!r.pola_wlasne || r.pola_wlasne.length === 0) && (
+                <p className="text-[12px] text-amber-300">
+                  Brak pól własnych w próbce — tagi W/Ś mogą być w innym miejscu niż pole własne. Wtedy weekend/święto lecą z daty.
+                </p>
+              )}
             </div>
           ))}
         </div>

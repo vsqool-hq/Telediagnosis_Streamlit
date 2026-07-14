@@ -643,7 +643,10 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   teamupTest: () =>
-    req<Record<string, { ok: boolean; events?: number; sample?: string[]; error?: string }>>("/api/teamup/test"),
+    req<Record<string, {
+      ok: boolean; events?: number; sample?: string[]; error?: string;
+      pola_wlasne?: { title: string; custom: Record<string, string>; wykryty_tryb: string | null }[];
+    }>>("/api/teamup/test"),
   setUnitsExcluded: (keys: string[]) =>
     req<{ ok: boolean; units_excluded: string[] }>("/api/units/excluded", {
       method: "PUT",

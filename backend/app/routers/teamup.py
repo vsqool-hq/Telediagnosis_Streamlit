@@ -39,13 +39,27 @@ async def test_connection():
     if not cfg["api_key"]:
         raise HTTPException(400, "Brak klucza API — wpisz go poniżej albo ustaw sekret TEAMUP_API_KEY.")
     end = dt.date.today()
-    start = end - dt.timedelta(days=7)
+    start = end - dt.timedelta(days=14)
     out = {}
     for label, cal in (("gotowosc", cfg["cal_gotowosc"]), ("triaz", cfg["cal_triaz"])):
         try:
             evs = teamup.fetch_events(cal, start, end, cfg["api_key"])
             titles = [str(e.get("title") or "") for e in evs if not e.get("all_day")][:5]
-            out[label] = {"ok": True, "events": len(evs), "sample": titles}
+            # Diagnostyka pól własnych: gdzie siedzą tagi W/Ś i jak je rozpoznajemy.
+            samples = []
+            for e in evs:
+                if e.get("all_day"):
+                    continue
+                custom = e.get("custom") or {}
+                if custom:
+                    samples.append({
+                        "title": str(e.get("title") or ""),
+                        "custom": {str(k): teamup._first_str(v) for k, v in custom.items()},
+                        "wykryty_tryb": teamup._tryb_dyzuru(e),  # W / S / T / "" / None
+                    })
+                if len(samples) >= 6:
+                    break
+            out[label] = {"ok": True, "events": len(evs), "sample": titles, "pola_wlasne": samples}
         except RuntimeError as e:
             out[label] = {"ok": False, "error": str(e)}
     return out

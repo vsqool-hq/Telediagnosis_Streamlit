@@ -224,7 +224,8 @@ def _tryb_dyzuru(ev) -> str | None:
             return "T"
         if v[0] == "W" or "WEEK" in v:
             return "W"
-        if v[0] == "S" or "ŚWI" in v or "SWI" in v:
+        # Święto: „Ś" (z kreską) LUB „S" LUB „ŚWI…"/„SWI…" — obsługa obu zapisów.
+        if v[0] in ("S", "Ś") or "ŚWI" in v or "SWI" in v:
             return "S"
         return ""
 
