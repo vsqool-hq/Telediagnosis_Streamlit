@@ -205,38 +205,32 @@ def _first_str(v) -> str:
     return "" if v is None else str(v)
 
 
+_DAYTYPE_KEY_RE = re.compile(r"tryb|weekend|swi|świ|dzie[nń]|wolne", re.IGNORECASE)
+
+
 def _tryb_dyzuru(ev) -> str | None:
     """
-    Zwraca 'Tryb dyżuru' zdarzenia: 'S' (święto) / 'W' (weekend) / 'T' (triaż)
-    / '' (puste = powszedni). None gdy pola w ogóle nie ma → wtedy klasyfikujemy
-    z daty (fallback). Pole rozpoznajemy po kluczu zawierającym 'tryb', a gdy klucz
-    jest nietypowy — po wartości równej S/W/T (pozostałe pola nie mają takich wartości).
+    Typ dnia z POLA WŁASNEGO o pasującej nazwie (tryb/weekend/święto/dzień):
+      'W' = weekend, 'S' = święto (tag „Ś"/„S"), '' = pole jest, ale puste
+      (powszedni). None gdy TAKIEGO pola brak → klasyfikujemy z daty (fallback).
+    NIE skanujemy przypadkowych wartości (np. modalność „tk" NIE może zostać wzięta
+    za triaż) i NIE zwracamy 'T' — triaż rozpoznajemy wyłącznie po tytule.
     """
     custom = ev.get("custom") or {}
     if not isinstance(custom, dict):
         return None
-
-    def _norm(val) -> str:
-        v = _first_str(val).strip().upper()
-        if not v:
-            return ""
-        if v[0] == "T" or "TRIA" in v:
-            return "T"
-        if v[0] == "W" or "WEEK" in v:
+    for k, v in custom.items():
+        if not _DAYTYPE_KEY_RE.search(str(k).replace("_", " ")):
+            continue
+        val = _first_str(v).strip().upper()
+        if not val:
+            return ""                       # pole trybu jest, ale puste → powszedni
+        if val[0] == "W" or "WEEK" in val:
             return "W"
-        # Święto: „Ś" (z kreską) LUB „S" LUB „ŚWI…"/„SWI…" — obsługa obu zapisów.
-        if v[0] in ("S", "Ś") or "ŚWI" in v or "SWI" in v:
+        if val[0] in ("S", "Ś") or "ŚWI" in val or "SWI" in val:
             return "S"
         return ""
-
-    for k, v in custom.items():
-        if "tryb" in str(k).lower().replace("_", " "):
-            return _norm(v)
-    for v in custom.values():
-        n = _norm(v)
-        if n in ("S", "W", "T"):
-            return n
-    return None
+    return None                             # brak pola trybu → typ dnia z daty
 
 
 def _slices(start: dt.datetime, end: dt.datetime):

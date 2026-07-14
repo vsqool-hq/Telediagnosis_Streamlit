@@ -109,28 +109,35 @@ export default function TeamupSettings() {
                   ? <span className="text-slate-300">wydarzeń (14 dni): {r.events}{r.sample && r.sample.length > 0 ? ` · np. ${r.sample.slice(0, 3).join(", ")}` : ""}</span>
                   : <span className="text-red-300">{r.error}</span>}
               </div>
-              {r.ok && r.pola_wlasne && r.pola_wlasne.length > 0 && (
+              {r.ok && r.pola_wszystkie && Object.keys(r.pola_wszystkie).length > 0 && (
                 <div className="text-[12px] text-slate-400">
-                  <p className="mb-1">Pola własne przykładowych zdarzeń (tu szukamy tagów W / Ś):</p>
-                  {r.pola_wlasne.map((s, i) => (
-                    <div key={i} className="border-t border-white/5 py-1">
-                      <span className="text-slate-300">{s.title}</span>
-                      {" — "}
-                      {Object.entries(s.custom).map(([k, v]) => (
-                        <code key={k} className="mx-1 text-slate-200">{k}={v || "∅"}</code>
-                      ))}
-                      {" → wykryty tryb: "}
-                      <b className={s.wykryty_tryb ? "text-brand-accent2" : "text-amber-300"}>
-                        {s.wykryty_tryb === "W" ? "weekend" : s.wykryty_tryb === "S" ? "święto"
-                          : s.wykryty_tryb === "T" ? "triaż" : s.wykryty_tryb === "" ? "powszedni" : "z daty (brak pola)"}
-                      </b>
+                  <p className="mb-1">Wszystkie pola własne w kalendarzu (nazwa → wartości) — tu szukamy W / Ś:</p>
+                  {Object.entries(r.pola_wszystkie).map(([k, vals]) => (
+                    <div key={k} className="border-t border-white/5 py-1">
+                      <code className="text-slate-200">{k}</code>
+                      {" → "}
+                      <span className="text-slate-400">{vals.join(", ") || "∅"}</span>
                     </div>
                   ))}
+                  {r.pola_wlasne && r.pola_wlasne.length > 0 && (
+                    <p className="mt-1">
+                      Wykryty typ dnia (próbka):{" "}
+                      {r.pola_wlasne.map((s, i) => (
+                        <span key={i}>
+                          {i > 0 ? ", " : ""}
+                          <b className={s.wykryty_tryb ? "text-brand-accent2" : "text-amber-300"}>
+                            {s.wykryty_tryb === "W" ? "weekend" : s.wykryty_tryb === "S" ? "święto"
+                              : s.wykryty_tryb === "" ? "powszedni" : "z daty"}
+                          </b>
+                        </span>
+                      ))}
+                    </p>
+                  )}
                 </div>
               )}
-              {r.ok && (!r.pola_wlasne || r.pola_wlasne.length === 0) && (
+              {r.ok && (!r.pola_wszystkie || Object.keys(r.pola_wszystkie).length === 0) && (
                 <p className="text-[12px] text-amber-300">
-                  Brak pól własnych w próbce — tagi W/Ś mogą być w innym miejscu niż pole własne. Wtedy weekend/święto lecą z daty.
+                  Brak pól własnych — tagi W/Ś są w innym miejscu (tytuł? kategoria?). Weekend/święto lecą wtedy z daty.
                 </p>
               )}
             </div>

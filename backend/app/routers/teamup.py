@@ -45,21 +45,28 @@ async def test_connection():
         try:
             evs = teamup.fetch_events(cal, start, end, cfg["api_key"])
             titles = [str(e.get("title") or "") for e in evs if not e.get("all_day")][:5]
-            # Diagnostyka pól własnych: gdzie siedzą tagi W/Ś i jak je rozpoznajemy.
-            samples = []
+            # Zbiorczo: WSZYSTKIE nazwy pól własnych + ich RÓŻNE wartości (do 12),
+            # żeby znaleźć, w którym polu siedzą tagi W/Ś (jeśli w ogóle).
+            fields: dict = {}
             for e in evs:
                 if e.get("all_day"):
                     continue
-                custom = e.get("custom") or {}
-                if custom:
-                    samples.append({
-                        "title": str(e.get("title") or ""),
-                        "custom": {str(k): teamup._first_str(v) for k, v in custom.items()},
-                        "wykryty_tryb": teamup._tryb_dyzuru(e),  # W / S / T / "" / None
-                    })
-                if len(samples) >= 6:
+                for k, v in (e.get("custom") or {}).items():
+                    fields.setdefault(str(k), set()).add(teamup._first_str(v).strip())
+            pola = {k: sorted(x for x in vals if x)[:12] for k, vals in sorted(fields.items())}
+            # Kilka przykładów z wykrytym typem dnia.
+            samples = []
+            for e in evs:
+                if e.get("all_day") or not (e.get("custom")):
+                    continue
+                samples.append({
+                    "title": str(e.get("title") or ""),
+                    "wykryty_tryb": teamup._tryb_dyzuru(e),
+                })
+                if len(samples) >= 4:
                     break
-            out[label] = {"ok": True, "events": len(evs), "sample": titles, "pola_wlasne": samples}
+            out[label] = {"ok": True, "events": len(evs), "sample": titles,
+                          "pola_wszystkie": pola, "pola_wlasne": samples}
         except RuntimeError as e:
             out[label] = {"ok": False, "error": str(e)}
     return out

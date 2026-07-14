@@ -645,7 +645,8 @@ export const api = {
   teamupTest: () =>
     req<Record<string, {
       ok: boolean; events?: number; sample?: string[]; error?: string;
-      pola_wlasne?: { title: string; custom: Record<string, string>; wykryty_tryb: string | null }[];
+      pola_wszystkie?: Record<string, string[]>;
+      pola_wlasne?: { title: string; wykryty_tryb: string | null }[];
     }>>("/api/teamup/test"),
   setUnitsExcluded: (keys: string[]) =>
     req<{ ok: boolean; units_excluded: string[] }>("/api/units/excluded", {
