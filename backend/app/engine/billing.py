@@ -618,8 +618,8 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
     """
     Dopłata za badania porównawcze. Faktura nalicza KAŻDE badanie pełną stawką oraz
     dodatkową, osobną linię „porównawcza" po stawce porównawczej z cennika — dla
-    badań oznaczonych „Badania do porównania". Liczba jest SUROWA (liczba oflagowanych
-    badań, bez mnożnika okolic) — zweryfikowane na fakturze co do złotówki (swk).
+    badań oznaczonych „Badania do porównania". Dopłata skaluje się z LICZBĄ OKOLIC:
+    `flag_col` niesie już liczbę badań × mnożnik okolic (mnożenie robi wołający).
 
     Dopłatę naliczamy tylko tam, gdzie istnieje odrębny klucz „… PORÓWNAWCZE …"
     (TK/MR); dla RTG/MMG build_price_key nie tworzy wariantu porównawczego, więc
@@ -627,7 +627,7 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
     działają współczynniki (adjustmenty) oraz dziedziczenie ONKO/ANGIO→baza.
 
     Zwraca (surcharge_series, porown_keys_series). Wymaga w `grouped` kolumn do
-    build_price_key oraz `flag_col` z SUROWĄ liczbą oflagowanych badań.
+    build_price_key oraz `flag_col` z liczbą oflagowanych badań × okolice.
     """
     pmap = _prices_to_pmap(df_prices)
     adj = prepare_adjustments(get_unit_adjustments())
@@ -985,11 +985,14 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         grouped.rename(columns={'Nr badania': '#', 'Badania do porównania': 'Porown_Raw'}, inplace=True)
 
         grouped['Mnożnik'] = grouped['Procedura rozlicz.'].apply(bill_extract_multiplier)
-        # Dopłatę porównawczą liczymy od LICZBY BADAŃ porównawczych (jak faktura), a NIE
-        # od okolic. Dlatego kolumna „w tym porównawcze" = surowa liczba badań
-        # (Porown_Raw), bez mnożnika okolic. Formuła „Wartość" dolicza:
-        # (stawka_porówn ÷ bazowa) × stawka bazowa × liczba badań porównawczych.
-        grouped['Porownawcze_Flag'] = grouped['Porown_Raw']
+        # Dopłatę porównawczą liczymy od LICZBY BADAŃ porównawczych × LICZBA OKOLIC
+        # (mnożnik) — tak jak badanie bazowe skaluje się z okolicami. Kolumna
+        # „w tym porównawcze" = Porown_Raw × Mnożnik. Formuła „Wartość" dolicza:
+        # (stawka_porówn ÷ bazowa) × stawka bazowa × (liczba badań × okolice).
+        # UWAGA: surowa flaga 0/1 zostaje w arkuszu „Szczegółowe” — mnożymy dopiero
+        # tu (przy grupowaniu), żeby przychód/Pulpit i Porównanie liczyły to samo
+        # (mnożenie następuje w KAŻDej z tych ścieżek dokładnie raz).
+        grouped['Porownawcze_Flag'] = grouped['Porown_Raw'] * grouped['Mnożnik']
 
         grouped['CENA_KLUCZ'] = grouped.apply(build_price_key, axis=1)
 
@@ -1067,9 +1070,10 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         billing_table[num_cols] = billing_table[num_cols].fillna(0)
 
         # Arkusz „Szczegółowe" zachowuje SUROWĄ flagę „Badania do porównania" (0/1).
-        # Dopłatę liczymy od LICZBY badań porównawczych (nie okolic), więc nie zamieniamy
-        # już flagi na liczbę okolic — dzięki temu przychód (revenue.py) czyta tę samą
-        # liczbę badań, co tabela jednostek (spójność jednostki ↔ Pulpit).
+        # Mnożenie ×okolice robimy dopiero przy grupowaniu (Porownawcze_Flag wyżej) i w
+        # Rozliczeniu — NIE w Szczegółowych. Dzięki temu przychód (revenue.py), który
+        # czyta „Badania do porównania" z plików sprawdzonych, dostaje tę samą surową
+        # liczbę i sam mnoży ×okolice raz (brak podwójnego liczenia dla zadań z chmury).
         df_details_modified = df_details.copy()
 
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:

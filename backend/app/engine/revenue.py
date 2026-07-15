@@ -103,9 +103,10 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
         merged = fill_price_with_base(merged, prices)  # ONKO/ANGIO → cena bazowa, gdy 0/brak
         merged["Ilość"] = merged["#"] * merged["Mnożnik"]
         merged["Wartość"] = merged["Ilość"] * merged["Cena"].fillna(0)
-        # Dopłata za badania porównawcze liczona od LICZBY badań (jak faktura i tabela
-        # jednostek). Pliki wynikowe mają w „Badania do porównania" surową flagę (0/1),
-        # więc Porownawcze_Flag = liczba badań porównawczych (bez mnożnika okolic).
+        # Dopłata za badania porównawcze liczona od LICZBY badań × OKOLICE (jak faktura
+        # i tabela jednostek). Pliki mają w „Badania do porównania" surową flagę (0/1),
+        # więc Porownawcze_Flag (= suma flag) mnożymy tu przez Mnożnik (okolice).
+        merged["Porownawcze_Flag"] = merged["Porownawcze_Flag"] * merged["Mnożnik"]
         surcharge, _ = porownawcze_surcharge(merged, prices)
         merged["Wartość"] = merged["Wartość"] + surcharge
         # CENA_KLUCZ/#/Cena — do diagnostyki „rozliczone po 0 zł" w summarize().
