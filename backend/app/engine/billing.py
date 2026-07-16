@@ -1010,30 +1010,47 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             logs.append(f"! OSTRZEŻENIE: Nie znaleziono cen dla {merged['Cena'].isna().sum()} pozycji (po dwóch próbach).")
 
         # Badania porównawcze: NIE rozbijamy na osobne wiersze — dopłatę porównawczą
-        # wliczamy WPROST w formułę „Wartość" danego wiersza. Reguła (spójna z
-        # Pulpitem i Porównaniem):
-        #   Wartość = Stawka×Ilość + (stawka_porówn ÷ stawka_bazowa) × Stawka × „w tym porównawcze"
-        # gdzie „w tym porównawcze" to LICZBA badań porównawczych (bez mnożnika okolic).
-        # Stawkę porównawczą bierzemy z cennika (klucz „… PORÓWNAWCZE …"; tylko TK/MR —
-        # RTG/MMG nie mają wariantu, więc dopłaty nie ma). Procent (stawka_porówn ÷
-        # bazowa) wpisujemy do formuły per (wiersz, priorytet) z ratio_map.
+        # wliczamy WPROST w formułę „Wartość" danego wiersza. Dwa warianty stawki
+        # porównawczej (spójne z Pulpitem i Porównaniem):
+        #   • JAWNA stawka złotowa „… PORÓWNAWCZE …" w cenniku → wstawiamy ją WPROST:
+        #       Wartość += stawka_porówn_zł × „w tym porównawcze";
+        #   • gdy jawnej stawki NIE ma (stawka z współczynnika/dziedziczenia) → jak
+        #     dotychczas przez procent:
+        #       Wartość += (stawka_porówn ÷ stawka_bazowa) × Stawka(komórka) × „w tym porównawcze".
+        # Przewaga wariantu złotowego: dopłata nie zależy od (edytowalnej) komórki stawki
+        # bazowej i nalicza się nawet gdy stawka bazowa jest 0/pusta. „w tym porównawcze"
+        # niesie już LICZBĘ badań × okolice. Wariant istnieje tylko dla TK/MR (RTG/MMG
+        # nie mają klucza porównawczego → brak dopłaty).
         _porown_keys = merged.assign(**{'Badania do porównania': 1}).apply(build_price_key, axis=1)
         _pmap = _prices_to_pmap(df_prices)
         _adj = prepare_adjustments(get_unit_adjustments())
-        _comp_cena = []
+        _comp_cena, _comp_zloty = [], []
         for _kl, _pk, _bk in zip(merged['Klient'], _porown_keys, merged['CENA_KLUCZ']):
             if _pk == _bk:
                 _comp_cena.append(0.0)          # brak wariantu porównawczego (RTG/MMG)
+                _comp_zloty.append(False)
                 continue
-            _p = resolve_unit_price(_pmap, _kl, _pk, _adj)
+            _direct = _pmap.get((str(_kl).strip(), str(_pk).strip()))   # jawna stawka złotowa z cennika
+            _is_zl = _direct is not None and pd.notna(_direct) and _direct > 0
+            _p = _direct if _is_zl else resolve_unit_price(_pmap, _kl, _pk, _adj)
             _comp_cena.append(float(_p) if (_p is not None and pd.notna(_p) and _p > 0) else 0.0)
+            _comp_zloty.append(bool(_is_zl))
         merged['Porown_Cena'] = _comp_cena
-        ratio_map = {}   # (Modalność, Procedura, Rodzaj, Procedura rozlicz., Priorytet) -> procent
+        merged['Porown_Zloty'] = _comp_zloty
+        # (klucz) -> stawka złotowa (wprost) LUB procent (współczynnik) — rozłącznie.
+        zloty_map, ratio_map = {}, {}
         for _, _mr in merged.iterrows():
-            _base, _comp = _mr.get('Cena'), (_mr.get('Porown_Cena') or 0.0)
-            if pd.notna(_base) and _base and _base > 0 and _comp > 0:
-                ratio_map[(_mr['Modalność'], _mr['Procedura'], _mr['Rodzaj procedury rozlicz.'],
-                           _mr['Procedura rozlicz.'], _mr['Priorytet opisu'])] = float(_comp) / float(_base)
+            _comp = _mr.get('Porown_Cena') or 0.0
+            if _comp <= 0:
+                continue
+            _key = (_mr['Modalność'], _mr['Procedura'], _mr['Rodzaj procedury rozlicz.'],
+                    _mr['Procedura rozlicz.'], _mr['Priorytet opisu'])
+            if _mr.get('Porown_Zloty'):
+                zloty_map[_key] = float(_comp)                       # jawna stawka złotowa
+            else:
+                _base = _mr.get('Cena')
+                if pd.notna(_base) and _base and _base > 0:
+                    ratio_map[_key] = float(_comp) / float(_base)    # współczynnik (jak dotychczas)
 
         merged['Ilość'] = merged['#'] * merged['Mnożnik']
         merged['Wartość'] = np.nan
@@ -1123,14 +1140,18 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                             if stawka_col_letter and ilosc_col_letter:
                                 formula = f"={stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}"
                                 # Dopłata porównawcza w TEJ SAMEJ formule (bez osobnych
-                                # wierszy): + procent × stawka bazowa × „w tym porównawcze",
-                                # procent = stawka_porówn ÷ bazowa z cennika (ratio_map).
+                                # wierszy). Priorytet: JAWNA stawka złotowa wprost
+                                # (+ stawka_zł × „w tym porównawcze"); w jej braku —
+                                # procent × stawka bazowa × „w tym porównawcze" (jak dotychczas).
                                 porown_col_letter = col_map.get(f'{priority_prefix} w tym porównawcze')
-                                ratio = ratio_map.get((
-                                    row_data['Modalność'], row_data['Procedura'],
-                                    row_data['Rodzaj procedury rozlicz.'], row_data['Procedura rozlicz.'],
-                                    priority_prefix))
-                                if ratio and porown_col_letter:
+                                _pkey = (row_data['Modalność'], row_data['Procedura'],
+                                         row_data['Rodzaj procedury rozlicz.'], row_data['Procedura rozlicz.'],
+                                         priority_prefix)
+                                zl = zloty_map.get(_pkey)
+                                ratio = ratio_map.get(_pkey)
+                                if porown_col_letter and zl:
+                                    formula += f"+({zl:.10g}*{porown_col_letter}{r_idx})"
+                                elif porown_col_letter and ratio:
                                     formula += (f"+({ratio:.10g}*{stawka_col_letter}{r_idx}"
                                                 f"*{porown_col_letter}{r_idx})")
                                 cell.value = formula
