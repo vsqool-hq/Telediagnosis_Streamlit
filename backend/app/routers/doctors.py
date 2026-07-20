@@ -255,11 +255,11 @@ def _raise_no_job():
 @router.get("/compare/months")
 async def doctor_compare_months():
     """Miesiące rozliczeniowe do przełącznika na Porównaniu. Każdy miesiąc jest
-    spięty z jego NAJWIĘKSZYM przeliczeniem (best_jobs_by_month — jak Pulpit/trend).
+    spięty z jego OSTATNIM przeliczeniem (latest_jobs_by_month — jak Pulpit/trend).
     Dla każdego zwracamy, czy porównanie jest już policzone (computed/computed_at).
     Musi być zadeklarowane PRZED /compare/{job_id}."""
-    from app.routers.stats import best_jobs_by_month
-    best = best_jobs_by_month()
+    from app.routers.stats import latest_jobs_by_month
+    best = latest_jobs_by_month()
     months = []
     for period in sorted(best.keys(), reverse=True):
         b = best[period]
@@ -283,10 +283,10 @@ async def doctors_revenue_history():
     do jednostek NIE liczymy tego w locie dla brakujących miesięcy: przeliczenie
     dzisiejszym, aktualnym cennikiem lekarzy dałoby historycznie nieprawdziwe kwoty,
     jeśli cennik się od tamtej pory zmienił."""
-    from app.routers.stats import best_jobs_by_month
+    from app.routers.stats import latest_jobs_by_month
     from app.engine.doctors import doctor_key
 
-    best = best_jobs_by_month()
+    best = latest_jobs_by_month()
     history: dict[str, dict[str, float]] = {}
     names: dict[str, str] = {}
     for period, info in sorted(best.items()):
@@ -307,9 +307,9 @@ async def doctor_compare_latest():
     """Najnowsze ZAPISANE porównanie (wg computed_at) spośród wszystkich zadań —
     żeby na Porównaniu od razu pokazać ostatnio przeliczone wyniki. Musi być
     zadeklarowane PRZED /compare/{job_id} (inaczej „latest" złapie się jako job_id)."""
-    # Najlepsze (najwyższy przychód) zadanie najnowszego miesiąca — spójnie z Pulpitem.
-    from app.routers.stats import best_jobs_by_month
-    best = best_jobs_by_month()
+    # Ostatnio przeliczone zadanie najnowszego miesiąca — spójnie z Pulpitem.
+    from app.routers.stats import latest_jobs_by_month
+    best = latest_jobs_by_month()
     if not best:
         return {"empty": True, "reason": "not_computed"}
     latest = max(best.values(), key=lambda b: b["period"])

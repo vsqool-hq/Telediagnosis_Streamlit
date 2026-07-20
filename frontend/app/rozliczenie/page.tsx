@@ -291,7 +291,7 @@ export default function RozliczeniePage() {
           </div>
           <p className="mb-3 text-xs text-slate-400">
             Unikalne pliki (bez powtórek przeliczeń). „Miesięczne" (data 1. dnia miesiąca w nazwie)
-            trafiają na Pulpit, do Historii, lekarzy i porównania — pokazujemy najwyższe przeliczenie.
+            trafiają na Pulpit, do Historii, lekarzy i porównania — pokazujemy ostatnie przeliczenie.
             „Jednorazowe" liczymy na żądanie i nie używamy nigdzie indziej.
           </p>
           <div className="space-y-2">

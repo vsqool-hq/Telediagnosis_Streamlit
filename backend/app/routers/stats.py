@@ -16,8 +16,8 @@ from app.storage import job_paths
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
-# Memoizacja best_jobs_by_month (patrz funkcja) — współdzielona w procesie.
-_BJM_CACHE: dict = {"sig": None, "val": None}
+# Memoizacja latest_jobs_by_month (patrz funkcja) — współdzielona w procesie.
+_LJM_CACHE: dict = {"sig": None, "val": None}
 
 # Współrzędne jednostek (geokodowane raz ze słownika adresów) — do zakładki „Mapa".
 _GEO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "unit_geo.json")
@@ -69,14 +69,21 @@ async def job_stats(job_id: str):
     return cached_summary(paths["base"], paths["wynik"], paths["cennik"])
 
 
-def best_jobs_by_month() -> dict:
-    """Dla każdego miesiąca rozliczeniowego zwraca zadanie o NAJWYŻSZYM przychodzie.
+def latest_jobs_by_month() -> dict:
+    """Dla każdego miesiąca rozliczeniowego zwraca OSTATNIO PRZELICZONE zadanie
+    (najnowsze wg czasu zakończenia — finished_at, w razie braku created_at).
 
-    Chroni przed pomyłkami: jeśli to samo rozliczenie policzono kilka razy i jeden
-    przebieg był błędny (np. niepełny plik → 4 mln zamiast 6 mln), do Pulpitu i
-    Porównania bierzemy ten z najwyższą kwotą. Miesiąc bierzemy z dat w pliku
-    (pole „period"); dla starszych zadań bez tego pola — z daty policzenia.
-    Zwraca: { "YYYY-MM": {job_id, revenue, studies, period, date} }.
+    Wcześniej brano zadanie o NAJWYŻSZEJ kwocie, ale to było błędne: poprawki
+    (np. w cenniku, wykluczenia, korekty kategorii) często ŚWIADOMIE obniżają
+    kwotę końcową i taki niższy wynik jest tym poprawnym. Dlatego bierzemy po
+    prostu ostatnie prawidłowe przeliczenie danego miesiąca.
+
+    Filtry (bez zmian): tylko zadania zakończone sukcesem (status=done, mode=full)
+    z NIEPUSTYM wynikiem oraz wyłącznie pliki MIESIĘCZNE — z datą 1. dnia miesiąca
+    w nazwie (period_from_filename). Braki (nieudane przebiegi) i jednorazowe
+    przeliczenia z danych spoza 1. dnia miesiąca są pomijane. Gdy najnowszy przebieg
+    ma pusty wynik, cofamy się do wcześniejszego (niepustego).
+    Zwraca: { "YYYY-MM": {job_id, revenue, studies, period, date, computed_at} }.
     """
     from app.engine.revenue import cached_summary
     from app.engine.periods import period_from_filename
@@ -89,7 +96,7 @@ def best_jobs_by_month() -> dict:
     # Memoizacja: wynik zależy tylko od zestawu zadań (id/status/finished_at/nazwa)
     # oraz ustawień wpływających na przychód (grupy, wersja silnika, wyłączone
     # jednostki). Gdy sygnatura bez zmian — zwracamy zapamiętany wynik, pomijając
-    # pętlę i N odczytów stats.json (best_jobs_by_month jest wołane na prawie każdej
+    # pętlę i N odczytów stats.json (latest_jobs_by_month jest wołane na prawie każdej
     # karcie, na Pulpicie 2×). Tania sygnatura — bez czytania plików wyników.
     sig = json.dumps({
         "jobs": [(j["id"], j.get("status"), j.get("finished_at"), j.get("input_name"))
@@ -98,10 +105,10 @@ def best_jobs_by_month() -> dict:
         "engine": ENGINE_VERSION,
         "units_excluded": sorted(get_excluded_units()),
     }, ensure_ascii=False, sort_keys=True, default=str)
-    if _BJM_CACHE.get("sig") == sig:
-        return _BJM_CACHE["val"]
+    if _LJM_CACHE.get("sig") == sig:
+        return _LJM_CACHE["val"]
 
-    best: dict = {}
+    latest: dict = {}
     for j in jobs:
         if j["status"] != "done" or j["mode"] != "full":
             continue
@@ -114,26 +121,28 @@ def best_jobs_by_month() -> dict:
         s = cached_summary(paths["base"], paths["wynik"], paths["cennik"])
         if s.get("empty"):
             continue
-        rev = float(s.get("total_revenue") or 0)
-        cur = best.get(period)
-        if cur is None or rev > cur["revenue"]:
-            best[period] = {
-                "job_id": j["id"], "revenue": rev,
+        # OSTATNIO przeliczone = najnowszy czas zakończenia. Znaczniki są w ISO
+        # (sortowalne leksykograficznie), więc porównujemy je wprost jako tekst.
+        computed_at = j.get("finished_at") or j.get("created_at") or ""
+        cur = latest.get(period)
+        if cur is None or computed_at > (cur.get("computed_at") or ""):
+            latest[period] = {
+                "job_id": j["id"], "revenue": float(s.get("total_revenue") or 0),
                 "studies": int(s.get("total_studies") or 0),
                 "period": period, "date": f"{period}-01",
                 "input_name": j.get("input_name"),
-                "computed_at": j.get("finished_at") or j.get("created_at"),
+                "computed_at": computed_at,
             }
-    _BJM_CACHE["sig"] = sig
-    _BJM_CACHE["val"] = best
-    return best
+    _LJM_CACHE["sig"] = sig
+    _LJM_CACHE["val"] = latest
+    return latest
 
 
 @router.get("/trends")
 async def trends():
-    """Trend przychodu/ilości — JEDEN punkt na miesiąc, z przeliczenia o najwyższej
-    kwocie (patrz best_jobs_by_month). Korzysta z cache podsumowań."""
-    best = best_jobs_by_month()
+    """Trend przychodu/ilości — JEDEN punkt na miesiąc, z OSTATNIEGO przeliczenia
+    miesiąca (patrz latest_jobs_by_month). Korzysta z cache podsumowań."""
+    best = latest_jobs_by_month()
     points = [
         {"job_id": b["job_id"], "date": b["date"], "label": p,
          "studies": b["studies"], "revenue": b["revenue"]}
@@ -144,9 +153,9 @@ async def trends():
 
 @router.get("/current")
 async def current_stats():
-    """Statystyki „bieżące" do Pulpitu: najlepsze (najwyższy przychód) przeliczenie
+    """Statystyki „bieżące" do Pulpitu: OSTATNIO PRZELICZONE zadanie
     NAJNOWSZEGO miesiąca rozliczeniowego."""
-    best = best_jobs_by_month()
+    best = latest_jobs_by_month()
     if not best:
         return {"empty": True}
     latest = max(best.values(), key=lambda b: b["period"])
@@ -159,10 +168,10 @@ async def current_stats():
 @router.get("/dashboard")
 async def dashboard():
     """Pulpit w JEDNYM żądaniu: overview + bieżące statystyki + trend.
-    best_jobs_by_month liczone RAZ (zamiast 2× jak przy osobnych /current i /trends),
+    latest_jobs_by_month liczone RAZ (zamiast 2× jak przy osobnych /current i /trends),
     mniej round-tripów i mniej pracy na jednym workerze."""
     from app.engine.revenue import cached_summary
-    best = best_jobs_by_month()
+    best = latest_jobs_by_month()
 
     points = [
         {"job_id": b["job_id"], "date": b["date"], "label": p,
@@ -218,10 +227,10 @@ def _job_revenue_by_client(job_id: str) -> dict:
 @router.get("/map")
 async def map_data(months: int = 1):
     """Dane do zakładki „Mapa": przychód per jednostka za OSTATNI miesiąc (domyślnie;
-    months=N dla dłuższej historii) z najlepszego przeliczenia miesiąca + współrzędne.
+    months=N dla dłuższej historii) z ostatniego przeliczenia miesiąca + współrzędne.
     Przychody per zadanie są cache'owane (map.json) — bez przeliczania przy wejściu."""
     geo = _load_geo()
-    best = best_jobs_by_month()
+    best = latest_jobs_by_month()
     recent = sorted(best.keys())[-max(1, months):]
 
     rev_by_month: dict = {}
@@ -263,7 +272,7 @@ async def map_data(months: int = 1):
 @router.get("/revenue-history/units")
 async def units_revenue_history():
     """Historia przychodu per jednostka za WSZYSTKIE rozliczone miesiące (zawsze z
-    najlepszego przeliczenia danego miesiąca — patrz best_jobs_by_month), do dymków
+    ostatniego przeliczenia danego miesiąca — patrz latest_jobs_by_month), do dymków
     „najedź i zobacz historię" na Pulpicie/Porównaniu. Klucz = etykieta grupy jednostek
     (jak w top_clients/by_unit), żeby dymek trafiał też w wiersze będące grupą kilku
     jednostek."""
@@ -272,7 +281,7 @@ async def units_revenue_history():
 
     gmap = build_unit_group_map(load_config().get("unit_groups", []))
     excl = get_excluded_units()
-    best = best_jobs_by_month()
+    best = latest_jobs_by_month()
 
     history: dict[str, dict[str, float]] = {}
     for period, info in sorted(best.items()):

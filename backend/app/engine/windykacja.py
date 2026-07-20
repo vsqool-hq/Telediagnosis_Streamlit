@@ -72,13 +72,13 @@ def resolve_due_days(unit_key: str, cfg: dict | None = None) -> int:
 # ---- Synchronizacja z rozliczeniem jednostek --------------------------------
 
 def sync_receivables() -> dict:
-    """Tworzy/aktualizuje propozycje należności dla wszystkich miesięcy z „najlepszym"
-    przeliczeniem (best_jobs_by_month). Zwraca podsumowanie {created, updated, flagged}."""
-    from app.routers.stats import best_jobs_by_month, _job_revenue_by_client
+    """Tworzy/aktualizuje propozycje należności dla wszystkich miesięcy z „ostatnim"
+    przeliczeniem (latest_jobs_by_month). Zwraca podsumowanie {created, updated, flagged}."""
+    from app.routers.stats import latest_jobs_by_month, _job_revenue_by_client
 
     cfg = db.get_settings()
     created = updated = flagged = 0
-    best = best_jobs_by_month()
+    best = latest_jobs_by_month()
     skip_keys = db.list_sync_skip_keys()
     for period, info in best.items():
         job_id = info["job_id"]

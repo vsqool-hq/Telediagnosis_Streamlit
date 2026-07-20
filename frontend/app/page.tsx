@@ -70,8 +70,8 @@ export default function Dashboard() {
   // Cache po stronie przeglądarki: powrót na Pulpit pokazuje liczby od razu,
   // odświeżenie leci w tle.
   // Cały Pulpit w JEDNYM żądaniu (overview + KPI + trend) — mniej round-tripów,
-  // a backend liczy „najlepsze przeliczenie miesiąca" raz. KPI z NAJLEPSZEGO
-  // (najwyższy przychód) przeliczenia najnowszego miesiąca, nie z ostatniego runu.
+  // a backend liczy „ostatnie przeliczenie miesiąca" raz. KPI z OSTATNIO
+  // PRZELICZONEGO zadania najnowszego miesiąca.
   const { data: dash, error } = useCachedData<DashboardData>("dashboard", () => api.dashboard());
   const overview = dash?.overview;
   const stats = dash?.current;
@@ -138,7 +138,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard icon={<Coins size={20} />} label="Wartość rozliczenia (najwyższe w m-cu)"
+          <StatCard icon={<Coins size={20} />} label="Wartość rozliczenia (ostatnie w m-cu)"
             value={<CountUp value={stats.total_revenue ?? 0} format={(n) => zl(n)} />} />
           <StatCard icon={<Layers size={20} />} label="Pozycji rozliczonych"
             value={<CountUp value={stats.total_studies ?? 0} />}

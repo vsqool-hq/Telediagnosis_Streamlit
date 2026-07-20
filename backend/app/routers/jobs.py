@@ -47,14 +47,14 @@ async def list_files():
     """UNIKALNE wgrane pliki dla zakładki Rozliczenie (bez mnożenia przez kolejne
     przeliczenia). Dwa rodzaje:
       • miesięczny — plik z datą 1. dnia miesiąca w nazwie; jeden wpis na miesiąc,
-        z NAJWIĘKSZEGO przeliczenia (best_jobs_by_month). To on jest używany na
+        z OSTATNIEGO przeliczenia (latest_jobs_by_month). To on jest używany na
         Pulpicie/Historii/lekarzach/porównaniu.
       • jednorazowy — pozostałe pliki; jeden wpis na nazwę pliku (najnowsze przeliczenie),
         nigdzie indziej nieużywany.
     Każdy wpis niesie `job_ids` (wszystkie przeliczenia tej pozycji) — do czystego
     usunięcia całej pozycji za jednym razem."""
     from app.engine.periods import period_from_filename
-    from app.routers.stats import best_jobs_by_month
+    from app.routers.stats import latest_jobs_by_month
 
     all_jobs = db.list_jobs(limit=500)  # malejąco wg daty
     by_period_ids: dict = {}
@@ -69,7 +69,7 @@ async def list_files():
             oneoff.setdefault(key, j)  # lista malejąco → pierwszy = najnowszy
 
     files = []
-    best = best_jobs_by_month()
+    best = latest_jobs_by_month()
     for period in sorted(best.keys(), reverse=True):
         b = best[period]
         files.append({

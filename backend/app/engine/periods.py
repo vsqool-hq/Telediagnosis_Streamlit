@@ -4,7 +4,7 @@ Okres rozliczenia z NAZWY pliku.
 Pliki wejściowe mają w nazwie datę WYGENEROWANIA, a zawierają dane za POPRZEDNI
 miesiąc (np. plik „…01.06.2026…" = dane za 2026-05). Stąd: period = miesiąc z
 nazwy − 1. To jeden, spójny sposób ustalania miesiąca dla całego programu
-(Pulpit, trend, Mapa, „najlepsze przeliczenie w miesiącu", Historia, nazwy plików
+(Pulpit, trend, Mapa, „ostatnie przeliczenie w miesiącu", Historia, nazwy plików
 lekarzy). Lekki moduł bez pandas — można go importować wszędzie.
 """
 

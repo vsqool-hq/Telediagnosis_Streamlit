@@ -25,7 +25,7 @@ export default function RozliczenieLekarzyPage() {
 
   // Cache: coverage i lista miesięcy pojawiają się od razu po powrocie na zakładkę.
   const { data: coverage } = useCachedData<DoctorCoverage>("doctorsCoverage", () => api.doctorsCoverage());
-  // Do wyboru: MIESIĄCE (unikalne pliki miesięczne — najwyższe przeliczenie miesiąca),
+  // Do wyboru: MIESIĄCE (unikalne pliki miesięczne — ostatnie przeliczenie miesiąca),
   // a nie surowe zadania mnożone przez kolejne przeliczenia.
   const { data: monthsData } = useCachedData<{ months: CompareMonth[] }>(
     "doctorsMonths", () => api.doctorsCompareMonths());

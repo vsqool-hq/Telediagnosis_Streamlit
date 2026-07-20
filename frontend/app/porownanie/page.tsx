@@ -233,7 +233,7 @@ export default function PorownaniePage() {
         <div>
           <span className="text-[13px] font-semibold text-slate-200">Miesiąc rozliczenia</span>
           <p className="text-xs text-slate-400">
-            Każdy miesiąc jest spięty z jego <b className="text-slate-300">największym przeliczeniem</b> (jak
+            Każdy miesiąc jest spięty z jego <b className="text-slate-300">ostatnim przeliczeniem</b> (jak
             wykres na Pulpicie). Kropka = porównanie do policzenia.
           </p>
         </div>
@@ -283,7 +283,7 @@ export default function PorownaniePage() {
       {selected && !selected.computed && !result && !busy && (
         <div className="card text-amber-300">
           <AlertTriangle className="mb-1 inline" size={16} /> Porównanie dla{" "}
-          <b>{periodLabel(selected.period)}</b> nie jest jeszcze policzone dla największego
+          <b>{periodLabel(selected.period)}</b> nie jest jeszcze policzone dla ostatniego
           przeliczenia tego miesiąca — kliknij „Policz porównanie".
         </div>
       )}

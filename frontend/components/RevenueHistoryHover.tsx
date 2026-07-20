@@ -31,7 +31,7 @@ export function HistoryList({ history, label = "Historia przychodu" }: { history
 }
 
 /** Owija nazwę jednostki/lekarza — po najechaniu pokazuje dymek z historią kwot
- * per miesiąc (zawsze z najlepszego przeliczenia danego miesiąca). Bez historii
+ * per miesiąc (zawsze z ostatniego przeliczenia danego miesiąca). Bez historii
  * (np. lekarz, dla którego nigdy nie policzono rozliczenia) renderuje samo dziecko. */
 export function RevenueHistoryHover({
   history,

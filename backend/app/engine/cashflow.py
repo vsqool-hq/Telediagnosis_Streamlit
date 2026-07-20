@@ -63,7 +63,7 @@ def _cached_doctor_billing_total(job_id: str) -> float | None:
 
 
 def build_cashflow() -> dict:
-    from app.routers.stats import best_jobs_by_month
+    from app.routers.stats import latest_jobs_by_month
 
     today = _today()
     cfg = db.get_settings()
@@ -127,7 +127,7 @@ def build_cashflow() -> dict:
     # ---- Koszty lekarzy: WYŁĄCZNIE prognoza wg założonego terminu -------------
     doctor_cost_settled_to_date = 0.0  # KPI: cała historia
     doctor_cost_forecast_total = 0.0
-    for period, info in best_jobs_by_month().items():
+    for period, info in latest_jobs_by_month().items():
         total = _cached_doctor_billing_total(info["job_id"])
         if not total:
             continue
