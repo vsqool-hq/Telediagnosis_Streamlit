@@ -7,6 +7,7 @@ import { toast } from "@/lib/toast";
 import BackendSwitcher from "@/components/BackendSwitcher";
 import DoctorsSettings from "@/components/DoctorsSettings";
 import UnitsSettings from "@/components/UnitsSettings";
+import UnitAliasSettings from "@/components/UnitAliasSettings";
 import PaymentTermsSettings from "@/components/PaymentTermsSettings";
 import TeamupSettings from "@/components/TeamupSettings";
 
@@ -575,6 +576,7 @@ export default function UstawieniaPage() {
 
       <DoctorsSettings />
       <UnitsSettings />
+      <UnitAliasSettings />
       <PaymentTermsSettings />
       <TeamupSettings />
     </div>

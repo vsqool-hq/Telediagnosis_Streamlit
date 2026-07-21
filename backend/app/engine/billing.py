@@ -284,6 +284,9 @@ class MedicalVerificationAgent:
                 print("BŁĄD KRYTYCZNY: W pliku wejściowym brakuje kolumny 'Klient'.", flush=True)
                 return False
 
+            # Scalanie jednostek podległych w główną (u źródła, przed podziałem na pliki).
+            master_df = apply_unit_aliases(master_df)
+
             unique_clients = master_df['Klient'].dropna().unique()
             print(f"Znaleziono dane dla {len(unique_clients)} unikalnych klientów.", flush=True)
 
@@ -490,6 +493,33 @@ def _norm_unit(u) -> str:
     """Klucz porównawczy nazwy jednostki — bez znaków diakrytycznych, małe litery.
     Pozwala dopasować np. zakładkę „kosmowrocław" do jednostki „kosmowroclaw"."""
     return _strip_diacritics(u).lower().strip()
+
+
+def apply_unit_aliases(master_df):
+    """Scala jednostki podległe w główną PRZED podziałem na pliki: podmienia wartości
+    kolumny „Klient" wg mapy `unit_aliases` z ustawień ({podległa: główna}). Dzięki temu
+    badania podległej trafiają do pliku głównej, nie powstaje osobny plik podległej i nie
+    pojawia się ona na Pulpicie/Porównaniach/Mapie (bo w danych źródłowych jest już nazwa
+    głównej). Dopasowanie po `_norm_unit` (odporne na wielkość liter/diakrytyki).
+    Zwraca (być może zmieniony) DataFrame; przy braku mapy — bez zmian."""
+    try:
+        from app.engine.config import load_config
+        aliases = load_config().get("unit_aliases", {}) or {}
+    except Exception:  # noqa: BLE001
+        aliases = {}
+    if not aliases or 'Klient' not in getattr(master_df, "columns", []):
+        return master_df
+    # {znormalizowana_podległa: docelowa_główna(surowy klucz z ustawień)}
+    norm_map = {_norm_unit(src): str(tgt).strip() for src, tgt in aliases.items() if str(tgt).strip()}
+    if not norm_map:
+        return master_df
+    moved = int(master_df['Klient'].map(_norm_unit).isin(norm_map).sum())
+    if not moved:
+        return master_df
+    master_df = master_df.copy()
+    master_df['Klient'] = master_df['Klient'].map(lambda k: norm_map.get(_norm_unit(k), k))
+    print(f"[scalanie jednostek] Przeniesiono {moved} wierszy wg mapy {aliases}.", flush=True)
+    return master_df
 
 
 def get_unit_adjustments() -> dict:
@@ -1321,6 +1351,9 @@ def run_unmatched_only(jednostki_dir, wzorcowe_dir, sprawdzone_dir):
     if 'Klient' not in master_df.columns:
         print("BŁĄD: Brak kolumny 'Klient' w pliku wejściowym.", flush=True)
         return
+
+    # Scalanie jednostek podległych w główną — spójnie z etapem weryfikacji/podziału.
+    master_df = apply_unit_aliases(master_df)
 
     required_cols = ['Procedura', 'Rodzaj procedury rozlicz.']
     if not all(c in master_df.columns for c in required_cols):

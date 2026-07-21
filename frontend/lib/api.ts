@@ -633,6 +633,13 @@ export const api = {
     }),
   unitsList: () =>
     req<{ job_id: string | null; units: { name: string; key: string; excluded: boolean }[] }>("/api/units"),
+  unitAliases: () =>
+    req<{ aliases: Record<string, string> }>("/api/settings/unit-aliases"),
+  saveUnitAliases: (aliases: Record<string, string>) =>
+    req<{ aliases: Record<string, string> }>("/api/settings/unit-aliases", {
+      method: "PUT",
+      body: JSON.stringify({ aliases }),
+    }),
   teamupConfig: () =>
     req<{ has_key: boolean; key_from_env: boolean; key_source: string; env_names: string[];
       cal_gotowosc: string; cal_triaz: string }>("/api/teamup/config"),

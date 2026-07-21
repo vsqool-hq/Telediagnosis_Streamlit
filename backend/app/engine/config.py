@@ -116,6 +116,13 @@ DEFAULT_CONFIG = {
     # Struktura: [{ "name": "Szpitale Wrocław", "units": ["wsswroclaw", "wss5wroclaw"] }]
     "unit_groups": [],
 
+    # Scalanie jednostek podległych w główną — DZIAŁA U ŹRÓDŁA (zmienia kolumnę
+    # „Klient" PRZED podziałem na pliki). Badania jednostki podległej trafiają do
+    # głównej: nie powstaje osobny plik podległej, nie liczy się jej cennik i nie
+    # pokazuje się na Pulpicie/Porównaniach/Mapie. Rozliczane po cenniku głównej.
+    # Struktura: { "podległa_klucz": "główna_klucz" }, np. { "puszczykowo": "swp" }.
+    "unit_aliases": {},
+
     # Moduł Windykacja: domyślny termin płatności (dni od wystawienia należności),
     # używany gdy jednostka nie ma własnego wpisu w payment_terms_by_unit.
     "default_payment_term_days": 14,

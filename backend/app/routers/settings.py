@@ -49,8 +49,39 @@ async def update_settings(payload: dict):
             if name and units:
                 clean.append({"name": name, "units": units})
         cfg["unit_groups"] = clean
+    # Scalanie jednostek: mapa {podległa: główna} — odrzucamy puste i samopętle.
+    if "unit_aliases" in cfg:
+        cfg["unit_aliases"] = _clean_aliases(cfg["unit_aliases"])
     db.save_settings(cfg)
     return {"ok": True, "settings": cfg}
+
+
+def _clean_aliases(raw) -> dict:
+    if not isinstance(raw, dict):
+        raise HTTPException(400, "Pole unit_aliases musi być obiektem {podległa: główna}.")
+    clean = {}
+    for src, tgt in raw.items():
+        s = str(src or "").strip()
+        t = str(tgt or "").strip()
+        if s and t and s.lower() != t.lower():   # bez pustych i bez „X → X"
+            clean[s] = t
+    return clean
+
+
+@router.get("/unit-aliases")
+async def get_unit_aliases():
+    """Mapa scalania jednostek {podległa: główna}. Dedykowany endpoint dla panelu
+    (samodzielny — nie rusza reszty ustawień)."""
+    cfg = db.get_settings()
+    return {"aliases": cfg.get("unit_aliases") or {}}
+
+
+@router.put("/unit-aliases")
+async def save_unit_aliases(payload: dict):
+    cfg = db.get_settings()
+    cfg["unit_aliases"] = _clean_aliases(payload.get("aliases", payload))
+    db.save_settings(cfg)
+    return {"aliases": cfg["unit_aliases"]}
 
 
 @router.post("/reset")
