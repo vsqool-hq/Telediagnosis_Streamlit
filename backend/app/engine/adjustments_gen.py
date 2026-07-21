@@ -8,11 +8,13 @@ PORÓWNAWCZE / PORÓW. / ONKO / ANGIO) liczy:
 
 gdzie baza = ten sam klucz z usuniętymi modyfikatorami (np.
 „TK PORÓWNAWCZE CITO" → „TK CITO", „MR PLANOWE GŁ/KRG ONKO PORÓW." →
-„MR PLANOWE GŁ/KRG"). Obie stawki bierzemy z NAJNOWSZEJ kolumny aneksu, w której
-jednocześnie są > 0 (kolumny aneksów rozpoznajemy po nagłówku zawierającym „STAWK"
-oraz zawsze kolumnie B). To odtwarza regułę umowną „pochodne liczone jako procent
-bazowej", żeby uzupełnić współczynniki w Ustawieniach dla pozycji, których w
-cenniku (zbiorczym) nie ma wprost (myślnik „-").
+„MR PLANOWE GŁ/KRG"). Obie stawki bierzemy WYŁĄCZNIE z NAJNOWSZEGO aneksu
+(ostatnia od prawej kolumna stawek, która ma jeszcze aktualne ceny — to stan za
+ostatni miesiąc). NIE cofamy się do starszych aneksów: jeśli w bieżącym aneksie
+badania pochodnego już nie ma (0/pusto), NIE tworzymy dla niego współczynnika —
+nawet gdy istniał w poprzednich miesiącach. Kolumny aneksów rozpoznajemy po
+nagłówku zawierającym „STAWK" oraz zawsze kolumnie B. To odtwarza regułę umowną
+„pochodne liczone jako procent bazowej" dla stanu z ostatniego miesiąca.
 
 Wynik jest PROPOZYCJĄ do zatwierdzenia przez człowieka (nie stosujemy automatycznie).
 """
@@ -86,24 +88,28 @@ def generate_adjustments(path_or_bytes) -> dict:
             if col_rates:
                 ratemap[k] = col_rates
 
+        # NAJNOWSZY aneks = ostatnia od prawej kolumna stawek, która ma jeszcze
+        # jakąkolwiek dodatnią stawkę (to stan za ostatni miesiąc). Liczymy TYLKO z niej.
+        cur_col = next((c for c in reversed(stawka_cols)
+                        if any((rm.get(c) or 0) > 0 for rm in ratemap.values())), None)
+        if cur_col is None:
+            continue
+
         rules: dict = {}
         for k, col_rates in ratemap.items():
             if not _is_derived(k):
+                continue
+            dv = col_rates.get(cur_col)
+            if not dv or dv <= 0:            # brak stawki pochodnej w bieżącym aneksie → pomiń
                 continue
             bk = _base_key(k)
             if bk == k or bk not in ratemap:
                 skipped_no_base += 1
                 continue
-            base_rates = ratemap[bk]
-            chosen = None
-            for c in reversed(stawka_cols):                 # od najnowszej kolumny aneksu
-                dv, bv = col_rates.get(c), base_rates.get(c)
-                if dv and dv > 0 and bv and bv > 0:
-                    chosen = (dv, bv)
-                    break
-            if not chosen:
+            bv = ratemap[bk].get(cur_col)
+            if not bv or bv <= 0:            # brak stawki bazowej w bieżącym aneksie → pomiń
+                skipped_no_base += 1
                 continue
-            dv, bv = chosen
             factor = round(dv / bv, 6)
             rules[k] = {"base": bk, "factor": factor}
             detail.append({"unit": sheet, "key": k, "base": bk, "factor": factor,
