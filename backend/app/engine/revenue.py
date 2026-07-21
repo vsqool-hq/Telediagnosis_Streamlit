@@ -64,6 +64,12 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
     if prices is None or not os.path.isdir(src_dir):
         return pd.DataFrame(columns=["Klient", "Modalność", "Ilość", "Wartość"])
 
+    # Pliki SPRAWDZONE (wejściowe) mają w „Badania do porównania" surową flagę 0/1 →
+    # przemnażamy ją przez okolice per opis (tak jak billing.py na Szczegółowych).
+    # Pliki „Wynik" (tryb awaryjny) mają tę kolumnę JUŻ przemnożoną — wtedy nie mnożymy
+    # drugi raz, żeby nie liczyć podwójnie.
+    _raw_source = os.path.basename(os.path.normpath(src_dir)) == "pliki_sprawdzone"
+
     frames = []
     for path in glob.glob(os.path.join(src_dir, "*.xlsx")):
         if os.path.basename(path).startswith("~$"):
@@ -79,6 +85,14 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
             df["Badania do porównania"] = 0
         df["Badania do porównania"] = pd.to_numeric(df["Badania do porównania"], errors="coerce").fillna(0)
 
+        # Przemnożenie porównawczych przez okolice per opis (tylko dla surowych plików
+        # sprawdzonych) — spójnie z billing.py na Szczegółowych. „Wynik" ma już przemnożone.
+        if _raw_source:
+            df["Badania do porównania"] = (
+                df["Badania do porównania"]
+                * df["Procedura rozlicz."].apply(bill_extract_multiplier)
+            )
+
         for col in GROUPING_COLUMNS:
             if pd.api.types.is_string_dtype(df[col]):
                 df[col] = df[col].astype(str).str.strip()
@@ -88,7 +102,8 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
             .agg({"Nr badania": "count", "Badania do porównania": "sum"})
             .reset_index()
         )
-        # rename jak w silniku — dzięki temu build_price_key nie widzi 'Badania do porównania'
+        # rename jak w silniku — dzięki temu build_price_key nie widzi 'Badania do porównania'.
+        # „Porownawcze_Flag" = suma już przemnożonej kolumny (bez dalszego mnożenia).
         grouped.rename(columns={"Nr badania": "#", "Badania do porównania": "Porownawcze_Flag"}, inplace=True)
 
         grouped["Mnożnik"] = grouped["Procedura rozlicz."].apply(bill_extract_multiplier)
@@ -103,10 +118,9 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
         merged = fill_price_with_base(merged, prices)  # ONKO/ANGIO → cena bazowa, gdy 0/brak
         merged["Ilość"] = merged["#"] * merged["Mnożnik"]
         merged["Wartość"] = merged["Ilość"] * merged["Cena"].fillna(0)
-        # Dopłata za badania porównawcze liczona od LICZBY badań × OKOLICE (jak faktura
-        # i tabela jednostek). Pliki mają w „Badania do porównania" surową flagę (0/1),
-        # więc Porownawcze_Flag (= suma flag) mnożymy tu przez Mnożnik (okolice).
-        merged["Porownawcze_Flag"] = merged["Porownawcze_Flag"] * merged["Mnożnik"]
+        # Dopłata za badania porównawcze — od liczby porównawczych JUŻ przemnożonej przez
+        # okolice (per opis wyżej, tylko dla surowych plików sprawdzonych — guard
+        # _raw_source), spójnie z tabelą jednostek (billing.py).
         surcharge, _ = porownawcze_surcharge(merged, prices)
         merged["Wartość"] = merged["Wartość"] + surcharge
         # CENA_KLUCZ/#/Cena — do diagnostyki „rozliczone po 0 zł" w summarize().

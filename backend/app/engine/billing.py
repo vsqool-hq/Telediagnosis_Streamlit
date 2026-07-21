@@ -619,7 +619,8 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
     Dopłata za badania porównawcze. Faktura nalicza KAŻDE badanie pełną stawką oraz
     dodatkową, osobną linię „porównawcza" po stawce porównawczej z cennika — dla
     badań oznaczonych „Badania do porównania". Dopłata skaluje się z LICZBĄ OKOLIC:
-    `flag_col` niesie już liczbę badań × mnożnik okolic (mnożenie robi wołający).
+    `flag_col` niesie już liczbę badań × mnożnik okolic (mnożenie robi wołający —
+    w billing.py per opis na Szczegółowych, w revenue.py przy czytaniu sprawdzonych).
 
     Dopłatę naliczamy tylko tam, gdzie istnieje odrębny klucz „… PORÓWNAWCZE …"
     (TK/MR); dla RTG/MMG build_price_key nie tworzy wariantu porównawczego, więc
@@ -973,6 +974,14 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             df_details['Badania do porównania'] = 0
         df_details['Badania do porównania'] = pd.to_numeric(df_details['Badania do porównania'], errors='coerce').fillna(0)
 
+        # Porównawcze przemnażamy przez okolice JUŻ NA SZCZEGÓŁOWYCH (per opis): opis
+        # porównawczy N-okolicowy liczy się jak N. Rozliczenie zaciąga potem gotową
+        # (już przemnożoną) liczbę do „w tym porównawcze" — bez dalszego mnożenia.
+        df_details['Badania do porównania'] = (
+            df_details['Badania do porównania']
+            * df_details['Procedura rozlicz.'].apply(bill_extract_multiplier)
+        )
+
         grouping_columns = ['Priorytet opisu', 'Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.', 'Klient']
 
         for col in grouping_columns:
@@ -985,14 +994,10 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         grouped.rename(columns={'Nr badania': '#', 'Badania do porównania': 'Porown_Raw'}, inplace=True)
 
         grouped['Mnożnik'] = grouped['Procedura rozlicz.'].apply(bill_extract_multiplier)
-        # Dopłatę porównawczą liczymy od LICZBY BADAŃ porównawczych × LICZBA OKOLIC
-        # (mnożnik) — tak jak badanie bazowe skaluje się z okolicami. Kolumna
-        # „w tym porównawcze" = Porown_Raw × Mnożnik. Formuła „Wartość" dolicza:
-        # (stawka_porówn ÷ bazowa) × stawka bazowa × (liczba badań × okolice).
-        # UWAGA: surowa flaga 0/1 zostaje w arkuszu „Szczegółowe” — mnożymy dopiero
-        # tu (przy grupowaniu), żeby przychód/Pulpit i Porównanie liczyły to samo
-        # (mnożenie następuje w KAŻDej z tych ścieżek dokładnie raz).
-        grouped['Porownawcze_Flag'] = grouped['Porown_Raw'] * grouped['Mnożnik']
+        # „w tym porównawcze" = suma z kolumny „Badania do porównania" (już przemnożonej
+        # przez okolice na Szczegółowych, patrz wyżej). NIE mnożymy ponownie. Formuła
+        # „Wartość" dolicza: (stawka_porówn ÷ bazowa) × stawka bazowa × „w tym porównawcze".
+        grouped['Porownawcze_Flag'] = grouped['Porown_Raw']
 
         grouped['CENA_KLUCZ'] = grouped.apply(build_price_key, axis=1)
 
@@ -1086,11 +1091,11 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         num_cols = [c for c in billing_table.columns if any(k in c for k in ['Stawka', '#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze'])]
         billing_table[num_cols] = billing_table[num_cols].fillna(0)
 
-        # Arkusz „Szczegółowe" zachowuje SUROWĄ flagę „Badania do porównania" (0/1).
-        # Mnożenie ×okolice robimy dopiero przy grupowaniu (Porownawcze_Flag wyżej) i w
-        # Rozliczeniu — NIE w Szczegółowych. Dzięki temu przychód (revenue.py), który
-        # czyta „Badania do porównania" z plików sprawdzonych, dostaje tę samą surową
-        # liczbę i sam mnoży ×okolice raz (brak podwójnego liczenia dla zadań z chmury).
+        # Arkusz „Szczegółowe" zapisujemy z kolumną „Badania do porównania" JUŻ
+        # PRZEMNOŻONĄ przez okolice (patrz wyżej) — opis N-okolicowy ma wpisane N.
+        # Rozliczenie („w tym porównawcze") bierze sumę tych właśnie liczb. Przychód
+        # (revenue.py) liczy niezależnie z plików SPRAWDZONYCH (surowa flaga) i mnoży
+        # tak samo (guard _raw_source), więc pozostaje spójny bez podwójnego liczenia.
         df_details_modified = df_details.copy()
 
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
