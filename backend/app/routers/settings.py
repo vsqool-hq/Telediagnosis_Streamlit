@@ -1,6 +1,8 @@
 """Router panelu Ustawienia — edycja konfiguracji silnika."""
 
-from fastapi import APIRouter, HTTPException
+import io
+
+from fastapi import APIRouter, HTTPException, UploadFile, File
 
 from app import db
 from app.engine.config import DEFAULT_CONFIG
@@ -69,3 +71,21 @@ async def reseed_adjustments():
     cfg["unit_adjustments"] = seed
     db.save_settings(cfg)
     return {"ok": True, "unit_adjustments": seed}
+
+
+@router.post("/adjustments/generate")
+async def generate_adjustments_from_file(file: UploadFile = File(...)):
+    """Generuje PROPOZYCJĘ współczynników cen jednostek z pliku ZOBOWIĄZANIA SZPITALE
+    (arkusze per jednostka). Dla każdego badania pochodnego (…PORÓWNAWCZE…/…ONKO/
+    …ANGIO…) liczy factor = stawka_pochodna / stawka_bazowa z najnowszego aneksu.
+    NIE zapisuje — zwraca propozycję do zatwierdzenia w interfejsie. Zapis odbywa się
+    zwykłym PUT /api/settings (po scaleniu/zastąpieniu po stronie klienta)."""
+    from app.engine.adjustments_gen import generate_adjustments
+    content = await file.read()
+    try:
+        result = generate_adjustments(io.BytesIO(content))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Nie udało się odczytać pliku: {e}")
+    # bieżące współczynniki — do pokazania różnicy „nowe / zmienione" po stronie klienta
+    result["current"] = db.get_settings().get("unit_adjustments", {}) or {}
+    return result

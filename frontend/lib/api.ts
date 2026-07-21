@@ -668,6 +668,16 @@ export const api = {
       "/api/settings/adjustments/reseed",
       { method: "POST" },
     ),
+  generateAdjustments: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return req<{
+      proposal: Record<string, Record<string, { base: string; factor: number }>>;
+      current: Record<string, Record<string, { base: string; factor: number }>>;
+      stats: { units: number; rules: number; skipped_no_base: number; sheets_scanned: number };
+      warning: string | null;
+    }>("/api/settings/adjustments/generate", { method: "POST", body: fd });
+  },
 
   windykacjaList: (params: { period?: string; status?: string; unit?: string } = {}) => {
     const q = new URLSearchParams();

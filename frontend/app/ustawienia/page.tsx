@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu, Sliders, Download } from "lucide-react";
+import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu, Sliders, Download, Wand2, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import BackendSwitcher from "@/components/BackendSwitcher";
@@ -159,6 +159,35 @@ function AdjustmentsEditor({
   const [base, setBase] = useState("");
   const [factor, setFactor] = useState("");
 
+  // Generowanie współczynników z pliku ZOBOWIĄZANIA SZPITALE (propozycja do zatwierdzenia).
+  const [gen, setGen] = useState<Awaited<ReturnType<typeof api.generateAdjustments>> | null>(null);
+  const [genBusy, setGenBusy] = useState(false);
+  const [genErr, setGenErr] = useState<string | null>(null);
+
+  async function onGenFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setGenBusy(true); setGenErr(null); setGen(null);
+    try { setGen(await api.generateAdjustments(f)); }
+    catch (err: any) { setGenErr(err.message); }
+    finally { setGenBusy(false); }
+  }
+  function applyGen(mode: "replace" | "merge") {
+    if (!gen) return;
+    if (mode === "replace") {
+      onChange(gen.proposal);
+    } else {
+      const next: AdjMap = { ...value };
+      for (const [u, rules] of Object.entries(gen.proposal)) {
+        next[u] = { ...(next[u] || {}), ...rules };
+      }
+      onChange(next);
+    }
+    setGen(null);
+    toast(`Wczytano propozycję (${mode === "replace" ? "zastąpiono" : "scalono"}). Kliknij „Zapisz ustawienia”, aby utrwalić.`);
+  }
+
   // Domyślnie pokaż pierwszą jednostkę; trzymaj wybór w granicach dostępnych.
   useEffect(() => {
     if (units.length && !units.includes(unit)) setUnit(units[0]);
@@ -276,9 +305,48 @@ function AdjustmentsEditor({
         </>
       )}
 
-      <button className="btn-secondary" onClick={onReseed}>
-        <Download size={16} /> Wczytaj współczynniki startowe (z pliku)
-      </button>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button className="btn-secondary" onClick={onReseed}>
+          <Download size={16} /> Wczytaj współczynniki startowe (z pliku)
+        </button>
+        <label className="btn-secondary cursor-pointer">
+          {genBusy ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+          Wygeneruj z pliku ZOBOWIĄZANIA SZPITALE
+          <input type="file" accept=".xlsx" className="hidden" onChange={onGenFile} disabled={genBusy} />
+        </label>
+      </div>
+
+      <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
+        „Wygeneruj” czyta pełny plik ZOBOWIĄZANIA SZPITALE (arkusze per jednostka) i wylicza współczynniki
+        dla badań pochodnych (PORÓWNAWCZE / ONKO / ANGIO) jako <b>stawka pochodna ÷ stawka bazowa</b> z
+        najnowszego aneksu. Wynik to <b>propozycja</b> — zatwierdzasz ją poniżej, a utrwala dopiero „Zapisz ustawienia”.
+      </p>
+
+      {genErr && <p className="mt-2 text-sm text-red-300">{genErr}</p>}
+
+      {gen && (
+        <div className="soft mt-2 space-y-2 px-3 py-3">
+          {gen.warning
+            ? <p className="text-sm text-amber-300">{gen.warning}</p>
+            : <p className="text-sm text-slate-200">
+                Wyliczono <b>{gen.stats.rules}</b> współczynników dla <b>{gen.stats.units}</b> jednostek
+                (przeskanowano {gen.stats.sheets_scanned} arkuszy; pochodne bez stawki bazowej pominięte: {gen.stats.skipped_no_base}).
+              </p>}
+          {!gen.warning && (
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-primary" onClick={() => applyGen("merge")}>
+                <CheckCircle2 size={16} /> Scal z obecnymi (nadpisz wspólne)
+              </button>
+              <button className="btn-secondary" onClick={() => applyGen("replace")}>
+                <RotateCcw size={16} /> Zastąp wszystkie
+              </button>
+              <button className="btn-secondary" onClick={() => setGen(null)}>
+                <X size={16} /> Anuluj
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
