@@ -3,9 +3,10 @@
 import { useState } from "react";
 import {
   UploadCloud, Wand2, Download, Save, Loader2, CheckCircle2,
-  AlertTriangle, XCircle, Copy,
+  AlertTriangle, XCircle, Copy, Sliders,
 } from "lucide-react";
 import { api, CennikConversion, isLocalBackend } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 function Metric({ label, value, tone = "default" }: { label: string; value: string | number; tone?: "default" | "warn" | "error" | "ok" }) {
   const tones = {
@@ -70,6 +71,10 @@ export default function CennikConverter() {
     try {
       const created = await api.saveConvertedCennik(conv.id, label, label.replace(/[^\w\-]+/g, "_") + ".csv");
       setSaved(true);
+      if (created?.adjustments_applied) {
+        const a = created.adjustments_applied;
+        toast(`Zaktualizowano współczynniki cen jednostek: ${a.rules} reguł dla ${a.units} jednostek.`);
+      }
       // Na lokalu: wyślij zapisany cennik od razu do chmury (żeby był online).
       if (isLocalBackend() && created?.id) {
         try { await api.pushVersionToCloud("cennik", created.id); } catch { /* best-effort */ }
@@ -182,6 +187,36 @@ export default function CennikConverter() {
               </table>
             </div>
           </div>
+
+          {/* Współczynniki cen jednostek (auto z tego samego pliku) */}
+          {conv.adjustments && (
+            conv.adjustments.rules > 0 ? (
+              <div className="flex items-start gap-3 rounded-xl border border-brand-accent/40 bg-brand-accent/10 px-4 py-3 text-sm text-slate-200">
+                <Sliders size={18} className="mt-0.5 shrink-0 text-brand-accent" />
+                <div>
+                  <p className="font-medium text-brand-accent">Współczynniki cen jednostek — wykryto z tego pliku</p>
+                  <p className="text-slate-300">
+                    Wygenerowano <b>{conv.adjustments.rules}</b>{" "}
+                    {conv.adjustments.rules === 1 ? "regułę" : "reguł"} dla{" "}
+                    <b>{conv.adjustments.units}</b>{" "}
+                    {conv.adjustments.units === 1 ? "jednostki" : "jednostek"}
+                    {" "}(przeskanowano {conv.adjustments.sheets_scanned}{" "}
+                    {conv.adjustments.sheets_scanned === 1 ? "arkusz" : "arkuszy"}).
+                    Przy zapisie <b>zastąpią</b> obecne współczynniki w Ustawieniach —
+                    pozycje nieobecne w nowym pliku znikną.
+                  </p>
+                </div>
+              </div>
+            ) : conv.adjustments.warning ? (
+              <div className="flex items-start gap-3 rounded-xl border border-brand-border/60 bg-brand-bg/30 px-4 py-3 text-sm text-slate-400">
+                <Sliders size={18} className="mt-0.5 shrink-0 text-slate-500" />
+                <div>
+                  <p className="font-medium text-slate-300">Współczynniki cen jednostek — bez zmian</p>
+                  <p>{conv.adjustments.warning}</p>
+                </div>
+              </div>
+            ) : null
+          )}
 
           {/* Akcje */}
           <div className="flex flex-col gap-3 border-t border-brand-border/60 pt-4 sm:flex-row sm:items-center">

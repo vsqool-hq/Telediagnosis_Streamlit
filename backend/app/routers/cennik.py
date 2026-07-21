@@ -10,6 +10,7 @@ Przepływ:
 
 import os
 import io
+import json
 import uuid
 import datetime
 
@@ -29,6 +30,10 @@ def _now():
 
 def _tmp_path(conv_id: str) -> str:
     return os.path.join(TMP_DIR, f"{conv_id}.csv")
+
+
+def _adj_tmp_path(conv_id: str) -> str:
+    return os.path.join(TMP_DIR, f"{conv_id}.adj.json")
 
 
 @router.post("/convert")
@@ -55,12 +60,34 @@ async def convert(file: UploadFile = File(...)):
         {"badanie": b, "jednostka": j, "cena": p} for b, j, p in result["rows"][:50]
     ]
 
+    # Automatyczne WSPÓŁCZYNNIKI cen jednostek z tego samego pliku — o ile zawiera
+    # arkusze per jednostka (pełny ZOBOWIĄZANIA SZPITALE). Propozycję zapisujemy do
+    # pliku tymczasowego; zostanie zastosowana przy zapisie cennika. Gdy plik ma tylko
+    # arkusz zbiorczy (brak arkuszy jednostek), generator nic nie znajdzie i
+    # współczynniki pozostaną bez zmian.
+    adjustments_summary = None
+    try:
+        from app.engine.adjustments_gen import generate_adjustments
+        gen = generate_adjustments(io.BytesIO(content))
+        if gen["stats"]["rules"] > 0:
+            with open(_adj_tmp_path(conv_id), "w", encoding="utf-8") as f:
+                json.dump(gen["proposal"], f, ensure_ascii=False)
+        adjustments_summary = {
+            "units": gen["stats"]["units"],
+            "rules": gen["stats"]["rules"],
+            "sheets_scanned": gen["stats"]["sheets_scanned"],
+            "warning": gen["warning"],
+        }
+    except Exception:  # noqa: BLE001 — generacja współczynników nie może psuć importu cennika
+        adjustments_summary = None
+
     return {
         "id": conv_id,
         "source_name": file.filename,
         "source_preview": result["source_preview"],
         "result_preview": result_preview,
         "validation": result["validation"],
+        "adjustments": adjustments_summary,
     }
 
 
@@ -97,13 +124,39 @@ async def save_converted(conv_id: str, label: str = Form(""), filename: str = Fo
         "size": len(data), "is_active": 1 if make_active else 0, "uploaded_at": _now(),
     })
 
+    # AUTO: podmiana współczynników cen jednostek, jeśli z pliku wygenerowano propozycję.
+    # ZASTĘPUJE całość (współczynniki mają odzwierciedlać najnowszy cennik — pozycje,
+    # których w nowym pliku już nie ma, znikają). Odbywa się tylko gdy plik zawierał
+    # arkusze per jednostka; w innym wypadku współczynniki pozostają nietknięte.
+    adjustments_applied = None
+    adj_path = _adj_tmp_path(conv_id)
+    if os.path.isfile(adj_path):
+        try:
+            with open(adj_path, "r", encoding="utf-8") as f:
+                proposal = json.load(f)
+            if proposal:
+                cfg = db.get_settings()
+                cfg["unit_adjustments"] = proposal
+                db.save_settings(cfg)
+                adjustments_applied = {
+                    "units": len(proposal),
+                    "rules": sum(len(v) for v in proposal.values()),
+                }
+        except (OSError, ValueError):
+            pass
+        finally:
+            try:
+                os.remove(adj_path)
+            except OSError:
+                pass
+
     # sprzątanie tymczasowego pliku
     try:
         os.remove(path)
     except OSError:
         pass
 
-    return db.get_version(version_id)
+    return {**(db.get_version(version_id) or {}), "adjustments_applied": adjustments_applied}
 
 
 @router.post("/apply-additions")

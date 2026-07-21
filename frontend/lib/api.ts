@@ -378,6 +378,9 @@ export interface CennikConversion {
   source_preview: { header: string[]; rows: string[][] };
   result_preview: { badanie: string; jednostka: string; cena: number }[];
   validation: CennikValidation;
+  // Podgląd współczynników cen jednostek wygenerowanych z tego samego pliku (o ile
+  // zawiera arkusze per jednostka). Zostaną zastosowane przy zapisie cennika.
+  adjustments?: { units: number; rules: number; sheets_scanned: number; warning: string | null } | null;
 }
 
 // ---- Moduł lekarzy ----
@@ -691,7 +694,8 @@ export const api = {
     const fd = new FormData();
     fd.append("label", label);
     fd.append("filename", filename);
-    return req<Version>(`/api/cennik/convert/${id}/save`, { method: "POST", body: fd });
+    return req<Version & { adjustments_applied?: { units: number; rules: number } | null }>(
+      `/api/cennik/convert/${id}/save`, { method: "POST", body: fd });
   },
   convertedDownloadUrl: (id: string) => withToken(`${API_BASE}/api/cennik/convert/${id}/download`),
 
