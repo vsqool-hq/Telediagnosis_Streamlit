@@ -638,6 +638,7 @@ export const api = {
   saveUnitAliases: (aliases: Record<string, string>) =>
     req<{ aliases: Record<string, string> }>("/api/settings/unit-aliases", {
       method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ aliases }),
     }),
   teamupConfig: () =>
