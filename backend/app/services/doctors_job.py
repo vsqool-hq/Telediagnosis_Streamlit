@@ -133,7 +133,8 @@ def compute(job_id: str) -> dict:
             result["by_doctor"] = by_doc
             v = result.setdefault("validation", {})
             av_sum = round(sum(av_by_key.values()), 2)
-            v["value_studies"] = round(float(v.get("total_value") or 0), 2)
+            # value_studies = same opisy (bez konsultacji/gotowości), reszta osobno.
+            v["value_studies"] = round(float(v.get("value_opis", v.get("total_value")) or 0), 2)
             v["value_availability"] = av_sum
             v["total_value"] = round(float(v.get("total_value") or 0) + av_sum, 2)
 

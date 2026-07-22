@@ -362,7 +362,9 @@ export interface DoctorBilling {
   availability?: Availability;
   availability_error?: string;
   rows?: { lekarz: string; kategoria: string; ilosc: number; stawka: number; wartosc: number }[];
-  by_doctor?: { lekarz: string; ilosc: number; wartosc: number; gotowosc?: number }[];
+  by_doctor?: { lekarz: string; ilosc: number; wartosc: number; gotowosc?: number;
+    wartosc_opis?: number; wartosc_konsultacje?: number }[];
+  consultations?: { lekarz: string; ilosc: number; okolice: number; wartosc: number }[];
   validation?: {
     total_studies: number;
     priced_studies: number;
@@ -370,6 +372,8 @@ export interface DoctorBilling {
     n_doctors: number;
     total_value: number;
     value_studies?: number;
+    value_opis?: number;
+    value_consultations?: number;
     value_availability?: number;
     doctors_unmatched: string[];
     pairs_without_price: { _lek_disp: string; _kategoria: string; n: number }[];
@@ -635,6 +639,15 @@ export const api = {
     req<{ job_id: string | null; units: { name: string; key: string; excluded: boolean }[] }>("/api/units"),
   unitAliases: () =>
     req<{ aliases: Record<string, string> }>("/api/settings/unit-aliases"),
+  consultConfig: () =>
+    req<{ groups: { konsultujacy: string; opisujacy: string[] }[]; flat_rates: Record<string, number> }>(
+      "/api/settings/consult-config",
+    ),
+  saveConsultConfig: (payload: { groups?: { konsultujacy: string; opisujacy: string[] }[]; flat_rates?: Record<string, number> }) =>
+    req<{ groups: { konsultujacy: string; opisujacy: string[] }[]; flat_rates: Record<string, number> }>(
+      "/api/settings/consult-config",
+      { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+    ),
   saveUnitAliases: (aliases: Record<string, string>) =>
     req<{ aliases: Record<string, string> }>("/api/settings/unit-aliases", {
       method: "PUT",

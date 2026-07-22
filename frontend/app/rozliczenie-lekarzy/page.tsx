@@ -233,13 +233,14 @@ export default function RozliczenieLekarzyPage() {
             <div className="max-h-[28rem] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-brand-surface text-slate-400">
-                  <tr><th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th><th className="px-3 py-2 text-right text-xs uppercase">Badania</th><th className="px-3 py-2 text-right text-xs uppercase">Wartość</th></tr>
+                  <tr><th className="px-3 py-2 text-left text-xs uppercase">Lekarz</th><th className="px-3 py-2 text-right text-xs uppercase">Badania</th><th className="px-3 py-2 text-right text-xs uppercase">w tym konsultacje</th><th className="px-3 py-2 text-right text-xs uppercase">Wartość</th></tr>
                 </thead>
                 <tbody>
                   {result.by_doctor!.map((d, i) => (
                     <tr key={i} className="border-t border-white/10">
                       <td className="px-3 py-2">{d.lekarz}</td>
                       <td className="px-3 py-2 text-right text-slate-400">{d.ilosc}</td>
+                      <td className="px-3 py-2 text-right text-slate-400">{(d.wartosc_konsultacje ?? 0) > 0 ? zl(d.wartosc_konsultacje!) : "—"}</td>
                       <td className="px-3 py-2 text-right font-semibold">{zl(d.wartosc)}</td>
                     </tr>
                   ))}
@@ -253,16 +254,23 @@ export default function RozliczenieLekarzyPage() {
             <div className="card border-amber-400/30 text-[13px] text-amber-300">
               <AlertTriangle className="mb-0.5 inline" size={14} /> Gotowość (TeamUp) pominięta: {result.availability_error}
             </div>
-          ) : (result.validation.value_availability ?? 0) > 0 ? (
+          ) : ((result.validation.value_availability ?? 0) > 0 || (result.validation.value_consultations ?? 0) > 0) ? (
             <div className="card">
               <div className="ml-auto max-w-xs space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-slate-400">Suma za badania</span><span className="font-semibold">{zl(result.validation.value_studies ?? 0)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Gotowość i triaż</span><span className="font-semibold">{zl(result.validation.value_availability!)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Suma za badania (opisy)</span><span className="font-semibold">{zl(result.validation.value_studies ?? result.validation.value_opis ?? 0)}</span></div>
+                {(result.validation.value_consultations ?? 0) > 0 && (
+                  <div className="flex justify-between"><span className="text-slate-400">Konsultacje</span><span className="font-semibold">{zl(result.validation.value_consultations!)}</span></div>
+                )}
+                {(result.validation.value_availability ?? 0) > 0 && (
+                  <div className="flex justify-between"><span className="text-slate-400">Gotowość i triaż</span><span className="font-semibold">{zl(result.validation.value_availability!)}</span></div>
+                )}
                 <div className="flex justify-between border-t border-white/10 pt-1"><span className="font-semibold">Razem</span><span className="font-extrabold text-brand-accent2">{zl(result.validation.total_value)}</span></div>
               </div>
-              <a className="btn-secondary mt-3" href={api.doctorsAvailabilityUrl(jobId)}>
-                <Download size={16} /> Pobierz gotowość — szczegóły (Excel)
-              </a>
+              {(result.validation.value_availability ?? 0) > 0 && (
+                <a className="btn-secondary mt-3" href={api.doctorsAvailabilityUrl(jobId)}>
+                  <Download size={16} /> Pobierz gotowość — szczegóły (Excel)
+                </a>
+              )}
               {result.availability && (
                 <p className="mt-2 text-[13px] text-slate-400">
                   Triaż: {zl(result.availability.sum_triaz)} ({(result.availability.hours_triaz ?? 0).toLocaleString("pl-PL")} godz.)

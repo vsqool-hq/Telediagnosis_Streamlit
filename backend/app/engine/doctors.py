@@ -179,6 +179,92 @@ def resolve_doctor_price(prices: dict, lek_key: str, category: str):
     return c
 
 
+KONSULTUJACY_COL = "Konsultujący"
+
+
+def load_consult_config():
+    """Konfiguracja dopłat za KONSULTACJE z ustawień, znormalizowana do doctor_key.
+    Zwraca (pairs, flat):
+      pairs: { konsultujacy_key: set(opisujacy_key) } — pary z 50% (reszta 100%),
+      flat:  { konsultujacy_key: stawka_ryczalt }.
+    Źródło: ustawienia z bazy (db.get_settings) — tam zapisuje je panel Ustawień,
+    tak samo jak Windykacja/terminy płatności."""
+    from app import db
+    cfg = db.get_settings()
+    pairs = {}
+    for g in cfg.get("consult_groups", []) or []:
+        if not isinstance(g, dict):
+            continue
+        k = doctor_key(g.get("konsultujacy", ""))
+        if not k:
+            continue
+        opis = {doctor_key(o) for o in (g.get("opisujacy") or []) if doctor_key(o)}
+        if opis:
+            pairs.setdefault(k, set()).update(opis)
+    flat = {}
+    for name, rate in (cfg.get("consult_flat_rates", {}) or {}).items():
+        k = doctor_key(name)
+        try:
+            r = float(rate)
+        except (TypeError, ValueError):
+            continue
+        if k and r > 0:
+            flat[k] = r
+    return pairs, flat
+
+
+def per_study_consultations(df, cat_map, prices, pairs, flat, excluded_keys=None):
+    """Jeden wiersz na KONSULTOWANE badanie z policzoną dopłatą — wspólne dla widoku
+    (build_doctor_billing) i plików per lekarz (generate_doctor_billing_files), żeby
+    liczyły identycznie. Kolumny wynikowe: Modalność, Procedura, Rodzaj procedury
+    rozlicz., Procedura rozlicz., Priorytet opisu, _kons_key, _kons_disp, _kategoria,
+    _okolice, _stawka, _tryb (50%/100%/ryczałt), _pct, _wartosc.
+    Pomijamy: konsultację własnego opisu (kons==opis), lekarzy wyłączonych, badania bez
+    kategorii oraz (poza ryczałtem) bez stawki konsultanta w cenniku."""
+    import pandas as pd
+    from app.engine.billing import bill_extract_multiplier
+    if df is None or KONSULTUJACY_COL not in getattr(df, "columns", []):
+        return pd.DataFrame()
+    d = df.copy()
+    if "_kategoria" not in d.columns:
+        d["_proc_key"] = d["Procedura"].map(_key)
+        d["_rodzaj_key"] = d["Rodzaj procedury rozlicz."].map(_key)
+        d["_kategoria"] = [
+            resolve_category(r, cat_map.get((r["_proc_key"], r["_rodzaj_key"]), ""))
+            for _, r in d.iterrows()
+        ]
+    if "_lek_key" not in d.columns:
+        d["_lek_key"] = d[OPISUJACY_COL].map(doctor_key)
+    d["_kons_key"] = d[KONSULTUJACY_COL].map(doctor_key)
+    d["_kons_disp"] = d[KONSULTUJACY_COL].map(_norm)
+    d = d[(d["_kons_key"] != "") & (d["_kons_key"] != d["_lek_key"]) & (d["_kategoria"] != "")]
+    if excluded_keys:
+        d = d[~d["_kons_key"].isin(set(excluded_keys))]
+    if d.empty:
+        return pd.DataFrame()
+    d["_okolice"] = d["Procedura rozlicz."].map(bill_extract_multiplier)
+    keep = ["Modalność", "Procedura", "Rodzaj procedury rozlicz.", "Procedura rozlicz.", "Priorytet opisu"]
+    recs = []
+    for _, r in d.iterrows():
+        kk, okc, kat = r["_kons_key"], int(r["_okolice"]), r["_kategoria"]
+        if kk in flat:
+            stawka, pct, tryb = flat[kk], 1.0, "ryczałt"
+            val = stawka * okc
+        else:
+            stawka = resolve_doctor_price(prices, kk, kat)
+            if stawka is None or stawka != stawka:   # brak stawki w cenniku
+                continue
+            pct = 0.5 if (r["_lek_key"] in pairs.get(kk, set())) else 1.0
+            tryb = f"{int(pct * 100)}%"
+            val = stawka * okc * pct
+        rec = {c: r[c] for c in keep}
+        rec.update({"_kons_key": kk, "_kons_disp": r["_kons_disp"], "_kategoria": kat,
+                    "_okolice": okc, "_stawka": float(stawka), "_tryb": tryb,
+                    "_pct": pct, "_wartosc": round(val, 2)})
+        recs.append(rec)
+    return pd.DataFrame(recs)
+
+
 def read_verified_studies(sprawdzone_dir: str):
     """Wczytuje i łączy arkusze „Szczegółowe" ze wszystkich plików sprawdzonych."""
     import pandas as pd
@@ -300,6 +386,50 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
         .sort_values("wartosc", ascending=False)
     )
 
+    # ---- KONSULTACJE: dopłata dla lekarza w roli „Konsultujący" (dodatkowa) --------
+    # Dla każdego badania z niepustym konsultującym doliczamy JEMU:
+    #   ryczałt × okolice           (gdy lekarz ma stawkę ryczałtową), albo
+    #   stawka_konsultanta × okolice × (50% gdy para {konsultujący→opisujący} zdefiniowana,
+    #                                   100% w każdym innym przypadku).
+    # Opisujący rozliczany bez zmian. Konsultacja własnego opisu (ten sam lekarz) pomijana.
+    consult_pairs, consult_flat = load_consult_config()
+    cons_df = per_study_consultations(df, cat_map, prices, consult_pairs, consult_flat, excluded_keys)
+    consult_detail = []
+    consult_by_key = {}
+    if not cons_df.empty:
+        for _, r in cons_df.iterrows():
+            acc = consult_by_key.setdefault(r["_kons_key"],
+                                            {"lekarz": r["_kons_disp"], "ilosc": 0, "okolice": 0, "wartosc": 0.0})
+            acc["ilosc"] += 1
+            acc["okolice"] += int(r["_okolice"])
+            acc["wartosc"] += float(r["_wartosc"])
+            consult_detail.append({"konsultujacy": r["_kons_disp"], "kategoria": r["_kategoria"],
+                                   "tryb": r["_tryb"], "okolice": int(r["_okolice"]),
+                                   "wartosc": round(float(r["_wartosc"]), 2)})
+    consultations = [
+        {"lekarz": v["lekarz"], "ilosc": int(v["ilosc"]), "okolice": int(v["okolice"]),
+         "wartosc": round(v["wartosc"], 2)}
+        for v in sorted(consult_by_key.values(), key=lambda x: -x["wartosc"])
+    ]
+    consult_total = round(sum(v["wartosc"] for v in consult_by_key.values()), 2)
+
+    # Doklejamy konsultacje do sumy per lekarz (by_doctor): dopasowanie po doctor_key.
+    bd = by_doctor.to_dict("records")
+    by_key_idx = {doctor_key(row["lekarz"]): row for row in bd}
+    for row in bd:
+        row["wartosc_opis"] = round(float(row["wartosc"]), 2)
+        row["wartosc_konsultacje"] = 0.0
+    for kk, v in consult_by_key.items():
+        row = by_key_idx.get(kk)
+        if row is None:
+            row = {"lekarz": v["lekarz"], "ilosc": 0, "wartosc": 0.0,
+                   "wartosc_opis": 0.0, "wartosc_konsultacje": 0.0}
+            bd.append(row); by_key_idx[kk] = row
+        row["wartosc_konsultacje"] = round(row["wartosc_konsultacje"] + v["wartosc"], 2)
+        row["wartosc"] = round(float(row["wartosc"]) + v["wartosc"], 2)
+    bd.sort(key=lambda r: -float(r["wartosc"]))
+    by_doctor_records = bd
+
     # Podsumowanie ilościowe: liczba WYKONANYCH badań per lekarz i kategoria
     # (kategoria w formacie cennika lekarzy). Liczymy ze WSZYSTKICH badań mających
     # kategorię — niezależnie od tego, czy cennik ma dla niej stawkę (to licznik
@@ -344,10 +474,13 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
                 .to_dict("records")
             )
 
+    value_opis = round(float(ok["wartosc"].sum()), 2)
     return {
         "empty": False,
         "rows": by_cat.to_dict("records"),
-        "by_doctor": by_doctor.to_dict("records"),
+        "by_doctor": by_doctor_records,
+        "consultations": consultations,
+        "consult_detail": consult_detail,
         "category_counts": cat_counts.to_dict("records"),
         "category_okolice": cat_okolice.to_dict("records"),
         "category_okolice_daily": cat_okolice_daily,
@@ -356,8 +489,11 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
             "priced_studies": int(len(ok)),
             "studies_without_category": studies_no_cat,
             "slownik_categories": len(cat_map),
-            "n_doctors": int(by_doctor.shape[0]),
-            "total_value": round(float(ok["wartosc"].sum()), 2),
+            "n_doctors": len(by_doctor_records),
+            # total_value = opisy + konsultacje (gotowość dokłada doctors_job osobno)
+            "total_value": round(value_opis + consult_total, 2),
+            "value_opis": value_opis,
+            "value_consultations": consult_total,
             "excluded_studies": excluded_studies,
             "doctors_unmatched": doctors_unmatched[:100],
             "pairs_without_price": pairs_no_price.head(100).to_dict("records"),
@@ -389,6 +525,56 @@ def _period_mmyyyy(frame) -> str:
     return ""
 
 
+def _append_consultations_to_file(path, cons_rows, raw_studies):
+    """Dopisuje do gotowego pliku lekarza: (1) konsultowane badania na arkusz
+    „Szczegółowe" (pod jego opisami), (2) sekcję „KONSULTACJE" na arkusz „Rozliczenie"
+    z formułą Wartość = pct × Stawka × Liczba konsultacji × Okolice. Dodaje tylko wiersze
+    (nie rusza istniejących formuł opisów/gotowości). Guard po stronie wołającego."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+    wb = openpyxl.load_workbook(path)
+    # 1) Szczegółowe — konsultowane badania
+    if raw_studies is not None and not raw_studies.empty and "Szczegółowe" in wb.sheetnames:
+        ws = wb["Szczegółowe"]
+        headers = [ws.cell(1, c).value for c in range(1, ws.max_column + 1)]
+        cols = set(raw_studies.columns)
+        for _, r in raw_studies.iterrows():
+            ws.append([(r.get(h) if h in cols else None) for h in headers])
+    # 2) Rozliczenie — sekcja KONSULTACJE
+    if "Rozliczenie" in wb.sheetnames and cons_rows is not None and not cons_rows.empty:
+        ws = wb["Rozliczenie"]
+        # główna suma pliku (wiersz z etykietą „SUMA" w kol. A) — do sumy z konsultacjami
+        suma_ref = next((f"B{r}" for r in range(ws.max_row, 0, -1)
+                         if str(ws.cell(r, 1).value).strip().upper() == "SUMA"), None)
+        head = Font(bold=True, color="FFFFFF"); fill = PatternFill("solid", fgColor="0E3B49")
+        s = ws.max_row + 2
+        ws.cell(s, 1, "KONSULTACJE").font = Font(bold=True)
+        hr = s + 1
+        hdr = ["Modalność", "Procedura", "Rodzaj procedury rozlicz.", "Procedura rozlicz.",
+               "Priorytet", "Tryb", "Stawka", "Liczba konsultacji", "Okolice", "Wartość"]
+        for i, h in enumerate(hdr, 1):
+            c = ws.cell(hr, i, h); c.font = head; c.fill = fill
+        g = (cons_rows.groupby(["Modalność", "Procedura", "Rodzaj procedury rozlicz.",
+                                "Procedura rozlicz.", "Priorytet opisu", "_tryb", "_stawka", "_pct", "_okolice"])
+             .size().reset_index(name="liczba"))
+        rr = hr
+        for _, row in g.iterrows():
+            rr += 1
+            ws.cell(rr, 1, row["Modalność"]); ws.cell(rr, 2, row["Procedura"])
+            ws.cell(rr, 3, row["Rodzaj procedury rozlicz."]); ws.cell(rr, 4, row["Procedura rozlicz."])
+            ws.cell(rr, 5, row["Priorytet opisu"]); ws.cell(rr, 6, row["_tryb"])
+            ws.cell(rr, 7, round(float(row["_stawka"]), 2)); ws.cell(rr, 8, int(row["liczba"]))
+            ws.cell(rr, 9, int(row["_okolice"]))
+            ws.cell(rr, 10).value = f"={float(row['_pct'])}*G{rr}*H{rr}*I{rr}"
+        tot = rr + 1
+        ws.cell(tot, 1, "KONSULTACJE RAZEM").font = Font(bold=True)
+        ws.cell(tot, 10).value = f"=SUM(J{hr + 1}:J{rr})"
+        if suma_ref:
+            ws.cell(tot + 1, 1, "RAZEM Z KONSULTACJAMI").font = Font(bold=True)
+            ws.cell(tot + 1, 10).value = f"={suma_ref}+J{tot}"
+    wb.save(path)
+
+
 def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
                                   out_dir: str, excluded_keys=None, period_mmyyyy=None,
                                   availability=None) -> dict:
@@ -414,16 +600,42 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
     cat_map = load_lekarz_categories(slownik_path)
     prices = load_doctor_prices(doctor_cennik_csv)
 
+    import pandas as pd
     df = df.copy()
     df["_lek_key"] = df[OPISUJACY_COL].map(doctor_key)
     if excluded:
         df = df[~df["_lek_key"].isin(excluded)]
+    # Oryginalny rodzaj/okolice + „Bardzo pilny"→„Pilny" (spójnie z build_doctor_billing),
+    # żeby kategoria konsultacji i okolice liczyły się tak samo jak w widoku.
+    if "Rodzaj procedury rozlicz. (oryg.)" in df.columns:
+        df["Rodzaj procedury rozlicz."] = df["Rodzaj procedury rozlicz. (oryg.)"]
+    if "Procedura rozlicz. (oryg.)" in df.columns:
+        df["Procedura rozlicz."] = df["Procedura rozlicz. (oryg.)"]
+    if "Priorytet opisu" in df.columns:
+        df["Priorytet opisu"] = df["Priorytet opisu"].replace({"Bardzo pilny": "Pilny"})
+    df["_kons_key"] = (df[KONSULTUJACY_COL].map(doctor_key)
+                       if KONSULTUJACY_COL in df.columns else pd.Series([""] * len(df), index=df.index))
+
+    # Konsultacje — per badanie (wspólny helper, jak widok), pogrupowane per konsultant.
+    consult_pairs, consult_flat = load_consult_config()
+    cons_df = per_study_consultations(df, cat_map, prices, consult_pairs, consult_flat, excluded)
+    cons_by_kons, consult_disp = {}, {}
+    if not cons_df.empty:
+        for kk, sub_c in cons_df.groupby("_kons_key"):
+            if kk in excluded:
+                continue
+            cons_by_kons[kk] = sub_c
+            consult_disp[kk] = sub_c["_kons_disp"].iloc[0]
+
+    def _raw_consulted(kk):
+        return df[(df["_kons_key"] == kk) & (df["_kons_key"] != df["_lek_key"])]
 
     # świeży katalog wyjściowy
     shutil.rmtree(out_dir, ignore_errors=True)
     _os.makedirs(out_dir, exist_ok=True)
 
     files = []
+    described_keys = set()
     for lek_key, sub in df.groupby("_lek_key"):
         if not lek_key:
             continue
@@ -476,7 +688,39 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
             bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
                                    for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount)
             files.append(fname)
+            described_keys.add(lek_key)
+            # Konsultacje tego lekarza (jeśli są) — dopisz do jego pliku. Guard: błąd
+            # konsultacji NIE psuje pliku z opisami (już zapisany).
+            if lek_key in cons_by_kons:
+                try:
+                    _append_consultations_to_file(_os.path.join(out_dir, fname),
+                                                  cons_by_kons[lek_key], _raw_consulted(lek_key))
+                except Exception as e:  # noqa: BLE001
+                    print(f"BŁĄD dopisywania konsultacji {disp}: {e}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)
+
+    # Lekarze, którzy TYLKO konsultowali (bez własnych opisów) — osobny plik z samą
+    # sekcją Konsultacje (Szczegółowe = konsultowane badania, Rozliczenie = KONSULTACJE).
+    for kk, sub_c in cons_by_kons.items():
+        if kk in described_keys:
+            continue
+        disp = consult_disp[kk]
+        if not disp or disp.lower() in ("nan", "none"):
+            continue
+        raw = _raw_consulted(kk)
+        period = period_mmyyyy or _period_mmyyyy(raw)
+        fname = (_safe_filename(f"{period} dr {_surname_first(disp)}") or "dr lekarz") + ".xlsx"
+        try:
+            import openpyxl
+            wb = openpyxl.Workbook()
+            wsz = wb.active; wsz.title = "Szczegółowe"
+            wsz.append([c for c in raw.columns if not str(c).startswith("_")])
+            wb.create_sheet("Rozliczenie").cell(1, 1, "KONSULTACJE (lekarz tylko konsultujący)")
+            wb.save(_os.path.join(out_dir, fname))
+            _append_consultations_to_file(_os.path.join(out_dir, fname), sub_c, raw)
+            files.append(fname)
+        except Exception as e:  # noqa: BLE001
+            print(f"BŁĄD tworzenia pliku konsultanta {disp}: {e}", flush=True)
 
     return {"files": sorted(files), "count": len(files)}
