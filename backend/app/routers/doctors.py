@@ -525,13 +525,16 @@ def participants(job_id: str) -> dict:
         try:
             with open(cache, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            if "doctors" in data and "units" in data:
+            # „consultants" doszło później — brak klucza = stary cache, przelicz raz.
+            if "doctors" in data and "units" in data and "consultants" in data:
                 return data
         except (OSError, ValueError):
             pass
-    from app.engine.doctors import read_verified_studies, doctor_key, _norm, OPISUJACY_COL
+    from app.engine.doctors import (
+        read_verified_studies, doctor_key, _norm, OPISUJACY_COL, KONSULTUJACY_COL,
+    )
     from app.engine.billing import _norm_unit
-    doctors, units, seen = [], [], set()
+    doctors, units, consultants, seen, seen_c = [], [], [], set(), set()
     df = read_verified_studies(paths["sprawdzone"])
     if df is not None and not df.empty:
         if OPISUJACY_COL in df.columns:
@@ -541,14 +544,23 @@ def participants(job_id: str) -> dict:
                 if disp and k not in seen:
                     seen.add(k)
                     doctors.append({"name": disp, "key": k})
+        # Konsultujący — osobna lista (lekarz może konsultować, nie opisując wcale).
+        if KONSULTUJACY_COL in df.columns:
+            for val in df[KONSULTUJACY_COL].dropna().unique():
+                disp = _norm(val)
+                k = doctor_key(disp)
+                if disp and disp.lower() not in ("nan", "none") and k not in seen_c:
+                    seen_c.add(k)
+                    consultants.append({"name": disp, "key": k})
         if "Klient" in df.columns:
             for val in df["Klient"].dropna().unique():
                 name = str(val).strip()
                 if name:
                     units.append({"name": name, "key": _norm_unit(name)})
     doctors.sort(key=lambda d: d["name"].lower())
+    consultants.sort(key=lambda d: d["name"].lower())
     units.sort(key=lambda u: u["name"].lower())
-    data = {"doctors": doctors, "units": units}
+    data = {"doctors": doctors, "units": units, "consultants": consultants}
     try:
         with open(cache, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
@@ -570,6 +582,47 @@ async def doctors_list(job_id: str | None = None):
     excluded = set(_excluded_keys())
     doctors = [{**d, "excluded": d["key"] in excluded} for d in participants(jid)["doctors"]]
     return {"job_id": jid, "doctors": doctors}
+
+
+@router.get("/names")
+async def doctors_names(job_id: str | None = None):
+    """
+    Nazwiska lekarzy do WYBORU w ustawieniach konsultacji (dropdown zamiast
+    wpisywania ręcznego — mniej pomyłek). Unia trzech źródeł, odduplikowana po
+    kluczu (kolejność/wielkość liter bez znaczenia):
+      • Opisujący  (z danych najnowszego zadania),
+      • Konsultujący (z danych — bo konsultant nie musi sam opisywać),
+      • Lekarz z aktywnego cennika lekarzy (nawet gdy nie ma jeszcze zadania).
+    """
+    from app.engine.doctors import doctor_key, _norm
+    seen: dict[str, str] = {}
+
+    def add(disp):
+        disp = _norm(disp)
+        if not disp or disp.lower() in ("nan", "none"):
+            return
+        k = doctor_key(disp)
+        if k and k not in seen:
+            seen[k] = disp
+
+    jid = job_id or _latest_full_job_id()
+    if jid:
+        p = participants(jid)
+        for d in p.get("doctors", []):
+            add(d["name"])
+        for d in p.get("consultants", []):
+            add(d["name"])
+    csv = _active_doctor_cennik_csv()
+    if csv:
+        try:
+            import pandas as pd
+            df = pd.read_csv(csv, sep=";", encoding="utf-8-sig", decimal=",")
+            if "Lekarz" in df.columns:
+                for v in df["Lekarz"].dropna().unique():
+                    add(v)
+        except Exception:  # noqa: BLE001
+            pass
+    return {"names": sorted(seen.values(), key=lambda s: s.lower())}
 
 
 @router.put("/excluded")

@@ -629,6 +629,7 @@ export const api = {
     ),
   doctorsList: () =>
     req<{ job_id: string | null; doctors: { name: string; key: string; excluded: boolean }[] }>("/api/doctors/list"),
+  doctorsNames: () => req<{ names: string[] }>("/api/doctors/names"),
   setDoctorsExcluded: (keys: string[]) =>
     req<{ ok: boolean; doctors_excluded: string[] }>("/api/doctors/excluded", {
       method: "PUT",
