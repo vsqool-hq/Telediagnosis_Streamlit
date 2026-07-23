@@ -525,54 +525,19 @@ def _period_mmyyyy(frame) -> str:
     return ""
 
 
-def _append_consultations_to_file(path, cons_rows, raw_studies):
-    """Dopisuje do gotowego pliku lekarza: (1) konsultowane badania na arkusz
-    „Szczegółowe" (pod jego opisami), (2) sekcję „KONSULTACJE" na arkusz „Rozliczenie"
-    z formułą Wartość = pct × Stawka × Liczba konsultacji × Okolice. Dodaje tylko wiersze
-    (nie rusza istniejących formuł opisów/gotowości). Guard po stronie wołającego."""
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill
-    wb = openpyxl.load_workbook(path)
-    # 1) Szczegółowe — konsultowane badania
-    if raw_studies is not None and not raw_studies.empty and "Szczegółowe" in wb.sheetnames:
-        ws = wb["Szczegółowe"]
-        headers = [ws.cell(1, c).value for c in range(1, ws.max_column + 1)]
-        cols = set(raw_studies.columns)
-        for _, r in raw_studies.iterrows():
-            ws.append([(r.get(h) if h in cols else None) for h in headers])
-    # 2) Rozliczenie — sekcja KONSULTACJE
-    if "Rozliczenie" in wb.sheetnames and cons_rows is not None and not cons_rows.empty:
-        ws = wb["Rozliczenie"]
-        # główna suma pliku (wiersz z etykietą „SUMA" w kol. A) — do sumy z konsultacjami
-        suma_ref = next((f"B{r}" for r in range(ws.max_row, 0, -1)
-                         if str(ws.cell(r, 1).value).strip().upper() == "SUMA"), None)
-        head = Font(bold=True, color="FFFFFF"); fill = PatternFill("solid", fgColor="0E3B49")
-        s = ws.max_row + 2
-        ws.cell(s, 1, "KONSULTACJE").font = Font(bold=True)
-        hr = s + 1
-        hdr = ["Modalność", "Procedura", "Rodzaj procedury rozlicz.", "Procedura rozlicz.",
-               "Priorytet", "Tryb", "Stawka", "Liczba konsultacji", "Okolice", "Wartość"]
-        for i, h in enumerate(hdr, 1):
-            c = ws.cell(hr, i, h); c.font = head; c.fill = fill
-        g = (cons_rows.groupby(["Modalność", "Procedura", "Rodzaj procedury rozlicz.",
-                                "Procedura rozlicz.", "Priorytet opisu", "_tryb", "_stawka", "_pct", "_okolice"])
-             .size().reset_index(name="liczba"))
-        rr = hr
-        for _, row in g.iterrows():
-            rr += 1
-            ws.cell(rr, 1, row["Modalność"]); ws.cell(rr, 2, row["Procedura"])
-            ws.cell(rr, 3, row["Rodzaj procedury rozlicz."]); ws.cell(rr, 4, row["Procedura rozlicz."])
-            ws.cell(rr, 5, row["Priorytet opisu"]); ws.cell(rr, 6, row["_tryb"])
-            ws.cell(rr, 7, round(float(row["_stawka"]), 2)); ws.cell(rr, 8, int(row["liczba"]))
-            ws.cell(rr, 9, int(row["_okolice"]))
-            ws.cell(rr, 10).value = f"={float(row['_pct'])}*G{rr}*H{rr}*I{rr}"
-        tot = rr + 1
-        ws.cell(tot, 1, "KONSULTACJE RAZEM").font = Font(bold=True)
-        ws.cell(tot, 10).value = f"=SUM(J{hr + 1}:J{rr})"
-        if suma_ref:
-            ws.cell(tot + 1, 1, "RAZEM Z KONSULTACJAMI").font = Font(bold=True)
-            ws.cell(tot + 1, 10).value = f"={suma_ref}+J{tot}"
-    wb.save(path)
+def _aggregate_consultations(sub_c):
+    """Z konsultacji per-badanie (per_study_consultations) → wiersze ZAGREGOWANE do
+    wpięcia w tabelę „Rozliczenie" pliku lekarza: liczba konsultacji per
+    (Modalność, Procedura, Rodzaj procedury rozlicz., Procedura rozlicz., Priorytet
+    opisu, stawka, %). Kolumny wyniku: te 5 kluczy + Stawka, Konsultacje (liczba), _pct.
+    Rozbicie po _pct daje osobne wiersze 50% / 100% / ryczałt (stawka konsultanta)."""
+    import pandas as pd
+    if sub_c is None or getattr(sub_c, "empty", True):
+        return pd.DataFrame()
+    g = (sub_c.groupby(["Modalność", "Procedura", "Rodzaj procedury rozlicz.",
+                        "Procedura rozlicz.", "Priorytet opisu", "_stawka", "_pct"], dropna=False)
+         .size().reset_index(name="Konsultacje"))
+    return g.rename(columns={"_stawka": "Stawka"})
 
 
 def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
@@ -684,24 +649,25 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         got_amount = None
         if availability and lek_key in availability:
             got_amount = round(float(availability[lek_key].get("total") or 0), 2)
+        # Konsultacje tego lekarza WPINAMY w tabelę „Rozliczenie" (osobne wiersze per
+        # priorytet/%, kolumna „{P} Konsultacje"), a konsultowane badania trafiają na
+        # „Szczegółowe" pod jego opisami — wszystko w jednym pliku (jedna spójna suma).
+        cons_agg = _aggregate_consultations(cons_by_kons.get(lek_key))
+        cons_raw = _raw_consulted(lek_key) if lek_key in cons_by_kons else None
         try:
             bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
-                                   for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount)
+                                   for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount,
+                                   consultations=cons_agg, consult_raw=cons_raw)
             files.append(fname)
             described_keys.add(lek_key)
-            # Konsultacje tego lekarza (jeśli są) — dopisz do jego pliku. Guard: błąd
-            # konsultacji NIE psuje pliku z opisami (już zapisany).
-            if lek_key in cons_by_kons:
-                try:
-                    _append_consultations_to_file(_os.path.join(out_dir, fname),
-                                                  cons_by_kons[lek_key], _raw_consulted(lek_key))
-                except Exception as e:  # noqa: BLE001
-                    print(f"BŁĄD dopisywania konsultacji {disp}: {e}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku lekarza {disp}: {e}", flush=True)
 
-    # Lekarze, którzy TYLKO konsultowali (bez własnych opisów) — osobny plik z samą
-    # sekcją Konsultacje (Szczegółowe = konsultowane badania, Rozliczenie = KONSULTACJE).
+    # Lekarze, którzy TYLKO konsultowali (bez własnych opisów) — plik z pustą częścią
+    # opisów i wpiętymi konsultacjami (ten sam układ tabeli). Szczegółowe = konsultowane
+    # badania (df_details), Rozliczenie = wiersze konsultacji.
+    empty_cols = ['Priorytet opisu', 'Modalność', 'Procedura', 'Rodzaj procedury rozlicz.',
+                  'Procedura rozlicz.', '#', 'Porownawcze_Flag', 'Mnożnik', 'Cena']
     for kk, sub_c in cons_by_kons.items():
         if kk in described_keys:
             continue
@@ -711,14 +677,10 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         raw = _raw_consulted(kk)
         period = period_mmyyyy or _period_mmyyyy(raw)
         fname = (_safe_filename(f"{period} dr {_surname_first(disp)}") or "dr lekarz") + ".xlsx"
+        empty_grouped = pd.DataFrame(columns=empty_cols)
         try:
-            import openpyxl
-            wb = openpyxl.Workbook()
-            wsz = wb.active; wsz.title = "Szczegółowe"
-            wsz.append([c for c in raw.columns if not str(c).startswith("_")])
-            wb.create_sheet("Rozliczenie").cell(1, 1, "KONSULTACJE (lekarz tylko konsultujący)")
-            wb.save(_os.path.join(out_dir, fname))
-            _append_consultations_to_file(_os.path.join(out_dir, fname), sub_c, raw)
+            bill_finalize_to_excel(empty_grouped, raw, _os.path.join(out_dir, fname),
+                                   for_doctor=True, consultations=_aggregate_consultations(sub_c))
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku konsultanta {disp}: {e}", flush=True)

@@ -836,7 +836,8 @@ def bill_make_grouped(df_details, entity_col):
     return grouped, df_details
 
 
-def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False, rate_resolver=None, gotowosc_amount=None):
+def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False, rate_resolver=None, gotowosc_amount=None,
+                           consultations=None, consult_raw=None):
     """
     Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
     „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
@@ -846,13 +847,26 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
     a `rate_resolver(procedura, rodzaj, priorytet)` (opcjonalny) uzupełnia stawkę w
     KAŻDEJ kolumnie priorytetu — także tam, gdzie badania nie było (ilość/wartość=0),
     żeby lekarz widział obowiązującą stawkę i nie pytał „czemu nie policzone".
+
+    consultations (LEKARZE): opcjonalna, ZAGREGOWANA tabela konsultacji tego lekarza —
+    kolumny Modalność, Procedura, Rodzaj procedury rozlicz., Procedura rozlicz.,
+    Priorytet opisu, Stawka, Konsultacje (liczba), _pct (0.5/1.0). Każdy jej wiersz
+    wchodzi do tabeli „Rozliczenie" jako OSOBNY wiersz w bloku swojego priorytetu
+    (# = 0, „{P} Konsultacje" = liczba), a Wartość liczona formułą
+    = _pct × Stawka × Konsultacje × Mnożnik + Stawka × Ilość (opisy). Osobny wiersz
+    per stawka% (50%/100%) i per ryczałt. consult_raw = surowe konsultowane badania
+    dopisywane na „Szczegółowe" pod opisami lekarza.
     """
     logs = logs if logs is not None else []
+    has_kons = for_doctor and consultations is not None and not consultations.empty
     merged['Ilość'] = merged['#'] * merged['Mnożnik']
     merged['Wartość'] = np.nan
 
     billing_table = merged.sort_values(by=['Modalność', 'Rodzaj procedury rozlicz.'])
-    priorities_in_data = merged['Priorytet opisu'].unique()
+    priorities_in_data = set(merged['Priorytet opisu'].unique())
+    if has_kons:
+        # priorytety mogą pochodzić TYLKO z konsultacji (lekarz nic w nich nie opisał)
+        priorities_in_data |= set(consultations['Priorytet opisu'].unique())
     priorities_for_this_report = [p for p in MASTER_PRIORITY_ORDER if p in priorities_in_data]
 
     final_billing_table = billing_table.drop_duplicates(['Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.'])
@@ -870,10 +884,15 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
     billing_table = final_billing_table
     ordered_cols = ['Modalność', 'Procedura', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.']
     for p in priorities_for_this_report:
-        ordered_cols.extend([f'{p} Stawka', f'{p} #', f'{p} w tym porównawcze', f'{p} Mnożnik', f'{p} Ilość', f'{p} Wartość'])
+        cols = [f'{p} Stawka', f'{p} #', f'{p} w tym porównawcze', f'{p} Mnożnik', f'{p} Ilość', f'{p} Wartość']
+        if has_kons:
+            # „{P} Konsultacje" tuż po „{P} #" (przed Mnożnikiem) — układ jak w specyfikacji.
+            billing_table[f'{p} Konsultacje'] = 0.0
+            cols.insert(2, f'{p} Konsultacje')
+        ordered_cols.extend(cols)
 
     billing_table = billing_table[[c for c in ordered_cols if c in billing_table.columns]]
-    num_cols = [c for c in billing_table.columns if any(k in c for k in ['Stawka', '#', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze'])]
+    num_cols = [c for c in billing_table.columns if any(k in c for k in ['Stawka', '#', 'Konsultacje', 'Mnożnik', 'Ilość', 'Wartość', 'porównawcze'])]
     billing_table[num_cols] = billing_table[num_cols].fillna(0)
 
     if for_doctor:
@@ -899,13 +918,59 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
                         if pd.notna(rate):
                             billing_table.at[idx, scol] = rate
 
+    # LEKARZE — KONSULTACJE: każdy zagregowany wiersz konsultacji dopisujemy jako
+    # OSOBNY wiersz tabeli (# = 0, „{P} Konsultacje" = liczba, „{P} Stawka" = stawka
+    # konsultanta/ryczałt). Współczynnik % (0.5/1.0) trzymamy poza arkuszem w row_pct
+    # i wstawiamy go LITERAŁEM do formuły „{P} Wartość". Osobne wiersze per priorytet
+    # i per % dają zgodność z „osobne wiersze per stawka%".
+    row_pct = {}
+    if has_kons:
+        prio_set = set(priorities_for_this_report)
+        new_rows, pcts = [], []
+        for _, cg in consultations.iterrows():
+            p = cg['Priorytet opisu']
+            if p not in prio_set or f'{p} Konsultacje' not in billing_table.columns:
+                continue
+            rec = {c: 0.0 for c in billing_table.columns}
+            rec['Modalność'] = cg['Modalność']
+            rec['Procedura'] = cg['Procedura']
+            rec['Rodzaj procedury rozlicz.'] = cg['Rodzaj procedury rozlicz.']
+            rec['Procedura rozlicz.'] = cg['Procedura rozlicz.']
+            rec[f'{p} #'] = 0.0
+            rec[f'{p} Konsultacje'] = int(cg['Konsultacje'])
+            rec[f'{p} Stawka'] = round(float(cg['Stawka']), 2)
+            new_rows.append(rec)
+            pcts.append(float(cg['_pct']))
+        if new_rows:
+            start_idx = (int(billing_table.index.max()) + 1) if len(billing_table) else 0
+            add_df = pd.DataFrame(new_rows)
+            add_df.index = range(start_idx, start_idx + len(new_rows))
+            for idx, pct in zip(add_df.index, pcts):
+                row_pct[idx] = pct
+            billing_table = pd.concat([billing_table, add_df], axis=0)
+            live_num = [c for c in num_cols if c in billing_table.columns]
+            billing_table[live_num] = billing_table[live_num].apply(pd.to_numeric, errors='coerce').fillna(0)
+            # sort stabilny — konsultacje trafiają do bloku swojej modalności obok opisów
+            billing_table = billing_table.sort_values(by=['Modalność', 'Rodzaj procedury rozlicz.'], kind='stable')
+
     df_details_modified = df_details.copy()
+
+    if for_doctor and consult_raw is not None and not consult_raw.empty:
+        # Konsultowane badania na „Szczegółowe" pod opisami lekarza — tylko kolumny
+        # zgodne z df_details (reszta pomijana); dostają te same transformacje co opisy.
+        aligned = consult_raw.reindex(columns=df_details_modified.columns)
+        df_details_modified = pd.concat([df_details_modified, aligned], ignore_index=True)
 
     if for_doctor:
         # Prywatność (RODO): raport lekarza NIE może zawierać danych pacjenta —
-        # usuwamy PESEL i imię/nazwisko z arkusza „Szczegółowe".
+        # usuwamy PESEL i imię/nazwisko z arkusza „Szczegółowe". Przy okazji tniemy
+        # kolumny pomocnicze „_…" (klucze lekarza/konsultanta) — nie dla lekarza.
         df_details_modified = df_details_modified.drop(
-            columns=[c for c in ('Pacjent', 'ID pacjenta') if c in df_details_modified.columns])
+            columns=[c for c in df_details_modified.columns
+                     if c in ('Pacjent', 'ID pacjenta') or str(c).startswith('_')])
+
+    if 'Badania do porównania' not in df_details_modified.columns:
+        df_details_modified['Badania do porównania'] = 0
 
     def transform_comparative_studies(row):
         if pd.to_numeric(row['Badania do porównania'], errors='coerce') == 1:
@@ -942,7 +1007,12 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
                     if col_str.endswith(' Mnożnik'):
                         priority_prefix = col_str.replace(' Mnożnik', '')
                         hash_col = col_map.get(f'{priority_prefix} #')
-                        if hash_col:
+                        kons_col = col_map.get(f'{priority_prefix} Konsultacje')
+                        if hash_col and kons_col:
+                            # okolice także dla wiersza z samą konsultacją (#=0, Konsultacje>0)
+                            cell.value = (f'=IF(OR({hash_col}{r_idx}>0,{kons_col}{r_idx}>0),'
+                                          f'IFERROR(VALUE(LEFT($D{r_idx},1)),1),0)')
+                        elif hash_col:
                             cell.value = f'=IF({hash_col}{r_idx}>0,IFERROR(VALUE(LEFT($D{r_idx},1)),1),0)'
                         else:
                             cell.value = f"=IFERROR(VALUE(LEFT($D{r_idx},1)),1)"
@@ -958,7 +1028,16 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
                         priority_prefix = col_str.replace(' Wartość', '')
                         stawka_col_letter = col_map.get(f'{priority_prefix} Stawka')
                         ilosc_col_letter = col_map.get(f'{priority_prefix} Ilość')
-                        if stawka_col_letter and ilosc_col_letter:
+                        kons_col_letter = col_map.get(f'{priority_prefix} Konsultacje')
+                        mult_col_letter = col_map.get(f'{priority_prefix} Mnożnik')
+                        if stawka_col_letter and ilosc_col_letter and kons_col_letter and mult_col_letter:
+                            # Wartość = %·Stawka·Konsultacje·Mnożnik  +  Stawka·Ilość(opisy).
+                            # % literałem z row_pct (0.5 para / 1.0 nie-para / ryczałt).
+                            pct = row_pct.get(row_data.name, 1.0)
+                            pct_str = f"{int(round(pct * 100))}%"
+                            cell.value = (f"={pct_str}*{stawka_col_letter}{r_idx}*{kons_col_letter}{r_idx}*{mult_col_letter}{r_idx}"
+                                          f"+{stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}")
+                        elif stawka_col_letter and ilosc_col_letter:
                             cell.value = f"={stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}"
                     else:
                         cell.value = row_data[c_name]
