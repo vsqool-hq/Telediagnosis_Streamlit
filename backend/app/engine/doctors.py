@@ -184,14 +184,17 @@ KONSULTUJACY_COL = "Konsultujący"
 
 def load_consult_config():
     """Konfiguracja dopłat za KONSULTACJE z ustawień, znormalizowana do doctor_key.
-    Zwraca (pairs, flat):
-      pairs: { konsultujacy_key: set(opisujacy_key) } — pary z 50% (reszta 100%),
-      flat:  { konsultujacy_key: stawka_ryczalt }.
-    Źródło: ustawienia z bazy (db.get_settings) — tam zapisuje je panel Ustawień,
-    tak samo jak Windykacja/terminy płatności."""
+    Zwraca listę grup: [(konsultujacy_key, {opisujacy_key,...}, stawka_or_None)].
+
+    stawka (opcjonalna, „zaraz pod grupą"):
+      • podana  → konsultujący w PARZE z opisującym z tej grupy dostaje TĘ stawkę
+        za badanie (× okolice × liczba), zamiast 50% stawki opisowej;
+      • brak    → w parze liczymy 50% stawki opisowej konsultanta (dawny schemat).
+    Poza grupą (opisujący spoza niej lub konsultant bez grup) — zawsze 100% stawki
+    opisowej. Źródło: ustawienia z bazy (db.get_settings) — panel Ustawień."""
     from app import db
     cfg = db.get_settings()
-    pairs = {}
+    groups = []
     for g in cfg.get("consult_groups", []) or []:
         if not isinstance(g, dict):
             continue
@@ -199,32 +202,42 @@ def load_consult_config():
         if not k:
             continue
         opis = {doctor_key(o) for o in (g.get("opisujacy") or []) if doctor_key(o)}
-        if opis:
-            pairs.setdefault(k, set()).update(opis)
-    flat = {}
-    for name, rate in (cfg.get("consult_flat_rates", {}) or {}).items():
-        k = doctor_key(name)
-        try:
-            r = float(rate)
-        except (TypeError, ValueError):
+        if not opis:
             continue
-        if k and r > 0:
-            flat[k] = r
-    return pairs, flat
+        rate = g.get("stawka", None)
+        try:
+            rate = float(rate) if rate is not None and str(rate).strip() != "" else None
+        except (TypeError, ValueError):
+            rate = None
+        if rate is not None and rate <= 0:
+            rate = None
+        groups.append((k, opis, rate))
+    return groups
 
 
-def per_study_consultations(df, cat_map, prices, pairs, flat, excluded_keys=None):
+def per_study_consultations(df, cat_map, prices, groups, excluded_keys=None):
     """Jeden wiersz na KONSULTOWANE badanie z policzoną dopłatą — wspólne dla widoku
     (build_doctor_billing) i plików per lekarz (generate_doctor_billing_files), żeby
-    liczyły identycznie. Kolumny wynikowe: Modalność, Procedura, Rodzaj procedury
-    rozlicz., Procedura rozlicz., Priorytet opisu, _kons_key, _kons_disp, _kategoria,
-    _okolice, _stawka, _tryb (50%/100%/ryczałt), _pct, _wartosc.
-    Pomijamy: konsultację własnego opisu (kons==opis), lekarzy wyłączonych, badania bez
-    kategorii oraz (poza ryczałtem) bez stawki konsultanta w cenniku."""
+    liczyły identycznie. `groups` = wynik load_consult_config()
+    (lista (kons_key, {opis_key}, stawka_or_None)). Reguła dopłaty per badanie:
+      • para (konsultujący + opisujący z tej samej grupy) i grupa MA stawkę
+        → stawka_grupy × okolice   (tryb „stawka grupy", pct=100%);
+      • para bez stawki grupy       → 50% stawki opisowej konsultanta × okolice;
+      • poza parą (opisujący spoza grup / konsultant bez grup)
+        → 100% stawki opisowej konsultanta × okolice.
+    Kolumny wynikowe: Modalność, Procedura, Rodzaj procedury rozlicz., Procedura
+    rozlicz., Priorytet opisu, _kons_key, _kons_disp, _kategoria, _okolice, _stawka,
+    _tryb, _pct, _wartosc. Pomijamy: konsultację własnego opisu (kons==opis), lekarzy
+    wyłączonych, badania bez kategorii oraz — gdy stawka opisowa jest potrzebna
+    (para bez stawki grupy / poza parą) — brak stawki konsultanta w cenniku."""
     import pandas as pd
     from app.engine.billing import bill_extract_multiplier
     if df is None or KONSULTUJACY_COL not in getattr(df, "columns", []):
         return pd.DataFrame()
+    # indeks grup per konsultant: {kk: [({opis_key}, stawka_or_None), ...]}
+    groups_by_kk = {}
+    for kk_g, opis_set, rate in (groups or []):
+        groups_by_kk.setdefault(kk_g, []).append((opis_set, rate))
     d = df.copy()
     if "_kategoria" not in d.columns:
         d["_proc_key"] = d["Procedura"].map(_key)
@@ -246,15 +259,21 @@ def per_study_consultations(df, cat_map, prices, pairs, flat, excluded_keys=None
     keep = ["Modalność", "Procedura", "Rodzaj procedury rozlicz.", "Procedura rozlicz.", "Priorytet opisu"]
     recs = []
     for _, r in d.iterrows():
-        kk, okc, kat = r["_kons_key"], int(r["_okolice"]), r["_kategoria"]
-        if kk in flat:
-            stawka, pct, tryb = flat[kk], 1.0, "ryczałt"
+        kk, okc, kat, opis = r["_kons_key"], int(r["_okolice"]), r["_kategoria"], r["_lek_key"]
+        # w parze? jeśli tak — jaka stawka grupy (może być None)?
+        in_group, group_rate = False, None
+        for opis_set, rate in groups_by_kk.get(kk, []):
+            if opis in opis_set:
+                in_group, group_rate = True, rate
+                break
+        if in_group and group_rate is not None:
+            stawka, pct, tryb = group_rate, 1.0, "stawka grupy"
             val = stawka * okc
         else:
             stawka = resolve_doctor_price(prices, kk, kat)
-            if stawka is None or stawka != stawka:   # brak stawki w cenniku
+            if stawka is None or stawka != stawka:   # brak stawki opisowej w cenniku
                 continue
-            pct = 0.5 if (r["_lek_key"] in pairs.get(kk, set())) else 1.0
+            pct = 0.5 if in_group else 1.0
             tryb = f"{int(pct * 100)}%"
             val = stawka * okc * pct
         rec = {c: r[c] for c in keep}
@@ -387,13 +406,13 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
     )
 
     # ---- KONSULTACJE: dopłata dla lekarza w roli „Konsultujący" (dodatkowa) --------
-    # Dla każdego badania z niepustym konsultującym doliczamy JEMU:
-    #   ryczałt × okolice           (gdy lekarz ma stawkę ryczałtową), albo
-    #   stawka_konsultanta × okolice × (50% gdy para {konsultujący→opisujący} zdefiniowana,
-    #                                   100% w każdym innym przypadku).
-    # Opisujący rozliczany bez zmian. Konsultacja własnego opisu (ten sam lekarz) pomijana.
-    consult_pairs, consult_flat = load_consult_config()
-    cons_df = per_study_consultations(df, cat_map, prices, consult_pairs, consult_flat, excluded_keys)
+    # Dla każdego badania z niepustym konsultującym doliczamy JEMU (opisujący bez zmian):
+    #   • para z grupy + stawka grupy → stawka_grupy × okolice,
+    #   • para z grupy bez stawki     → 50% stawki opisowej konsultanta × okolice,
+    #   • poza grupą                  → 100% stawki opisowej konsultanta × okolice.
+    # Konsultacja własnego opisu (ten sam lekarz) pomijana.
+    consult_groups = load_consult_config()
+    cons_df = per_study_consultations(df, cat_map, prices, consult_groups, excluded_keys)
     consult_detail = []
     consult_by_key = {}
     if not cons_df.empty:
@@ -582,8 +601,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
                        if KONSULTUJACY_COL in df.columns else pd.Series([""] * len(df), index=df.index))
 
     # Konsultacje — per badanie (wspólny helper, jak widok), pogrupowane per konsultant.
-    consult_pairs, consult_flat = load_consult_config()
-    cons_df = per_study_consultations(df, cat_map, prices, consult_pairs, consult_flat, excluded)
+    consult_groups = load_consult_config()
+    cons_df = per_study_consultations(df, cat_map, prices, consult_groups, excluded)
     cons_by_kons, consult_disp = {}, {}
     if not cons_df.empty:
         for kk, sub_c in cons_df.groupby("_kons_key"):

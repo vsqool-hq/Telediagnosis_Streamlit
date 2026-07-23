@@ -52,11 +52,9 @@ async def update_settings(payload: dict):
     # Scalanie jednostek: mapa {podległa: główna} — odrzucamy puste i samopętle.
     if "unit_aliases" in cfg:
         cfg["unit_aliases"] = _clean_aliases(cfg["unit_aliases"])
-    # Konsultacje: grupy + ryczałty.
+    # Konsultacje: grupy (konsultujący → opisujący [+ opcjonalna stawka grupy]).
     if "consult_groups" in cfg:
         cfg["consult_groups"] = _clean_consult_groups(cfg["consult_groups"])
-    if "consult_flat_rates" in cfg:
-        cfg["consult_flat_rates"] = _clean_consult_flat(cfg["consult_flat_rates"])
     db.save_settings(cfg)
     return {"ok": True, "settings": cfg}
 
@@ -98,31 +96,26 @@ def _clean_consult_groups(raw) -> list:
             continue
         kons = str(g.get("konsultujacy", "")).strip()
         opis = [str(o).strip() for o in (g.get("opisujacy") or []) if str(o).strip()]
-        if kons and opis:
-            clean.append({"konsultujacy": kons, "opisujacy": opis})
-    return clean
-
-
-def _clean_consult_flat(raw) -> dict:
-    if not isinstance(raw, dict):
-        raise HTTPException(400, "Pole consult_flat_rates musi być obiektem {lekarz: stawka}.")
-    clean = {}
-    for name, rate in raw.items():
-        n = str(name or "").strip()
-        try:
-            r = float(rate)
-        except (TypeError, ValueError):
+        if not (kons and opis):
             continue
-        if n and r > 0:
-            clean[n] = r
+        entry = {"konsultujacy": kons, "opisujacy": opis}
+        # Opcjonalna stawka grupy: gdy podana (>0) → para dostaje TĘ stawkę zamiast 50%.
+        rate = g.get("stawka", None)
+        try:
+            r = float(rate) if rate is not None and str(rate).strip() != "" else None
+        except (TypeError, ValueError):
+            r = None
+        if r is not None and r > 0:
+            entry["stawka"] = r
+        clean.append(entry)
     return clean
 
 
 @router.get("/consult-config")
 async def get_consult_config():
-    """Konfiguracja dopłat za konsultacje: grupy (konsultujący → opisujący) + ryczałty."""
+    """Konfiguracja dopłat za konsultacje: grupy (konsultujący → opisujący [+ stawka])."""
     cfg = db.get_settings()
-    return {"groups": cfg.get("consult_groups") or [], "flat_rates": cfg.get("consult_flat_rates") or {}}
+    return {"groups": cfg.get("consult_groups") or []}
 
 
 @router.put("/consult-config")
@@ -130,10 +123,8 @@ async def save_consult_config(payload: dict):
     cfg = db.get_settings()
     if "groups" in payload:
         cfg["consult_groups"] = _clean_consult_groups(payload["groups"])
-    if "flat_rates" in payload:
-        cfg["consult_flat_rates"] = _clean_consult_flat(payload["flat_rates"])
     db.save_settings(cfg)
-    return {"groups": cfg.get("consult_groups") or [], "flat_rates": cfg.get("consult_flat_rates") or {}}
+    return {"groups": cfg.get("consult_groups") or []}
 
 
 @router.post("/reset")

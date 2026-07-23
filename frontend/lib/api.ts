@@ -641,11 +641,11 @@ export const api = {
   unitAliases: () =>
     req<{ aliases: Record<string, string> }>("/api/settings/unit-aliases"),
   consultConfig: () =>
-    req<{ groups: { konsultujacy: string; opisujacy: string[] }[]; flat_rates: Record<string, number> }>(
+    req<{ groups: { konsultujacy: string; opisujacy: string[]; stawka?: number }[] }>(
       "/api/settings/consult-config",
     ),
-  saveConsultConfig: (payload: { groups?: { konsultujacy: string; opisujacy: string[] }[]; flat_rates?: Record<string, number> }) =>
-    req<{ groups: { konsultujacy: string; opisujacy: string[] }[]; flat_rates: Record<string, number> }>(
+  saveConsultConfig: (payload: { groups?: { konsultujacy: string; opisujacy: string[]; stawka?: number }[] }) =>
+    req<{ groups: { konsultujacy: string; opisujacy: string[]; stawka?: number }[] }>(
       "/api/settings/consult-config",
       { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
     ),

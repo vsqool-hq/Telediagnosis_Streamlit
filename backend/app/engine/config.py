@@ -124,15 +124,14 @@ DEFAULT_CONFIG = {
     "unit_aliases": {},
 
     # Rozliczenie lekarzy — dopłata za rolę KONSULTUJĄCY (dodatkowa, opisujący bez zmian).
-    # Dla każdego badania z niepustym „Konsultujący" doliczamy jemu:
-    #   okolice × stawka_konsultanta(kategoria/priorytet) × (50% gdy para zdefiniowana / 100%).
-    # „Para zdefiniowana" = konsultujący ma w consult_groups przypisanego opisującego z badania.
-    # Grupy: lista { "konsultujacy": "<nazwa/klucz>", "opisujacy": ["<...>", ...] }.
+    # Dla każdego badania z niepustym „Konsultujący" doliczamy jemu, wg grup:
+    #   • para (konsultujący + opisujący z tej grupy) i grupa MA stawkę
+    #       → stawka_grupy × okolice,
+    #   • para bez stawki grupy → 50% stawki opisowej konsultanta × okolice,
+    #   • poza grupą            → 100% stawki opisowej konsultanta × okolice.
+    # Grupy: lista { "konsultujacy": "<nazwa>", "opisujacy": ["<...>", ...],
+    #               "stawka": <kwota|brak> }.  (stawka opcjonalna — „wyjątek" per grupa)
     "consult_groups": [],
-    # Wyjątek: ryczałt za konsultacje dla wybranego lekarza (klucz doctor_key → stawka).
-    # Gdy lekarz tu występuje, JEGO konsultacje liczymy: ryczałt × okolice (bez 50/100%
-    # i bez cennika kategorii). Struktura: { "nazwisko/klucz": kwota }.
-    "consult_flat_rates": {},
 
     # Moduł Windykacja: domyślny termin płatności (dni od wystawienia należności),
     # używany gdy jednostka nie ma własnego wpisu w payment_terms_by_unit.
