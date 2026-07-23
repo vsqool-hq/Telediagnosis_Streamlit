@@ -196,8 +196,12 @@ def _availability_totals(job: dict) -> dict:
 
 def _compare_cache_fresh(c: dict | None) -> bool:
     """Czy zapisane porównanie jest aktualne względem WYŁĄCZONYCH JEDNOSTEK.
-    Zmiana wyłączeń → zapis traktujemy jako „do przeliczenia" (nie kasujemy go)."""
+    Zmiana wyłączeń → zapis traktujemy jako „do przeliczenia" (nie kasujemy go).
+    Dodatkowo: brak pola „koszt_konsultacje" = zapis SPRZED doliczania konsultacji
+    do kosztu lekarzy → wymuszamy przeliczenie (inaczej Porównanie ≠ Rozliczenie)."""
     if not c or c.get("empty"):
+        return False
+    if "koszt_konsultacje" not in (c.get("totals") or {}):
         return False
     from app.engine.billing import get_excluded_units
     return (c.get("_units_excluded", []) == sorted(get_excluded_units())

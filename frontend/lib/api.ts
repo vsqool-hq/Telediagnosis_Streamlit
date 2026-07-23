@@ -369,6 +369,7 @@ export interface DoctorBilling {
     total_studies: number;
     priced_studies: number;
     studies_without_category: number;
+    categories_missing?: { modalnosc?: string; procedura?: string; rodzaj?: string; n: number }[];
     n_doctors: number;
     total_value: number;
     value_studies?: number;
@@ -417,6 +418,7 @@ export interface DoctorComparison {
   }[];
   totals?: {
     przychod_jednostki: number; koszt_lekarzy: number; marza: number;
+    koszt_konsultacje?: number;
     studies: number; studies_without_category: number;
     studies_with_category?: number; przychod_jednostki_bez_kategorii?: number;
     przychod_jednostki_total?: number;

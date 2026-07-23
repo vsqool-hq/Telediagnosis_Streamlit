@@ -70,6 +70,7 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     from app.engine.doctors import (
         read_verified_studies, load_lekarz_categories, load_doctor_prices,
         resolve_category, resolve_doctor_price, _key,
+        load_consult_config, per_study_consultations,
     )
 
     df = read_verified_studies(sprawdzone_dir)
@@ -162,6 +163,24 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     df["_doc_price"] = df.apply(_doc_price, axis=1)
     df["_units_rev"] = df["_mult"] * df["_unit_price"].fillna(0) + df.apply(_porown_rev, axis=1)
     df["_doc_cost"] = df["_mult_doc"] * df["_doc_price"].fillna(0)   # okolice lekarza (oryg.)
+
+    # KONSULTACJE: dopłatę dla konsultującego doliczamy do KOSZTU lekarzy tego badania,
+    # żeby całość (opisy + konsultacje + gotowość) zgadzała się z „Rozliczeniem lekarzy".
+    # Liczymy TAK SAMO jak rozliczenie: na ORYGINALNYM rodzaju/okolicach i z
+    # „Bardzo pilny"→„Pilny". Wynik mapujemy po indeksie wiersza (_src_idx) na to badanie.
+    df["_cons_cost"] = 0.0
+    _df_doc = df.copy()
+    if "Rodzaj procedury rozlicz. (oryg.)" in _df_doc.columns:
+        _df_doc["Rodzaj procedury rozlicz."] = _df_doc["Rodzaj procedury rozlicz. (oryg.)"]
+    if "Procedura rozlicz. (oryg.)" in _df_doc.columns:
+        _df_doc["Procedura rozlicz."] = _df_doc["Procedura rozlicz. (oryg.)"]
+    if "Priorytet opisu" in _df_doc.columns:
+        _df_doc["Priorytet opisu"] = _df_doc["Priorytet opisu"].replace({"Bardzo pilny": "Pilny"})
+    _cons = per_study_consultations(_df_doc, cat_map, doc_prices, load_consult_config(), _excl_docs)
+    if not _cons.empty:
+        _cons_by_idx = _cons.groupby("_src_idx")["_wartosc"].sum()
+        df["_cons_cost"] = df.index.to_series().map(_cons_by_idx).fillna(0.0)
+        df["_doc_cost"] = df["_doc_cost"] + df["_cons_cost"]
 
     # Gotowość + triaż (TeamUp): kwotę miesięczną lekarza rozbijamy RÓWNO na jego
     # badania z kategorią i doliczamy do kosztu każdego badania — dzięki temu
@@ -319,6 +338,8 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
             # stronach); przychód obejmuje doliczone WSPARCIE.
             "przychod_jednostki": round(float(cat["_units_rev"].sum()), 2),
             "koszt_lekarzy": round(float(cat["_doc_cost"].sum()), 2),
+            # z czego dopłaty za konsultacje (część kosztu lekarzy).
+            "koszt_konsultacje": round(float(cat["_cons_cost"].sum()), 2),
             "marza": round(float(cat["_units_rev"].sum() - cat["_doc_cost"].sum()), 2),
             "studies": int(len(df)),
             "studies_with_category": int(len(cat)),

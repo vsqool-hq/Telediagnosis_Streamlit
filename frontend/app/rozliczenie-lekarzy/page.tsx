@@ -196,6 +196,42 @@ export default function RozliczenieLekarzyPage() {
             </div>
           )}
 
+          {/* Bez kategorii lekarskiej — brak wpisu „Rodzaj procedury lekarz" w słowniku. */}
+          {(result.validation.categories_missing?.length ?? 0) > 0 && (
+            <div className="card space-y-3 border-amber-400/30">
+              <h2 className="flex items-center gap-2 text-base font-bold text-amber-300">
+                <AlertTriangle size={18} /> Bez kategorii lekarskiej ({result.validation.studies_without_category} badań)
+              </h2>
+              <p className="text-[13px] text-slate-400">
+                Poniższe pary <b>Procedura + Rodzaj procedury rozlicz.</b> nie mają przypisanej kategorii lekarskiej.
+                Uzupełnij dla nich kolumnę <b>„Rodzaj procedury lekarz"</b> w słowniku (np. „TK A", „MR C") — wtedy
+                badania zaczną się wyceniać.
+              </p>
+              <div className="max-h-56 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-brand-surface text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs uppercase">Modalność</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase">Procedura</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase">Rodzaj procedury rozlicz.</th>
+                      <th className="px-3 py-2 text-right text-xs uppercase">Badania</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.validation.categories_missing!.map((p, i) => (
+                      <tr key={i} className="border-t border-white/10">
+                        <td className="px-3 py-2 text-slate-300">{p.modalnosc}</td>
+                        <td className="px-3 py-2">{p.procedura}</td>
+                        <td className="px-3 py-2 text-slate-300">{p.rodzaj}</td>
+                        <td className="px-3 py-2 text-right text-slate-400">{p.n}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Badania rozliczone po stawce 0 zł — pozycja jest w cenniku, ale stawka = 0. */}
           {(result.validation.zero_rate_pairs?.length ?? 0) > 0 && (
             <div className="card space-y-3 border-sky-400/30">

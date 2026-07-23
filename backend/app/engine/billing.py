@@ -675,7 +675,7 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
     return pd.Series(vals, index=grouped.index), porown_keys
 
 
-def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False, gotowosc_amount=None):
+def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False, gotowosc_amount=None, row_color=None):
     ws = workbook[sheet_name]
     priority_colors = PRIORITY_COLORS
     procedure_type_colors = PROCEDURE_TYPE_COLORS
@@ -704,10 +704,14 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
         data_start_row = start_row + 1
         for row_idx, (_, row_data) in enumerate(billing_table.iterrows(), start=data_start_row):
             rodzaj_procedury = str(row_data.get('Rodzaj procedury rozlicz.', ''))
-            if rodzaj_procedury in procedure_type_colors:
-                row_fill = PatternFill(start_color=procedure_type_colors[rodzaj_procedury],
-                                       end_color=procedure_type_colors[rodzaj_procedury],
-                                       fill_type='solid')
+            # LEKARZE (row_color podany): kolor wg grupy lekarskiej A/B/C/D + „RTG dzieci".
+            # JEDNOSTKI (brak row_color): kolor wg „Rodzaj procedury rozlicz." (jak dotąd).
+            if row_color is not None:
+                hexcol = row_color(row_data.get('Modalność', ''), row_data.get('Procedura', ''), rodzaj_procedury)
+            else:
+                hexcol = procedure_type_colors.get(rodzaj_procedury)
+            if hexcol:
+                row_fill = PatternFill(start_color=hexcol, end_color=hexcol, fill_type='solid')
                 for col in range(1, ws.max_column + 1):
                     cell = ws.cell(row=row_idx, column=col)
                     if cell.fill.start_color.rgb == '00000000' or cell.fill.start_color.rgb is None:
@@ -837,7 +841,7 @@ def bill_make_grouped(df_details, entity_col):
 
 
 def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False, rate_resolver=None, gotowosc_amount=None,
-                           consultations=None, consult_raw=None):
+                           consultations=None, consult_raw=None, row_color=None):
     """
     Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
     „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
@@ -1056,7 +1060,7 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
                 formula_parts = [f"{col_letter}{r}" for r in subtotal_rows]
                 if formula_parts:
                     ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
-        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True, for_doctor=for_doctor, gotowosc_amount=gotowosc_amount)
+        bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True, for_doctor=for_doctor, gotowosc_amount=gotowosc_amount, row_color=row_color)
 
         if for_doctor and 'Rozliczenie' in wb.sheetnames:
             # LEKARZE: „Rozliczenie" jako pierwszy i domyślnie otwarty arkusz

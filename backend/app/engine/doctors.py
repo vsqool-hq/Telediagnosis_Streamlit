@@ -227,7 +227,8 @@ def per_study_consultations(df, cat_map, prices, groups, excluded_keys=None):
         → 100% stawki opisowej konsultanta × okolice.
     Kolumny wynikowe: Modalność, Procedura, Rodzaj procedury rozlicz., Procedura
     rozlicz., Priorytet opisu, _kons_key, _kons_disp, _kategoria, _okolice, _stawka,
-    _tryb, _pct, _wartosc. Pomijamy: konsultację własnego opisu (kons==opis), lekarzy
+    _tryb, _pct, _wartosc, _src_idx (indeks wiersza w df — do doliczenia kosztu w
+    porównaniu). Pomijamy: konsultację własnego opisu (kons==opis), lekarzy
     wyłączonych, badania bez kategorii oraz — gdy stawka opisowa jest potrzebna
     (para bez stawki grupy / poza parą) — brak stawki konsultanta w cenniku."""
     import pandas as pd
@@ -258,7 +259,7 @@ def per_study_consultations(df, cat_map, prices, groups, excluded_keys=None):
     d["_okolice"] = d["Procedura rozlicz."].map(bill_extract_multiplier)
     keep = ["Modalność", "Procedura", "Rodzaj procedury rozlicz.", "Procedura rozlicz.", "Priorytet opisu"]
     recs = []
-    for _, r in d.iterrows():
+    for idx, r in d.iterrows():
         kk, okc, kat, opis = r["_kons_key"], int(r["_okolice"]), r["_kategoria"], r["_lek_key"]
         # w parze? jeśli tak — jaka stawka grupy (może być None)?
         in_group, group_rate = False, None
@@ -279,7 +280,7 @@ def per_study_consultations(df, cat_map, prices, groups, excluded_keys=None):
         rec = {c: r[c] for c in keep}
         rec.update({"_kons_key": kk, "_kons_disp": r["_kons_disp"], "_kategoria": kat,
                     "_okolice": okc, "_stawka": float(stawka), "_tryb": tryb,
-                    "_pct": pct, "_wartosc": round(val, 2)})
+                    "_pct": pct, "_wartosc": round(val, 2), "_src_idx": idx})
         recs.append(rec)
     return pd.DataFrame(recs)
 
@@ -358,6 +359,20 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
     # diagnostyka
     no_category = df[df["_kategoria"] == ""]
     studies_no_cat = int(len(no_category))
+    # Rozbicie „bez kategorii" na pary (Procedura, Rodzaj procedury rozlicz.) — to
+    # DOKŁADNIE te wiersze słownika, którym brakuje wpisu w kolumnie „Rodzaj procedury
+    # lekarz". Lekarz też, żeby było wiadomo kogo dotyczy. Sortujemy malejąco po liczbie.
+    _nc_cols = [c for c in ["Modalność", "Procedura", "Rodzaj procedury rozlicz."] if c in no_category.columns]
+    if _nc_cols and not no_category.empty:
+        no_cat_pairs = (
+            no_category.groupby(_nc_cols).size().reset_index(name="n")
+            .rename(columns={"Modalność": "modalnosc", "Procedura": "procedura",
+                             "Rodzaj procedury rozlicz.": "rodzaj"})
+            .sort_values("n", ascending=False)
+        )
+        no_cat_records = no_cat_pairs.head(300).to_dict("records")
+    else:
+        no_cat_records = []
 
     priced = df[df["_kategoria"] != ""].copy()
     priced["_stawka"] = [
@@ -507,6 +522,7 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
             "total_studies": int(len(df)),
             "priced_studies": int(len(ok)),
             "studies_without_category": studies_no_cat,
+            "categories_missing": no_cat_records,
             "slownik_categories": len(cat_map),
             "n_doctors": len(by_doctor_records),
             # total_value = opisy + konsultacje (gotowość dokłada doctors_job osobno)
@@ -520,6 +536,28 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
             "zero_rate_pairs": zero_rate_pairs.head(200).to_dict("records"),
         },
     }
+
+
+def _doctor_row_color(cat_map):
+    """Funkcja koloru wiersza w pliku LEKARZA: (modalnosc, procedura, rodzaj) → HEX|None.
+    Kolor wg GRUPY lekarskiej A/B/C/D w TK/MR (litera z bazy kategorii ze słownika,
+    np. „TK A"→A); „RTG Dzieci" ma własny kolor. Grupa B oraz kategorie bez litery
+    (RTG dorośli, MMG…) — bez wypełnienia. Jednostki mają własne kolory (bez tej funkcji)."""
+    TK = {"A": "C0E6F5", "C": "FBE2D5", "D": "E8E8E8"}   # B → brak wypełnienia
+    MR = {"A": "A6C9EC", "C": "F7C7AC", "D": "FFE699"}   # B → brak wypełnienia
+
+    def color(modalnosc, procedura, rodzaj):
+        r = _norm(rodzaj).upper()
+        if r.startswith("RTG") and "DZIEC" in r:
+            return "FFE5FF"
+        base = _norm(cat_map.get((_key(procedura), _key(rodzaj)), "")).upper()
+        toks = base.split()
+        if len(toks) >= 2 and toks[-1] in ("A", "B", "C", "D"):
+            table = TK if toks[0] == "TK" else (MR if toks[0] == "MR" else None)
+            if table is not None:
+                return table.get(toks[-1])
+        return None
+    return color
 
 
 def _surname_first(name: str) -> str:
@@ -583,6 +621,7 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
 
     cat_map = load_lekarz_categories(slownik_path)
     prices = load_doctor_prices(doctor_cennik_csv)
+    row_color_fn = _doctor_row_color(cat_map)   # kolory wierszy wg grupy lekarskiej
 
     import pandas as pd
     df = df.copy()
@@ -676,7 +715,7 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         try:
             bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
                                    for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount,
-                                   consultations=cons_agg, consult_raw=cons_raw)
+                                   consultations=cons_agg, consult_raw=cons_raw, row_color=row_color_fn)
             files.append(fname)
             described_keys.add(lek_key)
         except Exception as e:  # noqa: BLE001
@@ -699,7 +738,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         empty_grouped = pd.DataFrame(columns=empty_cols)
         try:
             bill_finalize_to_excel(empty_grouped, raw, _os.path.join(out_dir, fname),
-                                   for_doctor=True, consultations=_aggregate_consultations(sub_c))
+                                   for_doctor=True, consultations=_aggregate_consultations(sub_c),
+                                   row_color=row_color_fn)
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku konsultanta {disp}: {e}", flush=True)
