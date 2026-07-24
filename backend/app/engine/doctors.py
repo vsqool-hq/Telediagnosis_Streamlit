@@ -560,6 +560,17 @@ def _doctor_row_color(cat_map):
     return color
 
 
+def _doctor_cat_sortkey(cat_map):
+    """Klucz sortowania wiersza pliku lekarza W OBRĘBIE modalności: baza kategorii
+    lekarskiej ze słownika (np. „MR A"). Dzięki temu wiersze tej samej kategorii
+    (=tego samego koloru) są RAZEM i w kolejności A→B→C→D, a nie porozrzucane po
+    „Rodzaj procedury rozlicz.". Bez kategorii → na koniec bloku modalności."""
+    def key(modalnosc, procedura, rodzaj):
+        base = _norm(cat_map.get((_key(procedura), _key(rodzaj)), "")).upper()
+        return base or "ZZZ"
+    return key
+
+
 def _surname_first(name: str) -> str:
     """„Imię Nazwisko" → „Nazwisko Imię" (np. 'Tomasz Bujalski' → 'Bujalski Tomasz')."""
     toks = _norm(name).split()
@@ -622,6 +633,7 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
     cat_map = load_lekarz_categories(slownik_path)
     prices = load_doctor_prices(doctor_cennik_csv)
     row_color_fn = _doctor_row_color(cat_map)   # kolory wierszy wg grupy lekarskiej
+    row_sort_fn = _doctor_cat_sortkey(cat_map)  # sortowanie wg kategorii (koloru) w modalności
 
     import pandas as pd
     df = df.copy()
@@ -715,7 +727,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         try:
             bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
                                    for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount,
-                                   consultations=cons_agg, consult_raw=cons_raw, row_color=row_color_fn)
+                                   consultations=cons_agg, consult_raw=cons_raw,
+                                   row_color=row_color_fn, row_sort_key=row_sort_fn)
             files.append(fname)
             described_keys.add(lek_key)
         except Exception as e:  # noqa: BLE001
@@ -739,7 +752,7 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         try:
             bill_finalize_to_excel(empty_grouped, raw, _os.path.join(out_dir, fname),
                                    for_doctor=True, consultations=_aggregate_consultations(sub_c),
-                                   row_color=row_color_fn)
+                                   row_color=row_color_fn, row_sort_key=row_sort_fn)
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku konsultanta {disp}: {e}", flush=True)

@@ -841,7 +841,7 @@ def bill_make_grouped(df_details, entity_col):
 
 
 def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_doctor=False, rate_resolver=None, gotowosc_amount=None,
-                           consultations=None, consult_raw=None, row_color=None):
+                           consultations=None, consult_raw=None, row_color=None, row_sort_key=None):
     """
     Z gotowej tabeli (z kolumną 'Cena') tworzy plik Excel: arkusz „Szczegółowe" +
     „Rozliczenie" z podziałem na priorytety, formułami i sumami. Identyczny układ
@@ -866,7 +866,16 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
     merged['Ilość'] = merged['#'] * merged['Mnożnik']
     merged['Wartość'] = np.nan
 
-    billing_table = merged.sort_values(by=['Modalność', 'Rodzaj procedury rozlicz.'])
+    if row_sort_key is not None:
+        # LEKARZE: w obrębie modalności sortujemy wg kategorii lekarskiej (koloru),
+        # a nie po „Rodzaj procedury rozlicz." — żeby wiersze tego samego koloru były
+        # razem (A→B→C→D). Klucz w kolumnie tymczasowej; pivot i tak bierze tylko klucze.
+        merged = merged.copy()
+        merged['_catsort'] = [row_sort_key(m, p, r) for m, p, r in
+                              zip(merged['Modalność'], merged['Procedura'], merged['Rodzaj procedury rozlicz.'])]
+        billing_table = merged.sort_values(by=['Modalność', '_catsort', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.'])
+    else:
+        billing_table = merged.sort_values(by=['Modalność', 'Rodzaj procedury rozlicz.'])
     priorities_in_data = set(merged['Priorytet opisu'].unique())
     if has_kons:
         # priorytety mogą pochodzić TYLKO z konsultacji (lekarz nic w nich nie opisał)
@@ -954,8 +963,17 @@ def bill_finalize_to_excel(merged, df_details, output_path, logs=None, for_docto
             billing_table = pd.concat([billing_table, add_df], axis=0)
             live_num = [c for c in num_cols if c in billing_table.columns]
             billing_table[live_num] = billing_table[live_num].apply(pd.to_numeric, errors='coerce').fillna(0)
-            # sort stabilny — konsultacje trafiają do bloku swojej modalności obok opisów
-            billing_table = billing_table.sort_values(by=['Modalność', 'Rodzaj procedury rozlicz.'], kind='stable')
+            # sort stabilny — konsultacje trafiają do bloku swojej modalności obok opisów;
+            # wewnątrz modalności wg kategorii lekarskiej (koloru), spójnie z opisami.
+            if row_sort_key is not None:
+                billing_table['_catsort'] = [row_sort_key(m, p, r) for m, p, r in
+                                             zip(billing_table['Modalność'], billing_table['Procedura'],
+                                                 billing_table['Rodzaj procedury rozlicz.'])]
+                billing_table = (billing_table
+                                 .sort_values(by=['Modalność', '_catsort', 'Rodzaj procedury rozlicz.', 'Procedura rozlicz.'], kind='stable')
+                                 .drop(columns=['_catsort']))
+            else:
+                billing_table = billing_table.sort_values(by=['Modalność', 'Rodzaj procedury rozlicz.'], kind='stable')
 
     df_details_modified = df_details.copy()
 
