@@ -385,21 +385,22 @@ def hours_by_variant(events: list, kind: str, month_start: dt.date, month_end: d
 
 # --- Stawki z pliku ZOBOWIĄZAŃ ----------------------------------------------
 
-def parse_availability_rates(workbook_path: str) -> dict:
+def parse_availability_rates(workbook_path: str, period: str | None = None) -> dict:
     """
     Czyta stawki gotowości/triażu z KAŻDEJ zakładki (zakładka = lekarz).
     Zwraca { doctor_key(nazwa zakładki): {"name": zakładka, "rates": {wariant: stawka}} }.
 
-    Stawki bierzemy z NAJNOWSZEGO ANEKSU (skrajnie prawy blok) — dokładnie tak samo
-    jak ceny badań: kolumnę-etykietę i kolumnę stawki wyznacza _find_newest_block
-    (po nagłówkach sekcji RTG/TK/MR/MMG). Wiersze GOTOWOŚĆ/TRIAŻ są powielone pod
-    kategoriami badań w tym samym bloku, więc czytamy je z tej samej pary kolumn.
-    Wariant: godzina startu pasma (8→dzień, inaczej→noc) + ŚWIĘTA/WEEKEND/powszedni.
+    Stawki bierzemy z ANEKSU OBOWIĄZUJĄCEGO w `period` ('YYYY-MM') — dokładnie tak
+    samo jak ceny badań: kolumnę-etykietę i stawki wyznacza _find_block_for_period
+    (blok, którego kolumna miesiąca = period; skrajnie prawy bloku bywa przyszłym
+    aneksem). Bez period — skrajnie prawy blok (jak dotąd). Wiersze GOTOWOŚĆ/TRIAŻ są
+    powielone pod kategoriami badań w tym samym bloku, więc czytamy je z tej samej
+    pary kolumn. Wariant: godzina startu pasma (8→dzień, inaczej→noc) + typ dnia.
     """
     import re
     from openpyxl import load_workbook
     from app.engine.cennik_lekarzy_convert import (
-        doctor_key, _find_newest_block, _clean, _try_number,
+        doctor_key, _find_block_for_period, _clean, _try_number,
     )
 
     wb = load_workbook(workbook_path, data_only=True, read_only=True)
@@ -411,7 +412,7 @@ def parse_availability_rates(workbook_path: str) -> dict:
         if not grid:
             continue
         ncols = max((len(r) for r in grid), default=0)
-        label_col, price_col = _find_newest_block(grid, ncols)
+        label_col, price_col = _find_block_for_period(grid, ncols, period)
         if label_col is None:
             continue
 
@@ -490,7 +491,7 @@ def compute_availability(period: str, excluded_keys=None) -> dict:
     month_end = (dt.date(y + 1, 1, 1) if m == 12 else dt.date(y, m + 1, 1)) - dt.timedelta(days=1)
     holidays = polish_holidays(y) | polish_holidays(y + 1)
 
-    rates_by_doc = parse_availability_rates(wb_path)
+    rates_by_doc = parse_availability_rates(wb_path, period)
 
     # Pobieramy z 1-dniowym marginesem (dyżur nocny zaczęty ostatniego dnia
     # poprzedniego miesiąca) — i tak przycinamy godziny do miesiąca.

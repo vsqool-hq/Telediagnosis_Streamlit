@@ -83,6 +83,33 @@ def _active_doctor_cennik_csv() -> str | None:
     return path if os.path.isfile(path) else None
 
 
+def _active_doctor_cennik_csv_for_period(period: str | None) -> str | None:
+    """CSV cennika lekarzy dopasowany do OKRESU rozliczenia. Konwertuje source.xlsx
+    aktywnej wersji, wybierając blok-aneks OBOWIĄZUJĄCY dla `period` (a nie skrajnie
+    prawy — ten bywa przygotowany na przyszłe okresy). Cache per (wersja, okres).
+    Bez source.xlsx / bez okresu → zwykły aktywny CSV (skrajnie prawy blok)."""
+    base = _active_doctor_cennik_csv()
+    if not period:
+        return base
+    from app.engine.commitments import active_commitments_workbook
+    wb_path, _ = active_commitments_workbook()
+    if not wb_path or not os.path.isfile(wb_path):
+        return base  # aktywny cennik wgrany bez .xlsx — nie ma z czego wybrać okresu
+    out = os.path.join(os.path.dirname(wb_path), f"cennik_period_{period}.csv")
+    if os.path.isfile(out):
+        return out
+    try:
+        from app.engine.cennik_lekarzy_convert import convert_workbook, rows_to_csv
+        res = convert_workbook(wb_path, period=period)
+        if not res.get("rows"):
+            return base
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(rows_to_csv(res["rows"]))
+        return out
+    except Exception:  # noqa: BLE001
+        return base
+
+
 def _slownik_path(wzorcowe_dir: str) -> str | None:
     files = [f for f in glob.glob(os.path.join(wzorcowe_dir, "*.xls*"))
              if not os.path.basename(f).startswith("~$")]
@@ -163,7 +190,11 @@ def _resolve_job(job_id: str):
     # Słownik bierzemy z AKTYWNEJ wersji (świeże kategorie „Rodzaj procedury lekarz"),
     # a tylko awaryjnie z kopii zapisanej przy zadaniu.
     slownik = _active_slownik_path() or _slownik_path(paths["wzorcowe"])
-    cennik_lek = _active_doctor_cennik_csv()
+    # Cennik lekarzy dobrany do OKRESU rozliczanego miesiąca (blok-aneks obowiązujący
+    # w tym miesiącu, nie skrajnie prawy). Okres z nazwy pliku wejściowego zadania.
+    from app.engine.periods import period_from_filename
+    period = period_from_filename(job.get("input_name"))
+    cennik_lek = _active_doctor_cennik_csv_for_period(period)
     if not slownik:
         raise HTTPException(400, "Brak słownika w danych zadania.")
     if not cennik_lek:
