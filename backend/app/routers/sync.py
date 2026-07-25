@@ -42,7 +42,35 @@ def _resolve_cloud(payload: dict):
     env_token = os.environ.get("TELEDIAG_SYNC_TOKEN", "").strip()
     cloud = (env_url or (payload.get("cloud_base") or "")).rstrip("/")
     token = env_token or (payload.get("token") or "")
+    # Adres z konfiguracji serwera jest zaufany (ustawia go administrator maszyny —
+    # może to być instancja w sieci firmowej). Adres PRZYSŁANY W ŻĄDANIU jest danymi
+    # z zewnątrz, więc musi wskazywać na host publiczny (ochrona przed SSRF).
+    if not env_url and cloud:
+        _assert_public_https(cloud)
     return cloud, token
+
+
+def _assert_public_https(base: str):
+    """Adres chmury musi być publiczny — inaczej ktoś z prawami administratora mógłby
+    zmusić serwer do odpytania usług z jego sieci wewnętrznej albo metadanych chmury
+    (SSRF). Dopuszczamy wyłącznie http(s) do hostów spoza zakresów prywatnych,
+    loopback, link-local (169.254.x — metadane) i multicast."""
+    import socket
+    import ipaddress
+    from urllib.parse import urlparse
+
+    u = urlparse(base)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise HTTPException(400, "Adres chmury musi być pełnym adresem http(s).")
+    try:
+        infos = socket.getaddrinfo(u.hostname, None)
+    except OSError as e:
+        raise HTTPException(400, f"Nie można rozwiązać adresu chmury: {e}")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+            raise HTTPException(400, f"Adres chmury wskazuje na sieć wewnętrzną ({ip}) — odmowa.")
 
 
 def _fetch(url: str, token: str) -> bytes:

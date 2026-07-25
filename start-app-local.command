@@ -32,7 +32,8 @@ fi
 echo "Uruchamiam backend (http://localhost:8080)…"
 ( cd backend && source .venv/bin/activate && \
   export TELEDIAG_DATA_DIR=./data TELEDIAG_SEED_DIR=../seed_data && \
-  uvicorn app.main:app --port 8080 ) &
+  export TELEDIAG_ALLOW_ANONYMOUS=1 && \
+  uvicorn app.main:app --host 127.0.0.1 --port 8080 ) &
 BPID=$!
 
 echo "Uruchamiam front (http://localhost:3000)…"

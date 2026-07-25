@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS sessions (
     token      TEXT PRIMARY KEY,
     user_id    INTEGER NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    last_seen  TEXT              -- ostatnia aktywność; sesja wygasa po TTL bezczynności
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -185,6 +186,8 @@ def init_db():
         # Migracje kolumn „kto dodał" (istniejące bazy sprzed audytu).
         _add_column(conn, "versions", "uploaded_by", "TEXT")
         _add_column(conn, "jobs", "created_by", "TEXT")
+        # Wygasanie sesji (bazy sprzed wprowadzenia TTL).
+        _add_column(conn, "sessions", "last_seen", "TEXT")
         row = conn.execute("SELECT json FROM settings WHERE id = 1").fetchone()
         if row is None:
             conn.execute("INSERT INTO settings (id, json) VALUES (1, ?)",
@@ -344,12 +347,19 @@ def create_user(username: str, password: str, role: str = "user") -> dict:
 
 
 def update_user(user_id: int, password: str | None = None, role: str | None = None):
+    changed = False
     with get_conn() as conn:
         if password:
             conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
                          (_hash_password(password), user_id))
+            changed = True
         if role in ("admin", "user"):
             conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+            changed = True
+    # Zmiana hasła lub roli unieważnia istniejące sesje — inaczej stary token dalej
+    # działałby ze starymi uprawnieniami (i po zmianie hasła „na wszelki wypadek").
+    if changed:
+        delete_sessions_for_user(user_id)
 
 
 def delete_user(user_id: int):
@@ -363,28 +373,76 @@ def count_admins() -> int:
         return conn.execute("SELECT COUNT(*) c FROM users WHERE role = 'admin'").fetchone()["c"]
 
 
+def session_ttl_hours() -> float:
+    """Po ilu godzinach BEZCZYNNOŚCI sesja wygasa (TELEDIAG_SESSION_TTL_HOURS)."""
+    import os
+    try:
+        v = float(os.environ.get("TELEDIAG_SESSION_TTL_HOURS", "12"))
+        return v if v > 0 else 12.0
+    except ValueError:
+        return 12.0
+
+
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
+    now = _now()
     with get_conn() as conn:
-        conn.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?,?,?)",
-                     (token, user_id, _now()))
+        conn.execute(
+            "INSERT INTO sessions (token, user_id, created_at, last_seen) VALUES (?,?,?,?)",
+            (token, user_id, now, now),
+        )
     return token
 
 
 def get_session_user(token: str):
+    """Zwraca użytkownika sesji albo None, gdy tokenu nie ma lub sesja wygasła.
+
+    Wygasanie „przesuwane": liczone od ostatniej aktywności, więc praca bez przerw nie
+    wylogowuje, a porzucona/wykradziona sesja przestaje działać po TTL. Wygasły rekord
+    od razu kasujemy, żeby token nie dało się już użyć."""
     if not token:
         return None
+    cutoff = (datetime.datetime.now()
+              - datetime.timedelta(hours=session_ttl_hours())).isoformat(timespec="seconds")
     with get_conn() as conn:
         r = conn.execute(
-            "SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id "
-            "WHERE s.token = ?", (token,)
+            "SELECT u.id, u.username, u.role, s.last_seen, s.created_at "
+            "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?", (token,)
         ).fetchone()
-        return dict(r) if r else None
+        if not r:
+            return None
+        seen = r["last_seen"] or r["created_at"] or ""
+        if seen < cutoff:
+            conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            return None
+        # Odświeżamy znacznik aktywności (rozdzielczość sekundowa — zapis tylko gdy
+        # faktycznie minęła sekunda, żeby nie bić w bazę przy każdym żądaniu).
+        now = _now()
+        if now != seen:
+            conn.execute("UPDATE sessions SET last_seen = ? WHERE token = ?", (now, token))
+        return {"id": r["id"], "username": r["username"], "role": r["role"]}
 
 
 def delete_session(token: str):
     with get_conn() as conn:
         conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+
+
+def delete_sessions_for_user(user_id: int):
+    """Unieważnia wszystkie sesje użytkownika (zmiana hasła / roli / „wyloguj wszędzie")."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
+
+def purge_expired_sessions() -> int:
+    """Sprzątanie wygasłych sesji (wołane przy starcie)."""
+    cutoff = (datetime.datetime.now()
+              - datetime.timedelta(hours=session_ttl_hours())).isoformat(timespec="seconds")
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM sessions WHERE COALESCE(last_seen, created_at, '') < ?", (cutoff,)
+        )
+        return cur.rowcount or 0
 
 
 # ---- Dziennik zdarzeń (audyt akcji administratorów) -------------------------

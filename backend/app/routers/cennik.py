@@ -18,7 +18,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 
 from app import db
-from app.storage import TMP_DIR, ensure_dirs, version_dir
+from app.storage import TMP_DIR, ensure_dirs, version_dir, safe_id, safe_filename
 from app.engine.cennik_convert import convert_workbook, rows_to_csv
 
 router = APIRouter(prefix="/api/cennik", tags=["cennik"])
@@ -29,11 +29,11 @@ def _now():
 
 
 def _tmp_path(conv_id: str) -> str:
-    return os.path.join(TMP_DIR, f"{conv_id}.csv")
+    return os.path.join(TMP_DIR, f"{safe_id(conv_id)}.csv")
 
 
 def _adj_tmp_path(conv_id: str) -> str:
-    return os.path.join(TMP_DIR, f"{conv_id}.adj.json")
+    return os.path.join(TMP_DIR, f"{safe_id(conv_id)}.adj.json")
 
 
 @router.post("/convert")
@@ -105,6 +105,7 @@ async def save_converted(conv_id: str, label: str = Form(""), filename: str = Fo
     if not os.path.isfile(path):
         raise HTTPException(404, "Wynik konwersji wygasł. Wgraj plik ponownie.")
 
+    filename = safe_filename(filename, "Cennik.csv")
     if not filename.lower().endswith(".csv"):
         filename = "Cennik.csv"
 

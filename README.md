@@ -66,17 +66,44 @@ npm run dev                               # http://localhost:3000
 ```bash
 fly launch --no-deploy                    # użyje istniejącego fly.toml i Dockerfile
 fly volumes create teledag_data --size 3 --region waw
-fly secrets set TELEDIAG_API_TOKEN=<długi-losowy-token>   # ochrona API (zalecane)
+fly secrets set TELEDIAG_API_TOKEN=<długi-losowy-token>   # WYMAGANE dla instancji publicznej
 fly secrets set TELEDIAG_CORS_ORIGINS=https://<twoj-front>.vercel.app
 fly deploy
 ```
 
 ### Frontend → Vercel
 1. Zaimportuj repozytorium w Vercel, ustaw **Root Directory = `frontend`**.
-2. Zmienne środowiskowe:
+2. Zmienna środowiskowa — tylko jedna:
    - `NEXT_PUBLIC_API_BASE` = `https://<twoja-app>.fly.dev`
-   - `NEXT_PUBLIC_API_TOKEN` = ten sam token co w backendzie (jeśli ustawiony)
 3. Deploy.
+
+> **Nie ustawiaj żadnej zmiennej `NEXT_PUBLIC_*` z tokenem.** Wszystko z tym
+> przedrostkiem trafia do publicznego pakietu JavaScript i jest widoczne dla każdego
+> odwiedzającego stronę. Do aplikacji logujesz się kontem użytkownika albo hasłem
+> głównym (`TELEDIAG_API_TOKEN`) wpisanym w formularzu logowania.
+
+## Bezpieczeństwo — konfiguracja obowiązkowa
+
+Aplikacja przetwarza dane wrażliwe, więc instancja dostępna z internetu **musi** mieć
+ustawioną ochronę. Zasada jest „domyślnie zamknięte":
+
+| Sytuacja | Zachowanie |
+|---|---|
+| `TELEDIAG_API_TOKEN` ustawiony lub istnieją konta | Normalna autoryzacja (token / logowanie) |
+| Brak jednego i drugiego, żądanie z tej samej maszyny | Dostęp bez logowania (instalacja lokalna) |
+| Brak jednego i drugiego, żądanie z sieci | **401 — API zamknięte** |
+
+Uruchomienie świeżej instancji publicznej:
+1. `fly secrets set TELEDIAG_API_TOKEN=<długi-losowy-token>`
+2. Zaloguj się tym tokenem (pole „Hasło", login zostaw pusty).
+3. Załóż konta w zakładce **Użytkownicy** (min. jeden administrator).
+
+Pozostałe zmienne bezpieczeństwa:
+- `TELEDIAG_CORS_ORIGINS` — adres front-endu. Bez niego CORS działa jako `*`
+  (bez ciasteczek), co wypisuje ostrzeżenie w logu; na produkcji ustaw jawnie.
+- `TELEDIAG_SESSION_TTL_HOURS` — po ilu godzinach bezczynności wygasa sesja (domyślnie 12).
+- `TELEDIAG_ALLOW_ANONYMOUS=1` — świadome wyłączenie ochrony. **Wyłącznie dla
+  instalacji lokalnej**; na serwerze publicznym nigdy nie ustawiać.
 
 ## Koszt orientacyjny (1 użytkownik)
 ~150–400 zł/rok: Vercel (front) darmo, Fly.io płatność za faktyczne minuty

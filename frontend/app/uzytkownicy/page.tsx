@@ -77,7 +77,7 @@ export default function UzytkownicyPage() {
             <input className="input sm:w-48" value={nu} onChange={(e) => setNu(e.target.value)} autoComplete="off" />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-slate-300">Hasło (min. 4 znaki)</span>
+            <span className="text-[13px] text-slate-300">Hasło (min. 10 znaków)</span>
             <input className="input sm:w-48" type="password" value={np} onChange={(e) => setNp(e.target.value)} autoComplete="new-password" />
           </label>
           <label className="space-y-1">

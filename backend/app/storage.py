@@ -10,8 +10,34 @@ Struktura:
 """
 
 import os
+import re
 
 DATA_DIR = os.environ.get("TELEDIAG_DATA_DIR", "/data")
+
+# Identyfikatory (wersji, zadań) generujemy jako uuid4().hex[:12], a przy imporcie
+# przychodzą z zewnętrznej paczki — muszą być bezpieczne jako nazwa katalogu.
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+class UnsafePathError(ValueError):
+    """Identyfikator nie nadaje się na element ścieżki (próba wyjścia z katalogu)."""
+
+
+def safe_id(value: str) -> str:
+    """Waliduje identyfikator używany jako element ścieżki. Rzuca UnsafePathError, gdy
+    zawiera cokolwiek poza [A-Za-z0-9_-] — to blokuje „../" i ścieżki bezwzględne."""
+    v = str(value or "").strip()
+    if not _SAFE_ID_RE.match(v):
+        raise UnsafePathError(f"Niedozwolony identyfikator: {value!r}")
+    return v
+
+
+def safe_filename(name: str, default: str = "plik.dat") -> str:
+    """Sprowadza nazwę pliku od klienta do samej nazwy — bez katalogów i bez „..".
+    Chroni przed zapisem poza katalogiem docelowym (path traversal)."""
+    base = os.path.basename(str(name or "").replace("\\", "/")).strip()
+    base = base.lstrip(".") or default          # ".." / ".ukryty" → nie zaczynamy od kropki
+    return base[:200]
 
 DB_PATH = os.path.join(DATA_DIR, "app.db")
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
@@ -27,11 +53,13 @@ def ensure_dirs():
 
 
 def version_dir(kind: str, version_id: str) -> str:
-    return os.path.join(VERSIONS_DIR, kind, version_id)
+    # Walidacja w JEDNYM miejscu: każda ścieżka wersji przechodzi tędy, więc żadna
+    # trasa nie zbuduje katalogu poza VERSIONS_DIR (nawet gdyby zapomniano sprawdzić id).
+    return os.path.join(VERSIONS_DIR, safe_id(kind), safe_id(version_id))
 
 
 def job_dir(job_id: str) -> str:
-    return os.path.join(JOBS_DIR, job_id)
+    return os.path.join(JOBS_DIR, safe_id(job_id))
 
 
 # Mapa: nazwa katalogu w STARYCH paczkach ZIP (klucz job_paths) → właściwy katalog

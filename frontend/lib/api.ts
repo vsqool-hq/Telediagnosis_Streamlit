@@ -50,13 +50,18 @@ export function doctorKey(name: string | null | undefined): string {
 
 export const TOKEN_KEY = "teledag_token";
 
-// Token: najpierw z localStorage (po zalogowaniu), w ostateczności ze zmiennej środowiskowej.
+// Token WYŁĄCZNIE z localStorage (zapisywany po zalogowaniu).
+//
+// Świadomie NIE ma tu odczytu z NEXT_PUBLIC_API_TOKEN: zmienne NEXT_PUBLIC_* są
+// wkompilowywane w publiczny pakiet JavaScript, więc token administratora byłby
+// widoczny dla każdego, kto otworzy stronę. Dostęp uzyskujemy przez logowanie
+// (konto albo hasło główne wpisane w formularzu).
 export function getToken(): string {
   if (typeof window !== "undefined") {
     const t = window.localStorage.getItem(TOKEN_KEY);
     if (t) return t;
   }
-  return process.env.NEXT_PUBLIC_API_TOKEN || "";
+  return "";
 }
 
 export function setToken(token: string) {

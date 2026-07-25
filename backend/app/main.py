@@ -9,6 +9,8 @@ Zmienne środowiskowe:
     TELEDIAG_DATA_DIR   – katalog na dane (domyślnie /data; lokalnie ustaw np. ./data)
     TELEDIAG_API_TOKEN  – jeśli ustawiony, chroni /api tokenem (nagłówek X-API-Token lub ?token=)
     TELEDIAG_CORS_ORIGINS – lista dozwolonych originów front-endu (po przecinku)
+    TELEDIAG_ALLOW_ANONYMOUS – „1" = świadome wyłączenie ochrony (TYLKO instalacja lokalna)
+    TELEDIAG_SESSION_TTL_HOURS – bezczynność, po której sesja wygasa (domyślnie 12 h)
 """
 
 import os
@@ -18,6 +20,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
+from app.storage import UnsafePathError
 from app.routers import (
     jobs, files, settings, stats, cennik, cennik_lekarzy, doctors, sync, reference, units, teamup, auth, windykacja,
     cashflow, invoices,
@@ -25,11 +28,20 @@ from app.routers import (
 
 app = FastAPI(title="Automatyzator Rozliczeń Medycznych", version="0.1.0")
 
-cors_origins = os.environ.get("TELEDIAG_CORS_ORIGINS", "*").split(",")
+# CORS. Gdy lista originów nie jest podana, zostaje „*", ale WTEDY nie wolno włączać
+# allow_credentials — „*" + credentials to konfiguracja, która pozwala dowolnej stronie
+# wykonywać uwierzytelnione żądania. Aplikacja i tak nie używa ciasteczek (token idzie
+# w nagłówku X-API-Token), więc credentials są potrzebne tylko przy jawnej liście originów.
+_cors_env = os.environ.get("TELEDIAG_CORS_ORIGINS", "").strip()
+CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()] or ["*"]
+_cors_wildcard = CORS_ORIGINS == ["*"]
+if _cors_wildcard:
+    print("[bezpieczeństwo] TELEDIAG_CORS_ORIGINS nie jest ustawione — CORS działa jako '*'. "
+          "Na produkcji ustaw adres front-endu.", flush=True)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in cors_origins],
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=not _cors_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -38,8 +50,23 @@ import secrets as _secrets
 
 API_TOKEN = os.environ.get("TELEDIAG_API_TOKEN", "").strip()
 
+# Świadome wyłączenie ochrony — wyłącznie dla instalacji lokalnej (ustawiane przez
+# start-local.command). Na serwerze publicznym NIE ustawiać.
+ALLOW_ANONYMOUS = os.environ.get("TELEDIAG_ALLOW_ANONYMOUS", "").strip() == "1"
+
 # Ścieżki dostępne bez tokenu (logowanie — token dopiero powstaje).
 PUBLIC_PATHS = {"/api/auth/login"}
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", "::ffff:127.0.0.1"}
+
+
+def _is_loopback(request: Request) -> bool:
+    """Czy żądanie przyszło z tej samej maszyny? Instalacja lokalna nasłuchuje na
+    loopbacku, więc taki ruch jest z definicji „od użytkownika przy komputerze".
+    Ruch przez proxy (Fly.io) NIGDY nie ma adresu loopback, więc chmura tędy nie
+    przejdzie. Nie ufamy nagłówkom X-Forwarded-* (można je podrobić)."""
+    client = request.client
+    return bool(client and client.host in _LOOPBACK_HOSTS)
 
 
 def _audit_label(method: str, path: str):
@@ -85,19 +112,44 @@ async def auth_guard(request: Request, call_next):
     Autoryzacja /api z rolami:
       • token = TELEDIAG_API_TOKEN → „master-admin" (zgodność wstecz),
       • token = sesja użytkownika  → rola z konta (admin | user),
-      • brak/niepoprawny token, gdy ochrona włączona → 401.
+      • brak/niepoprawny token → 401.
+
+    Zasada „domyślnie zamknięte": gdy ochrona NIE jest skonfigurowana (brak
+    TELEDIAG_API_TOKEN i brak kont w bazie), dostęp bez logowania dostaje wyłącznie
+    ruch z tej samej maszyny (instalacja lokalna) albo instancja z jawnie ustawionym
+    TELEDIAG_ALLOW_ANONYMOUS=1. Serwer publiczny bez konfiguracji odpowiada 401,
+    zamiast — jak dotąd — wpuszczać każdego jako administratora.
+
     Zmiany danych (metody != GET) oraz zarządzanie kontami (/api/users) — TYLKO
-    admin. Podgląd (GET) — każdy zalogowany. Gdy ochrona wyłączona (brak tokenu
-    i brak kont — lokalnie) → wszystko dozwolone jako admin.
+    admin. Podgląd (GET) — każdy zalogowany.
     """
     path = request.url.path
     request.state.role = None
     request.state.username = None
-    auth_enabled = bool(API_TOKEN) or db.has_users()
-    request.state.auth_enabled = auth_enabled
+    configured = bool(API_TOKEN) or db.has_users()
+    # Tryb otwarty tylko wtedy, gdy ochrony nie skonfigurowano I ruch jest lokalny
+    # (albo administrator jawnie zgodził się na brak ochrony).
+    anonymous_ok = (not configured) and (ALLOW_ANONYMOUS or _is_loopback(request))
+    request.state.auth_enabled = not anonymous_ok
 
     if path.startswith("/api") and request.method != "OPTIONS" and path not in PUBLIC_PATHS:
-        token = request.headers.get("X-API-Token") or request.query_params.get("token")
+        # Token z adresu URL (?token=) jest potrzebny tam, gdzie nie da się ustawić
+        # nagłówka: pobieranie plików <a href> / obrazki / EventSource. Takie tokeny
+        # trafiają do logów serwera, historii przeglądarki i nagłówka Referer, więc
+        # akceptujemy je WYŁĄCZNIE dla żądań odczytu — nigdy dla zmian danych.
+        header_token = request.headers.get("X-API-Token")
+        url_token = request.query_params.get("token")
+        if request.method in ("GET", "HEAD"):
+            token = header_token or url_token
+        else:
+            token = header_token
+            if not token and url_token:
+                return JSONResponse(
+                    {"detail": "Token w adresie URL jest dozwolony tylko dla odczytu. "
+                               "Zmiany danych wymagają nagłówka X-API-Token."},
+                    status_code=401,
+                )
+
         role = username = None
         if API_TOKEN and token and _secrets.compare_digest(token, API_TOKEN):
             role, username = "admin", "administrator"
@@ -105,12 +157,12 @@ async def auth_guard(request: Request, call_next):
             u = db.get_session_user(token)
             if u:
                 role, username = u["role"], u["username"]
-        if not auth_enabled:
+        if anonymous_ok:
             role = role or "admin"          # lokalnie bez ochrony → admin
         request.state.role = role
         request.state.username = username
 
-        if auth_enabled and role is None:
+        if role is None:
             return JSONResponse({"detail": "Brak autoryzacji."}, status_code=401)
         needs_admin = (request.method not in ("GET", "HEAD")
                        or path.startswith("/api/users") or path.startswith("/api/audit"))
@@ -135,6 +187,14 @@ async def auth_guard(request: Request, call_next):
 @app.on_event("startup")
 def _startup():
     db.init_db()
+    db.purge_expired_sessions()
+    if not (bool(API_TOKEN) or db.has_users()):
+        print("[bezpieczeństwo] Brak TELEDIAG_API_TOKEN i brak kont użytkowników. "
+              + ("Ochrona WYŁĄCZONA jawnie (TELEDIAG_ALLOW_ANONYMOUS=1)."
+                 if ALLOW_ANONYMOUS else
+                 "Dostęp mają tylko żądania z tej maszyny; z sieci API zwraca 401. "
+                 "Aby uruchomić instancję publiczną, ustaw sekret TELEDIAG_API_TOKEN, "
+                 "zaloguj się nim i załóż konta użytkowników."), flush=True)
     from app.services.runner import mark_interrupted_jobs
     mark_interrupted_jobs()
     from app.seed import seed_if_empty
@@ -153,6 +213,14 @@ def _startup():
             print(f"[startup-sync] z {sync_url}: {res}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"[startup-sync] pominięto ({e}).", flush=True)
+
+
+@app.exception_handler(UnsafePathError)
+async def _unsafe_path_handler(request: Request, exc: UnsafePathError):
+    """Identyfikator z żądania nie nadaje się na element ścieżki (próba path traversal).
+    Odpowiadamy 404 — bez ujawniania szczegółów — i zostawiamy ślad w logu serwera."""
+    print(f"[bezpieczeństwo] Odrzucono ścieżkę: {request.method} {request.url.path} ({exc})", flush=True)
+    return JSONResponse({"detail": "Nie znaleziono zasobu."}, status_code=404)
 
 
 @app.get("/health")

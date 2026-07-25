@@ -11,7 +11,8 @@ from fastapi.responses import StreamingResponse, FileResponse, Response
 
 from app import db
 from app.services import runner
-from app.storage import job_paths, ensure_dirs, heal_job_dirs, BUNDLE_DIR_FIX
+from app.storage import (job_paths, ensure_dirs, heal_job_dirs, BUNDLE_DIR_FIX,
+                         safe_id, safe_filename)
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -103,28 +104,36 @@ def import_job_bundle(raw: bytes) -> dict:
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, f"Nieprawidłowa paczka zadania: {e}")
 
-    job_id = str(meta.get("job_id") or "").strip()
-    if not job_id:
-        raise HTTPException(400, "Brak job_id w paczce.")
+    # job_id z paczki staje się nazwą katalogu — walidujemy (blokuje „../").
+    try:
+        job_id = safe_id(meta.get("job_id"))
+    except ValueError:
+        raise HTTPException(400, "Niedozwolone job_id w paczce.")
 
     ensure_dirs()
     paths = job_paths(job_id)
     base = paths["base"]
     os.makedirs(base, exist_ok=True)
+    # Katalogi, do których wolno rozpakować paczkę — nic poza tą listą nie powstanie.
+    allowed_dirs = {"Jednostki", "Wynik", "pliki_sprawdzone", "lekarze"}
     for name in zf.namelist():
         if name == "meta.json" or name.endswith("/"):
-            continue
-        if name.startswith("/") or ".." in name.split("/"):  # ochrona przed zip-slip
             continue
         # Stare paczki miały katalogi o złych nazwach (jednostki/wynik/sprawdzone) —
         # mapujemy je na właściwe (Jednostki/Wynik/pliki_sprawdzone), żeby rozliczenie
         # lekarzy/porównanie/przychód znalazły dane. Nowe paczki mają już poprawne.
-        out_name = name
-        parts = name.split("/", 1)
-        if len(parts) == 2 and parts[0] in BUNDLE_DIR_FIX:
-            out_name = f"{BUNDLE_DIR_FIX[parts[0]]}/{parts[1]}"
-        target = os.path.join(base, out_name)
-        os.makedirs(os.path.dirname(target), exist_ok=True)
+        parts = name.split("/")
+        entry = safe_filename(parts[-1])          # ochrona przed zip-slip
+        if not entry:
+            continue
+        if len(parts) == 1:
+            target = os.path.join(base, entry)    # log.txt / status.json
+        else:
+            sub = BUNDLE_DIR_FIX.get(parts[-2], parts[-2])
+            if sub not in allowed_dirs:
+                continue
+            os.makedirs(os.path.join(base, sub), exist_ok=True)
+            target = os.path.join(base, sub, entry)
         with open(target, "wb") as f:
             f.write(zf.read(name))
 
