@@ -470,6 +470,25 @@ def match_doctor(title: str, known: dict) -> str | None:
 
 # --- Główne liczenie ---------------------------------------------------------
 
+def _dedupe_events(events: list) -> tuple[list, list]:
+    """Usuwa DOKŁADNE duplikaty dyżurów: ten sam lekarz + ten sam start i koniec.
+    Gdy jeden dyżur wpisano do grafiku dwa razy (identyczny wpis), liczymy go RAZ —
+    inaczej godziny (a przez to kwota) podwajają się. Dopasowanie po
+    doctor_key(tytuł) + start_dt + end_dt; zachowujemy pierwsze wystąpienie.
+    Zwraca (odfiltrowane_zdarzenia, usunięte_duplikaty[dla raportu])."""
+    from app.engine.cennik_lekarzy_convert import doctor_key
+    seen, out, removed = set(), [], []
+    for ev in events:
+        key = (doctor_key(ev.get("title") or ""), ev.get("start_dt"), ev.get("end_dt"))
+        if key in seen:
+            removed.append({"name": str(ev.get("title") or "").strip(),
+                            "start": ev.get("start_dt"), "end": ev.get("end_dt")})
+            continue
+        seen.add(key)
+        out.append(ev)
+    return out, removed
+
+
 def compute_availability(period: str, excluded_keys=None) -> dict:
     """
     Gotowość + triaż za miesiąc rozliczenia „YYYY-MM": godziny z TeamUp × stawki
@@ -508,6 +527,12 @@ def compute_availability(period: str, excluded_keys=None) -> dict:
                 t_events.append({**ev, "title": _strip_triage(ev.get("title"))})
             else:
                 g_events.append(ev)
+
+    # Deduplikacja: identyczny dyżur wpisany dwa razy (ten sam lekarz + start + koniec)
+    # liczymy RAZ (dotyczy i gotowości, i triażu). Inaczej godziny się podwajały.
+    g_events, dup_g = _dedupe_events(g_events)
+    t_events, dup_t = _dedupe_events(t_events)
+    duplicates_removed = dup_g + dup_t
 
     # Gdy triaż biegnie w tych samych godzinach co dyżur TEJ SAMEJ osoby — płacimy
     # tylko triaż: pokrywające się przedziały wycinamy z dyżuru.
@@ -583,4 +608,6 @@ def compute_availability(period: str, excluded_keys=None) -> dict:
         "unbilled": sorted(unbilled, key=lambda x: -x["hours"])[:80],
         "unmatched_hours": round(unmatched_hours, 2),
         "unmatched": sorted(set(unmatched)),
+        # Zdublowane dyżury (ten sam lekarz + start + koniec) policzone raz.
+        "duplicates_removed": duplicates_removed,
     }

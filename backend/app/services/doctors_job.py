@@ -102,6 +102,8 @@ def compute(job_id: str) -> dict:
                 result["availability"] = availability
                 print(f"✓ TeamUp {period_ym}: gotowość {availability['sum_gotowosc']} zł, "
                       f"triaż {availability['sum_triaz']} zł, lekarzy {len(availability['doctors'])}"
+                      + (f", zdublowane dyżury (policzone raz): {len(availability['duplicates_removed'])}"
+                         if availability.get("duplicates_removed") else "")
                       + (f", NIEDOPASOWANE tytuły: {len(availability['unmatched'])}"
                          if availability["unmatched"] else ""), flush=True)
             except RuntimeError as e:
