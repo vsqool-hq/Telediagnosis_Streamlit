@@ -215,8 +215,9 @@ def _tryb_dyzuru(ev) -> str | None:
     """
     Typ dnia z POLA WŁASNEGO o nazwie „tryb…"/„weekend"/„święto"/„wolne":
       'W' = weekend (tag „W"), 'S' = święto (tag „Ś"/„S"), '' = takie pole jest,
-      ale bez W/Ś (np. puste albo „dodatkowy" → powszedni). None gdy TAKIEGO pola
-      w ogóle nie ma → klasyfikujemy z daty (fallback).
+      ale bez W/Ś (np. puste albo „dodatkowy"). None gdy TAKIEGO pola w ogóle nie ma.
+      Zarówno '' jak i None → klasyfikujemy z DATY (kalendarz: święto > weekend >
+      powszedni); tylko jawne 'W'/'S' nadpisują kalendarz.
     Wartości W/Ś mają PIERWSZEŃSTWO — gdyby pasowało kilka pól, wygrywa to z W/Ś.
     NIE skanujemy przypadkowych wartości i NIE zwracamy 'T' (triaż jest z tytułu).
     """
@@ -369,14 +370,16 @@ def hours_by_variant(events: list, kind: str, month_start: dt.date, month_end: d
                 band = "D" if 8 <= hour < 21 else "N"
                 if kind != "G":
                     day_t = "*"
-                elif tryb is None:
-                    day_t = _day_type(d, holidays)        # brak pola Tryb → z daty
                 elif tryb == "S":
-                    day_t = "SW"
+                    day_t = "SW"                          # tag „święto" — PRIORYTET
                 elif tryb == "W":
-                    day_t = "WKD"
-                else:                                     # "" (powszedni) lub inne
-                    day_t = "POW"
+                    day_t = "WKD"                         # tag „weekend" — PRIORYTET
+                else:
+                    # Brak tagu (None) LUB pole bez W/Ś ("") → klasyfikujemy z KALENDARZA
+                    # (polskie święto > weekend > powszedni). Tag ma pierwszeństwo, ale gdy
+                    # go nie ma / jest pusty, sobota/niedziela/święto i tak liczy się
+                    # jako weekend/święto (ktoś mógł zapomnieć wstawić tag).
+                    day_t = _day_type(d, holidays)
                 key = (kind, band, day_t)
                 per = out.setdefault(title, {})
                 per[key] = per.get(key, 0.0) + frac
