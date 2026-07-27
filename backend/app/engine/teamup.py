@@ -653,11 +653,11 @@ def compute_availability(period: str, excluded_keys=None) -> dict:
         rates = rates_by_doc[lk]["rates"]
         items, total = [], 0.0
         for k, hours in sorted(doc.pop("variants").items()):
-            # Zaokrąglenie do PEŁNYCH godzin, 30 min w górę (29 min → 0, 30 min → 1).
-            # Per wariant, bo każdy ma inną stawkę — to jednostka rozliczeniowa.
-            hrs = int(hours + 0.5)   # hours ≥ 0, więc int(x+0.5) = zaokrąglenie w górę od połowy
+            # Zaokrąglenie do 30 MIN (0,5 h), połówki w górę: 15 min → 0,5 h;
+            # 44 min → 0,5 h; 45 min → 1 h. Per wariant, bo każdy ma inną stawkę.
+            hrs = int(hours * 2 + 0.5) / 2   # hours ≥ 0 → zaokrąglenie w górę od połowy
             if hrs == 0:
-                continue             # poniżej 30 min w tym wariancie → 0, pomijamy
+                continue             # poniżej 15 min w tym wariancie → 0, pomijamy
             rate = float(rates.get(k, 0.0))
             amount = round(hrs * rate, 2)
             total += amount
