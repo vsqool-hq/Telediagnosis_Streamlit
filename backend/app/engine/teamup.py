@@ -388,6 +388,69 @@ def hours_by_variant(events: list, kind: str, month_start: dt.date, month_end: d
 
 # --- Stawki z pliku ZOBOWIĄZAŃ ----------------------------------------------
 
+_CELL_RE = re.compile(r"\$?([A-Z]{1,3})\$?(\d{1,7})")
+_PCT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
+
+
+def _col_to_idx(letters: str) -> int:
+    idx = 0
+    for ch in letters:
+        idx = idx * 26 + (ord(ch) - ord("A") + 1)
+    return idx - 1
+
+
+def _safe_arith(expr: str) -> float:
+    """Liczy wyrażenie arytmetyczne (+ - * / nawiasy) BEZ eval() — tylko liczby."""
+    import ast
+    def ev(n):
+        if isinstance(n, ast.Expression):
+            return ev(n.body)
+        if isinstance(n, ast.Constant) and isinstance(n.value, (int, float)):
+            return float(n.value)
+        if isinstance(n, ast.BinOp):
+            a, b = ev(n.left), ev(n.right)
+            if isinstance(n.op, ast.Add): return a + b
+            if isinstance(n.op, ast.Sub): return a - b
+            if isinstance(n.op, ast.Mult): return a * b
+            if isinstance(n.op, ast.Div): return a / b if b else 0.0
+            raise ValueError("op")
+        if isinstance(n, ast.UnaryOp):
+            v = ev(n.operand)
+            if isinstance(n.op, ast.UAdd): return v
+            if isinstance(n.op, ast.USub): return -v
+            raise ValueError("unary")
+        raise ValueError("node")
+    return ev(ast.parse(expr, mode="eval"))
+
+
+def _eval_rate_formula(formula, val_grid, fml_grid, depth: int = 0):
+    """Wynik PROSTEJ formuły stawki (np. „=50+50*50%", „=B46*2") jako float, albo None.
+    Klient bywa, że zamiast liczby wpisuje formułę, a plik nie ma zapisanego wyniku
+    (cache) → data_only zwraca None. Wtedy liczymy sami: arytmetyka + procenty +
+    odwołania do komórek (wartość z val_grid, a gdy brak — rekurencyjnie z formuły).
+    Świadomie wspieramy tylko + - * / % i odwołania — bez funkcji Excela."""
+    if depth > 6 or not isinstance(formula, str) or not formula.startswith("="):
+        return None
+    expr = formula[1:].strip()
+
+    def _cell(m):
+        col, row = _col_to_idx(m.group(1)), int(m.group(2)) - 1
+        v = val_grid[row][col] if (0 <= row < len(val_grid) and col < len(val_grid[row])) else None
+        if isinstance(v, (int, float)):
+            return f"({float(v)})"
+        f = fml_grid[row][col] if (0 <= row < len(fml_grid) and col < len(fml_grid[row])) else None
+        r = _eval_rate_formula(f, val_grid, fml_grid, depth + 1)
+        return f"({r})" if r is not None else "0"
+
+    expr = _CELL_RE.sub(_cell, expr)
+    expr = _PCT_RE.sub(lambda m: f"({m.group(1).replace(',', '.')}/100)", expr)
+    expr = expr.replace(",", ".")
+    try:
+        return round(_safe_arith(expr), 2)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def parse_availability_rates(workbook_path: str, period: str | None = None) -> dict:
     """
     Czyta stawki gotowości/triażu z KAŻDEJ zakładki (zakładka = lekarz).
@@ -407,6 +470,9 @@ def parse_availability_rates(workbook_path: str, period: str | None = None) -> d
     )
 
     wb = load_workbook(workbook_path, data_only=True, read_only=True)
+    # Druga kopia z FORMUŁAMI — gdy stawka jest formułą bez zapisanego wyniku
+    # (data_only → None), liczymy ją sami z tej siatki.
+    wb_f = load_workbook(workbook_path, data_only=False, read_only=True)
     out = {}
     for sheet in wb.sheetnames:
         if _clean(sheet).upper().startswith("ZBIORCZO"):
@@ -414,13 +480,14 @@ def parse_availability_rates(workbook_path: str, period: str | None = None) -> d
         grid = list(wb[sheet].iter_rows(values_only=True))
         if not grid:
             continue
+        fml_grid = list(wb_f[sheet].iter_rows(values_only=True)) if sheet in wb_f.sheetnames else []
         ncols = max((len(r) for r in grid), default=0)
         label_col, price_col = _find_block_for_period(grid, ncols, period)
         if label_col is None:
             continue
 
         rates = {}
-        for r in grid:
+        for ri, r in enumerate(grid):
             label = _clean(r[label_col] if label_col < len(r) else None).upper()
             if not label or ("GOTOW" not in label and "TRIA" not in label):
                 continue
@@ -429,6 +496,11 @@ def parse_availability_rates(workbook_path: str, period: str | None = None) -> d
                 continue
             band = "D" if int(m.group(1)) == 8 else "N"
             rate, _rep, _orig = _try_number(r[price_col] if price_col < len(r) else None)
+            if rate is None:
+                # brak liczby (np. formuła bez zapisanego wyniku) → policz formułę
+                fcell = (fml_grid[ri][price_col]
+                         if (ri < len(fml_grid) and price_col < len(fml_grid[ri])) else None)
+                rate = _eval_rate_formula(fcell, grid, fml_grid)
             if rate is None:
                 rate = 0.0
             if "TRIA" in label:
@@ -440,6 +512,7 @@ def parse_availability_rates(workbook_path: str, period: str | None = None) -> d
         if rates:
             out[doctor_key(sheet)] = {"name": _clean(sheet), "rates": rates}
     wb.close()
+    wb_f.close()
     return out
 
 
