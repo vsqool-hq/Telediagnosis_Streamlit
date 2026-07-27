@@ -95,6 +95,10 @@ def resolve_category(study_row, slownik_category: str) -> str:
 
     Jeśli baza nie jest modalnością RTG/TK/MR albo już zawiera priorytet
     (np. gotowe "MMG SKRINING"), zwracamy ją bez zmian.
+
+    RTG DZIECI: dzieci mają w cenniku OSOBNE stawki ("RTG CITO DZIECI" itd.).
+    Rozpoznajemy je po kolumnie „Rodzaj procedury rozlicz." = „RTG Dzieci"
+    (niezależnie od tego, czy słownik ma „DZIECI" w bazie) i doklejamy „DZIECI".
     """
     base = _norm(slownik_category)
     if not base:
@@ -107,7 +111,13 @@ def resolve_category(study_row, slownik_category: str) -> str:
     if not priority:
         return base  # brak priorytetu → zostaw bazę (trafi do „bez stawki")
     rest = " ".join(toks[1:])  # rozmiar: A/B/C/D (lub puste dla RTG)
-    return f"{modality} {priority} {rest}".strip()
+    cat = f"{modality} {priority} {rest}".strip()
+    # RTG dzieci → stawka „…DZIECI" (tylko RTG ma taki wariant w cenniku).
+    if modality == "RTG":
+        rodzaj = str(study_row.get("Rodzaj procedury rozlicz.", "") or "").upper()
+        if "DZIEC" in rodzaj and "DZIECI" not in cat.split():
+            cat = f"{cat} DZIECI"
+    return cat
 
 
 _PRIORITY_LADDER = ["CITO", "PILNE", "PLANOWE"]
@@ -704,7 +714,8 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         # priorytecie) — żeby w raporcie stawka była wszędzie, nawet gdy ilość=0.
         def _rate(procedura, rodzaj, priorytet, _lk=lek_key):
             base = cat_map.get((_key(procedura), _key(rodzaj)), "")
-            category = resolve_category({"Priorytet opisu": priorytet}, base)
+            category = resolve_category(
+                {"Priorytet opisu": priorytet, "Rodzaj procedury rozlicz.": rodzaj}, base)
             if not category:
                 return np.nan
             c = resolve_doctor_price(prices, _lk, category)       # 0/brak → niższy priorytet
