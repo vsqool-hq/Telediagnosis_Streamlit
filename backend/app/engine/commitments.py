@@ -39,6 +39,24 @@ def _ncat(s) -> str:
     return re.sub(r"\s+", " ", str(s if s is not None else "")).strip().upper()
 
 
+# Wiersze OKOLIC (kategorie badań: RTG/TK/MR/MMG …) — te i tylko te czyścimy w
+# kolumnie miesiąca przed wpisaniem bieżących ilości, żeby nie zostały NIEAKTUALNE
+# wartości z wcześniejszego przeliczenia (inna wersja słownika = inny podział
+# kategorii → w kolumnie miesiąca zostawały „osierocone" ilości). NIE ruszamy
+# nagłówków sekcji, SUMA/ILOŚĆ OKOLIC, GOTOWOŚĆ/TRIAŻ, DATA/FAKTURA/TERMIN.
+def _is_okolice_row(label) -> bool:
+    u = _ncat(label)
+    if not u:
+        return False
+    if u.split()[0] not in ("RTG", "TK", "MR", "MMG"):
+        return False
+    if u in ("RTG", "TK", "MR", "MMG"):          # sam nagłówek sekcji
+        return False
+    if any(x in u for x in ("SUMA", "OKOLIC", "GOTOW", "TRIA", "FAKTUR", "ANEKS", "DATA", "TERMIN")):
+        return False
+    return True
+
+
 # Nagłówek kolumny rozbitego miesiąca: „DD-DD.MM.YYYY" (np. „01-17.05.2026").
 _RANGE_RE = re.compile(r"^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})\s*$")
 
@@ -146,10 +164,13 @@ def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list,
 
         # kategoria → wiersz (etykieta w kolumnie A; wiersze wspólne dla bloków)
         cat_row = {}
+        okolice_row_idx = []
         for rr in range(1, ws.max_row + 1):
             a = ws.cell(row=rr, column=1).value
             if a is not None:
                 cat_row.setdefault(_ncat(a), rr)
+                if _is_okolice_row(a):
+                    okolice_row_idx.append(rr)
 
         wrote = 0
         if split_cols:
@@ -185,6 +206,12 @@ def fill_workbook(wb_path: str, period_ym: str, okolice_rows: list,
         else:
             # Zwykły miesiąc — jedna suma do NAJNOWSZEJ (skrajnie prawej) kolumny.
             target_col = max(whole_cols)
+            # Najpierw WYCZYŚĆ tę kolumnę we wszystkich wierszach okolic — inaczej
+            # zostają nieaktualne ilości z wcześniejszego przeliczenia (np. kategoria,
+            # której lekarz już w tym miesiącu nie ma; inna wersja słownika = inny
+            # podział). Nie ruszamy SUMA/GOTOWOŚĆ/innych miesięcy.
+            for rr in okolice_row_idx:
+                ws.cell(row=rr, column=target_col).value = None
             for ncat, okolice in cats.items():
                 row = cat_row.get(ncat)
                 if not row:
