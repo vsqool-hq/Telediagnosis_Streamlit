@@ -539,6 +539,22 @@ export const api = {
   listFiles: () => req<{ files: JobFile[] }>("/api/jobs/files"),
   activeJob: () => req<Job | null>("/api/jobs/active"),
   getJob: (id: string) => req<Job>(`/api/jobs/${id}`),
+  dailyCheck: (id: string) =>
+    req<{
+      available: boolean;
+      reason?: string;
+      ok?: boolean;
+      period?: string;
+      prev_period?: string;
+      avg_workday?: number;
+      avg_free?: number;
+      threshold_pct?: number;
+      days_checked?: number;
+      flagged?: {
+        date: string; count: number; baseline: number;
+        day_type: string; deviation_pct: number; direction: "high" | "low";
+      }[];
+    }>(`/api/jobs/${id}/daily-check`),
 
   createJob: (file: File, mode: "full" | "unmatched") => {
     const fd = new FormData();

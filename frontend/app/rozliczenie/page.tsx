@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock, FileText, History, Trash2, Calendar } from "lucide-react";
+import { UploadCloud, Play, Search, Download, Loader2, CheckCircle2, XCircle, FileSpreadsheet, Square, Clock, FileText, History, Trash2, Calendar, AlertTriangle } from "lucide-react";
 import { api, Job, JobFile, isLocalBackend } from "@/lib/api";
 import { invalidateCache } from "@/lib/cache";
 import ReferenceImage from "@/components/ReferenceImage";
 
 type Phase = "idle" | "running" | "done" | "error";
+type DailyCheck = Awaited<ReturnType<typeof api.dailyCheck>>;
 
 function fmtDuration(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
@@ -24,6 +25,7 @@ export default function RozliczeniePage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [dailyChk, setDailyChk] = useState<DailyCheck | null>(null);
   const startAnchor = useRef<number | null>(null);  // chwila startu zadania w zegarze klienta
   const logBoxRef = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -40,6 +42,15 @@ export default function RozliczeniePage() {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, [phase]);
+
+  // Kontrola dziennej liczby badań vs poprzedni miesiąc (tylko pełne rozliczenie).
+  useEffect(() => {
+    if (phase !== "done" || !job || job.mode !== "full") { setDailyChk(null); return; }
+    let alive = true;
+    setDailyChk(null);
+    api.dailyCheck(job.id).then((r) => { if (alive) setDailyChk(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [phase, job?.id, job?.mode]);
 
   // Ustaw „kotwicę" startu z czasu serwera (elapsed_seconds), unikając stref czasowych.
   function anchorFrom(j: Job) {
@@ -273,6 +284,44 @@ export default function RozliczeniePage() {
           )}
         </div>
       </div>
+
+      {/* Kontrola dziennej liczby badań vs poprzedni miesiąc (pod przyciskiem pobierania). */}
+      {phase === "done" && job?.mode === "full" && dailyChk?.available && (
+        dailyChk.ok ? (
+          <div className="card flex items-center gap-2 border-emerald-400/40 bg-emerald-400/[0.06]">
+            <CheckCircle2 size={20} className="shrink-0 text-emerald-400" />
+            <span className="text-sm text-slate-200">
+              Dzienna liczba badań w normie — brak podejrzanych dni
+              <span className="text-slate-400"> (±{dailyChk.threshold_pct}% względem {dailyChk.prev_period}).</span>
+            </span>
+          </div>
+        ) : (
+          <div className="card space-y-2 border-amber-400/50 bg-amber-400/[0.06]">
+            <div className="flex items-center gap-2 font-semibold text-amber-300">
+              <AlertTriangle size={18} className="shrink-0" />
+              Podejrzane dni — liczba badań odbiega od poprzedniego miesiąca ({dailyChk.prev_period})
+            </div>
+            <p className="text-[13px] text-slate-400">
+              Porównanie ze średnią dzienną z {dailyChk.prev_period} (osobno dni robocze i weekendy/święta),
+              próg ±{dailyChk.threshold_pct}%. Sprawdź, czy to nie błąd danych (dublet / braki).
+            </p>
+            <ul className="space-y-1 text-sm">
+              {dailyChk.flagged?.map((f) => (
+                <li key={f.date} className="flex flex-wrap items-center gap-x-2">
+                  <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${f.direction === "high" ? "bg-red-400" : "bg-sky-400"}`} />
+                  <span className="font-medium text-slate-200">{f.date}</span>
+                  <span className="text-slate-400">({f.day_type})</span>
+                  <span className="text-slate-200">{f.count.toLocaleString("pl-PL")} badań</span>
+                  <span className={f.direction === "high" ? "text-red-300" : "text-sky-300"}>
+                    {f.direction === "high" ? "zawyżona" : "zaniżona"} o {Math.abs(f.deviation_pct)}%
+                  </span>
+                  <span className="text-slate-500">(śr {f.baseline.toLocaleString("pl-PL")})</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      )}
 
       <div className="card space-y-2">
         <h2 className="font-semibold">Wzór pliku miesięcznego</h2>

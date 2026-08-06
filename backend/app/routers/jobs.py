@@ -217,6 +217,101 @@ async def get_job(job_id: str):
     return _with_period(job)
 
 
+_DAILY_ANOMALY_PCT = 15.0   # próg odchylenia dziennej liczby badań (±%)
+
+
+def _daily_counts(sprawdzone_dir: str, y: int, m: int) -> dict:
+    """Liczba badań (wierszy) per dzień w miesiącu (y, m) — z arkuszy „Szczegółowe".
+    Dzień z „Data badania (UTC)" (zapas: data zatwierdzenia/opisu)."""
+    from app.engine.doctors import read_verified_studies
+    import pandas as pd
+    df = read_verified_studies(sprawdzone_dir)
+    if df is None or getattr(df, "empty", True):
+        return {}
+    col = next((c for c in ("Data badania (UTC)", "Data 1. zatwierdzenia",
+                            "Data pierwszego opisu (UTC)") if c in df.columns), None)
+    if not col:
+        return {}
+    d = pd.to_datetime(df[col], errors="coerce")
+    mask = d.notna() & (d.dt.year == y) & (d.dt.month == m)
+    return {k: int(v) for k, v in d[mask].dt.strftime("%Y-%m-%d").value_counts().items()}
+
+
+def _is_workday(datestr: str, holidays: set) -> bool:
+    import datetime as _dt
+    d = _dt.date.fromisoformat(datestr)
+    return d.weekday() < 5 and d not in holidays
+
+
+@router.get("/{job_id}/daily-check")
+async def daily_check(job_id: str):
+    """Kontrola dziennej liczby badań: porównuje każdy dzień rozliczanego miesiąca ze
+    ŚREDNIĄ DZIENNĄ z POPRZEDNIEGO miesiąca — OSOBNO dla dni roboczych i dla
+    weekendów/świąt (kalendarz PL), bo mają różny wolumen. Dzień odchylony o >±15%
+    od średniej SWOJEGO typu = podejrzany (możliwy błąd danych: dublet/braki).
+    Zwraca listę podejrzanych dni albo „ok"."""
+    from app.engine.periods import period_from_filename
+    from app.routers.stats import latest_jobs_by_month
+    from app.engine.teamup import polish_holidays
+
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Nie znaleziono zadania.")
+    period = period_from_filename(job.get("input_name"))
+    if not period:
+        return {"available": False, "reason": "no_period"}
+    try:
+        y, m = int(period[:4]), int(period[5:7])
+    except (ValueError, IndexError):
+        return {"available": False, "reason": "no_period"}
+    py, pm = (y - 1, 12) if m == 1 else (y, m - 1)
+    prev_period = f"{py:04d}-{pm:02d}"
+
+    prev = latest_jobs_by_month().get(prev_period)
+    if not prev:
+        return {"available": False, "reason": "no_prev_data", "period": period,
+                "prev_period": prev_period}
+
+    prev_counts = _daily_counts(job_paths(prev["job_id"])["sprawdzone"], py, pm)
+    if not prev_counts:
+        return {"available": False, "reason": "no_prev_data", "period": period,
+                "prev_period": prev_period}
+
+    holidays = polish_holidays(py) | polish_holidays(y)
+    # średnia z poprzedniego miesiąca OSOBNO: dni robocze vs weekend/święto
+    w = [v for d, v in prev_counts.items() if _is_workday(d, holidays)]
+    nw = [v for d, v in prev_counts.items() if not _is_workday(d, holidays)]
+    avg_work = (sum(w) / len(w)) if w else 0.0
+    avg_free = (sum(nw) / len(nw)) if nw else 0.0
+
+    cur_counts = _daily_counts(job_paths(job_id)["sprawdzone"], y, m)
+    thr = _DAILY_ANOMALY_PCT / 100.0
+    flagged = []
+    for day in sorted(cur_counts):
+        cnt = cur_counts[day]
+        workday = _is_workday(day, holidays)
+        base = avg_work if workday else avg_free
+        if not base:
+            continue
+        dev = (cnt - base) / base
+        if abs(dev) > thr:
+            flagged.append({"date": day, "count": cnt, "baseline": round(base, 1),
+                            "day_type": "roboczy" if workday else "weekend/święto",
+                            "deviation_pct": round(dev * 100, 1),
+                            "direction": "high" if dev > 0 else "low"})
+    return {
+        "available": True,
+        "ok": not flagged,
+        "period": period,
+        "prev_period": prev_period,
+        "avg_workday": round(avg_work, 1),
+        "avg_free": round(avg_free, 1),
+        "threshold_pct": _DAILY_ANOMALY_PCT,
+        "days_checked": len(cur_counts),
+        "flagged": flagged,
+    }
+
+
 @router.post("/{job_id}/cancel")
 async def cancel_job(job_id: str):
     """Zatrzymuje trwające rozliczenie (przycisk STOP)."""
