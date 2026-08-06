@@ -556,7 +556,7 @@ export const api = {
       }[];
     }>(`/api/jobs/${id}/daily-check`),
 
-  createJob: (file: File, mode: "full" | "unmatched") => {
+  createJob: (file: File, mode: "full" | "unmatched" | "doctors") => {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("mode", mode);

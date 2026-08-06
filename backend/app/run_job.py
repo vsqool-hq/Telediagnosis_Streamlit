@@ -111,6 +111,14 @@ def main():
             billing.run_unmatched_only(
                 paths["jednostki"], paths["wzorcowe"], paths["sprawdzone"],
             )
+        elif mode == "doctors":
+            # „Tylko lekarze": Etap 1 (weryfikacja → sprawdzone) BEZ wyceny jednostek.
+            # Samo rozliczenie lekarzy odpala potem front (/api/doctors/billing/…/run).
+            ok = billing.run_verify_only(
+                paths["jednostki"], paths["wzorcowe"], paths["sprawdzone"],
+            )
+            if not ok:
+                raise RuntimeError("Etap 1 (weryfikacja) nie powiódł się.")
         else:
             raise ValueError(f"Nieznany tryb: {mode}")
 

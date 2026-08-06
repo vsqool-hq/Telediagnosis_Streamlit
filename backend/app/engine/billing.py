@@ -1408,6 +1408,42 @@ def main(jednostki_dir, wzorcowe_dir, cennik_dir, wynik_dir, sprawdzone_dir):
     print("=" * 60, flush=True)
 
 
+def run_verify_only(jednostki_dir, wzorcowe_dir, sprawdzone_dir) -> bool:
+    """Sam ETAP 1 (weryfikacja) — produkuje `sprawdzone` (arkusze „Szczegółowe"),
+    BEZ wyceny jednostek (Etap 2). Używane do „rozliczenia TYLKO lekarzy" na nowo
+    wgranym pliku: lekarze liczą się właśnie z tego `sprawdzone`. Zwraca sukces."""
+    for d in [jednostki_dir, wzorcowe_dir]:
+        if not os.path.isdir(d):
+            print(f"BŁĄD KRYTYCZNY: Folder '{os.path.basename(d)}' nie istnieje.", flush=True)
+            return False
+    os.makedirs(sprawdzone_dir, exist_ok=True)
+
+    print("=" * 60 + "\n ŁADOWANIE I ŁĄCZENIE PLIKÓW WZORCOWYCH\n" + "=" * 60, flush=True)
+    all_ref_files_raw = glob.glob(os.path.join(wzorcowe_dir, "*.xlsx")) + glob.glob(os.path.join(wzorcowe_dir, "*.xls"))
+    all_ref_files = [f for f in all_ref_files_raw if not os.path.basename(f).startswith('~$')]
+    if not all_ref_files:
+        print(f"BŁĄD KRYTYCZNY: Nie znaleziono plików wzorcowych w '{os.path.basename(wzorcowe_dir)}'.", flush=True)
+        return False
+    list_of_dfs = [df for f in all_ref_files if (df := load_single_reference_file(f)) is not None]
+    if not list_of_dfs:
+        print("BŁĄD KRYTYCZNY: Żaden plik wzorcowy nie mógł być wczytany.", flush=True)
+        return False
+    combined_ref_df = pd.concat(list_of_dfs, ignore_index=True)
+
+    print("\n" + "=" * 60 + "\n ETAP 1: WERYFIKACJA PLIKÓW (tylko lekarze)\n" + "=" * 60, flush=True)
+    try:
+        verifier = MedicalVerificationAgent(combined_ref_df, jednostki_dir, sprawdzone_dir)
+        ok = verifier.run_verification()
+    except Exception as e:  # noqa: BLE001
+        print(f"KRYTYCZNY BŁĄD weryfikacji: {e}", flush=True)
+        ok = False
+    if not ok:
+        print("\nEtap 1 zakończony niepowodzeniem.", flush=True)
+        return False
+    print("\n Weryfikacja zakończona — dane gotowe do rozliczenia lekarzy.", flush=True)
+    return True
+
+
 def run_unmatched_only(jednostki_dir, wzorcowe_dir, sprawdzone_dir):
     """Tryb szybki – tylko plik Rekordy_Bez_Wzorca.xlsx, bez tworzenia plików na klienta."""
     print("=" * 60 + "\n TRYB SZYBKI: SZUKANIE REKORDÓW BEZ WZORCA\n" + "=" * 60, flush=True)

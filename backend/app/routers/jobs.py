@@ -15,7 +15,7 @@ from app.storage import job_paths, ensure_dirs, heal_job_dirs, BUNDLE_DIR_FIX
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
-ALLOWED_MODES = {"full", "unmatched"}
+ALLOWED_MODES = {"full", "unmatched", "doctors"}
 
 
 @router.post("")

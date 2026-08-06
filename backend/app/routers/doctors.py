@@ -182,8 +182,10 @@ def _resolve_job(job_id: str):
     job = db.get_job(job_id)
     if not job:
         raise HTTPException(404, "Nie znaleziono zadania.")
-    if job["mode"] != "full":
-        raise HTTPException(400, "Moduł lekarzy działa na pełnym rozliczeniu jednostek.")
+    # Lekarze liczą się z „sprawdzone": pełne rozliczenie (full) albo tryb „doctors"
+    # (sam Etap 1 na nowo wgranym pliku — „tylko lekarze").
+    if job["mode"] not in ("full", "doctors"):
+        raise HTTPException(400, "Moduł lekarzy działa na pełnym rozliczeniu jednostek lub trybie „tylko lekarze”.")
     from app.storage import heal_job_dirs
     heal_job_dirs(job_id)  # napraw zadania zaimportowane starą paczką (złe nazwy katalogów)
     paths = job_paths(job_id)

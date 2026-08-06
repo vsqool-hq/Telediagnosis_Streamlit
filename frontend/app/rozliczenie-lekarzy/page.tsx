@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw } from "lucide-react";
+import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw, UploadCloud } from "lucide-react";
 import { api, CompareMonth, DoctorBilling, DoctorCoverage } from "@/lib/api";
 import { useCachedData } from "@/lib/cache";
 import { useAuth } from "@/lib/auth";
@@ -55,19 +55,19 @@ export default function RozliczenieLekarzyPage() {
   // Liczenie biegnie w OSOBNYM procesie (jak główne rozliczenie). Start → odpytywanie
   // o status → po „done" wczytanie zapisanego wyniku. Brak długiego żądania = brak
   // „failed to fetch" przy większych danych / scale-to-zero.
-  async function run(recompute = false) {
-    if (!jobId) return;
+  async function run(recompute = false, jid: string = jobId) {
+    if (!jid) return;
     stopPolling();
     setBusy(true); setError(null); setResult(null);
     try {
-      const started = await api.doctorsBillingRun(jobId, recompute);
+      const started = await api.doctorsBillingRun(jid, recompute);
       if (started.status === "done") {
-        const r = await api.doctorsBilling(jobId, { peek: true });
+        const r = await api.doctorsBilling(jid, { peek: true });
         setResult(r && (r as any).reason === "not_computed" ? null : r);
         setBusy(false);
         return;
       }
-      const id = jobId;
+      const id = jid;
       pollRef.current = setInterval(async () => {
         try {
           const st = await api.doctorsBillingStatus(id);
@@ -83,6 +83,31 @@ export default function RozliczenieLekarzyPage() {
       }, 2500);
     } catch (e: any) {
       stopPolling(); setError(e.message); setBusy(false);
+    }
+  }
+
+  // „Tylko lekarze" na NOWO wgranym pliku: tworzymy zadanie w trybie „doctors"
+  // (Etap 1 = weryfikacja, bez wyceny jednostek), czekamy aż się zweryfikuje,
+  // po czym liczymy rozliczenie lekarzy na tym zadaniu.
+  async function uploadAndRun(file: File) {
+    stopPolling();
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const job = await api.createJob(file, "doctors");
+      setJobId(job.id);
+      await new Promise<void>((resolve, reject) => {
+        pollRef.current = setInterval(async () => {
+          try {
+            const j = await api.getJob(job.id);
+            const st = ((j as any).live_status || j.status) as string;
+            if (st === "done") { stopPolling(); resolve(); }
+            else if (st === "error") { stopPolling(); reject(new Error("Weryfikacja pliku (Etap 1) nie powiodła się.")); }
+          } catch { /* przejściowy błąd pingu — próbujemy dalej */ }
+        }, 2500);
+      });
+      await run(false, job.id);
+    } catch (e: any) {
+      stopPolling(); setError(e.message || "Nie udało się przetworzyć pliku."); setBusy(false);
     }
   }
 
@@ -127,6 +152,14 @@ export default function RozliczenieLekarzyPage() {
             {busy ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
             Policz rozliczenie lekarzy
           </button>
+        )}
+        {isAdmin && (
+          <label className={`btn-secondary cursor-pointer ${busy ? "pointer-events-none opacity-50" : ""}`}
+                 title="Wgraj nowy plik miesięczny i policz TYLKO lekarzy (bez rozliczenia jednostek)">
+            <UploadCloud size={18} /> Nowy plik → tylko lekarze
+            <input type="file" accept=".xlsx,.xls" className="hidden" disabled={busy}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadAndRun(f); }} />
+          </label>
         )}
         {result && !result.empty && (
           <>
