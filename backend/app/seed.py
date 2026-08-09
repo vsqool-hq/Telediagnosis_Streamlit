@@ -111,6 +111,54 @@ def seed_payment_terms_if_absent():
     print(f"[seed] Wczytano startowe terminy płatności: {len(seed)} jednostek.", flush=True)
 
 
+def load_seed_invoice_slownik() -> dict:
+    """Wczytuje startowy Słownik jednostek do faktur.
+    Klucz = nazwa systemowa jednostki; wartość: {full_name, address, postal_code,
+    city, payment_term_days, alt_name}. Plik jest WBUDOWANY w aplikację
+    (backend/app/data/faktury_slownik.json), więc jest dostępny także w chmurze
+    (w przeciwieństwie do seed_data/, który nie trafia do obrazu Dockera)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "faktury_slownik.json")
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def seed_invoice_slownik_if_absent():
+    """
+    Jednorazowo wczytuje Słownik jednostek do faktur (pełna nazwa, adres, kod,
+    miejscowość, termin płatności) do ustawień, jeśli klucza 'invoice_slownik'
+    jeszcze tam nie ma. Termin płatności bierzemy z już istniejącego
+    'payment_terms_by_unit' (jedno źródło prawdy — używane też w Windykacji),
+    a w razie braku z wartości ze Słownika. Późniejsze edycje z panelu Faktury
+    są trwałe (klucz już istnieje → nie nadpisujemy)."""
+    settings = db.get_settings()
+    if "invoice_slownik" in settings:
+        return
+    seed = load_seed_invoice_slownik()
+    if not seed:
+        return
+    terms = settings.get("payment_terms_by_unit") or {}
+    out = {}
+    for key, rec in seed.items():
+        if not isinstance(rec, dict):
+            continue
+        r = dict(rec)
+        if key in terms:
+            try:
+                r["payment_term_days"] = int(terms[key])
+            except (TypeError, ValueError):
+                pass
+        out[key] = r
+    settings["invoice_slownik"] = out
+    db.save_settings(settings)
+    print(f"[seed] Wczytano Słownik jednostek do faktur: {len(out)} jednostek.", flush=True)
+
+
 def seed_if_empty():
     if not os.path.isdir(SEED_DIR):
         return
@@ -119,3 +167,4 @@ def seed_if_empty():
     _seed_kind("cennik", ["*.csv"])
     seed_adjustments_if_absent()
     seed_payment_terms_if_absent()
+    seed_invoice_slownik_if_absent()

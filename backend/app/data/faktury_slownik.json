@@ -1,0 +1,1082 @@
+{
+ "zambrow": {
+  "full_name": "SZPITAL POWIATOWY W ZAMBROWIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Papieża Jana Pawła II 3",
+  "postal_code": "18-300",
+  "city": "Zambrów",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "lubaczow": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W LUBACZOWIE",
+  "address": "Adama Mickiewicza 168",
+  "postal_code": "37-600",
+  "city": "Lubaczów",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "dabrowatarnowska": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W DĄBROWIE TARNOWSKIEJ",
+  "address": "Szpitalna 1",
+  "postal_code": "33-200",
+  "city": "Dąbrowa Tarnowska",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "centermedpoznan": {
+  "full_name": "\\CENTERMED POZNAŃ\\\" SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ\"",
+  "address": "Mostowa 23A/28",
+  "postal_code": "61-854",
+  "city": "Poznań",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "grupazdrowie": {
+  "full_name": "SZPITAL GŁOWNO GRUPA ZDROWIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Wojska Polskiego 32/34",
+  "postal_code": "95-015",
+  "city": "Głowno",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "gzplonsk": {
+  "full_name": "GRUPA ZDROWIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Henryka Sienkiewicza 7",
+  "postal_code": "09-100",
+  "city": "Płońsk",
+  "payment_term_days": 14,
+  "alt_name": "gz"
+ },
+ "klodzko": {
+  "full_name": "\\ZESPÓŁ OPIEKI ZDROWOTNEJ\\\" W KŁODZKU\"",
+  "address": "Szpitalna 1A",
+  "postal_code": "57-300",
+  "city": "Kłodzko",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "bialogard": {
+  "full_name": "REGIONALNE CENTRUM MEDYCZNE W BIAŁOGARDZIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Chopina 29",
+  "postal_code": "78-200",
+  "city": "Białogard",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "spzozgrodzisk": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ",
+  "address": "Mossego 17",
+  "postal_code": "62-065",
+  "city": "Grodzisk Wielkopolski",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "nml": {
+  "full_name": "\\SZPITAL POWIATOWY W NOWYM MIEŚCIE LUBAWSKIM SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ\\\"\"",
+  "address": "Mickiewicza 10",
+  "postal_code": "13-300",
+  "city": "Nowe Miasto Lubawskie",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "zgorzelec": {
+  "full_name": "WIELOSPECJALISTYCZNY SZPITAL - SAMODZIELNY PUBLICZNY ZESPÓŁ OPIEKI ZDROWOTNEJ W ZGORZELCU",
+  "address": "Lubańska 11-12",
+  "postal_code": "59-900",
+  "city": "Zgorzelec",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "kosmowroclaw": {
+  "full_name": "NIEPUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ \\PRZYCHODNIA KOSMONAUTÓW\\\" SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ\"",
+  "address": "Eugeniusza Horbaczewskiego 35",
+  "postal_code": "54-130",
+  "city": "Wrocław",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "alfasochaczew": {
+  "full_name": "KLINIKA ALFA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Polna 9/B",
+  "postal_code": "96-500",
+  "city": "Sochaczew",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdscanmedak5": {
+  "full_name": "SCANMED SPÓŁKA AKCYJNA",
+  "address": "Stefana Okrzei 1A",
+  "postal_code": "03-715",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": "tdscanmed2"
+ },
+ "tdneuromedyka": {
+  "full_name": "NIEPUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ PRZYCHODNIA LEKARSKA NEUROMEDYKA Emilia Kotewska-Avramčeva",
+  "address": "ul. Stefana Okrzei 51C",
+  "postal_code": "96-300",
+  "city": "Żyrardów",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "domchojna": {
+  "full_name": "NIEPUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ \\DOM\\\" HOSPICJUM DOMOWE DLA DOROSŁYCH LEOKADIA RYDZEWSKA w spadku\"",
+  "address": "Odrzańska 1C",
+  "postal_code": "74-500",
+  "city": "Chojna",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "nrkrakow": {
+  "full_name": "NOWA REHABILITACJA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Polarna 10",
+  "postal_code": "30-389",
+  "city": "Kraków",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "wysmaz": {
+  "full_name": "SZPITAL OGÓLNY W WYSOKIEM MAZOWIECKIEM",
+  "address": "Szpitalna 5",
+  "postal_code": "18-200",
+  "city": "Wysokie Mazowieckie",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "wimed": {
+  "full_name": "Niepubliczny Zakład Opieki Zdrowotnej w Lipnie \\WIMED\\\". Zakład Opiekuńczo Leczniczy. Jolanta Wiśniewska\"",
+  "address": "Dębowa 21",
+  "postal_code": "87-600",
+  "city": "Lipno",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "diamed": {
+  "full_name": "PRZYCHODNIA LEKARSKA DIAMED SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Alberta Schweitzera 7",
+  "postal_code": "30-695",
+  "city": "Kraków",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "spzozswidnica": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ OPIEKI ZDROWOTNEJ W ŚWIDNICY",
+  "address": "Leśna 27-29",
+  "postal_code": "58-100",
+  "city": "Świdnica",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "nzozevita": {
+  "full_name": "Salus Centrum Medyczne spółka z ograniczoną odpowiedzialnością z siedzibą w Kłodzku",
+  "address": "Kusocińskiego 3A",
+  "postal_code": "57-300",
+  "city": "Kłodzko",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "zozbol": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W BOLESŁAWCU",
+  "address": "Jeleniogórska 4",
+  "postal_code": "59-700",
+  "city": "Bolesławiec",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdemcpiaseczno": {
+  "full_name": "\\EMC PIASECZNO\\\" Sp. z o.o.\"",
+  "address": "ul. Mickiewicza 39",
+  "postal_code": "05-500",
+  "city": "Piaseczno",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "medinet": {
+  "full_name": "DOLNOŚLĄSKIE CENTRUM CHORÓB SERCA IM. PROF. ZBIGNIEWA RELIGI - MEDINET SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Henryka Michała Kamieńskiego 73A",
+  "postal_code": "51-124",
+  "city": "Wrocław",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "komed": {
+  "full_name": "I. PRZYCHODNIA LEKARSKA \\KOMED\\\" ROMAN KARASZEWSKI II. OŚRODEK BADAŃ KLINICZNYCH  III. RESTAURACJA \\\"ROGATKA\\\" ROMAN KARASZEWSKI\"",
+  "address": "Wojska Polskiego 6",
+  "postal_code": "62-500",
+  "city": "Konin",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "szpitaldzieciecy": {
+  "full_name": "WOJEWÓDZKI SPECJALISTYCZNY SZPITAL DZIECIĘCY IM. ŚW. LUDWIKA W KRAKOWIE",
+  "address": "Strzelecka 2",
+  "postal_code": "31-503",
+  "city": "Kraków",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "spzzozsierpc": {
+  "full_name": "SAMODZIELNY  PUBLICZNY ZESPÓŁ ZAKŁADÓW OPIEKI ZDROWOTNEJ W SIERPCU",
+  "address": "Juliusza Słowackiego 32",
+  "postal_code": "09-200",
+  "city": "Sierpc",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "zozbiala": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W BIAŁEJ",
+  "address": "Moniuszki 8",
+  "postal_code": "48-210",
+  "city": "Biała",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdallmedica": {
+  "full_name": "ALLMEDICA Sp. z o.o.",
+  "address": "ul. Franciszka Klimczaka 17 Lok. 80",
+  "postal_code": "02-797",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "dcmdolmed": {
+  "full_name": "DOLNOŚLĄSKIE CENTRUM MEDYCZNE DOLMED SPÓŁKA AKCYJNA",
+  "address": "Legnicka 40",
+  "postal_code": "53-674",
+  "city": "Wrocław",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "spzozlezajsk": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ OPIEKI ZDROWOTNEJ W LEŻAJSKU",
+  "address": "Leśna 22",
+  "postal_code": "37-300",
+  "city": "Leżajsk",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "szpitaljaslo": {
+  "full_name": "SZPITAL SPECJALISTYCZNY W JAŚLE",
+  "address": "Lwowska 22",
+  "postal_code": "38-200",
+  "city": "Jasło",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "radiomedica": {
+  "full_name": "RADIO MEDICA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Bobrowiecka 9/BUDYNEK B",
+  "postal_code": "00-728",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdgvmcarint": {
+  "full_name": "G.V.M.CARINT SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Aleja płk. Władysława Beliny-Prażmowskiego 60",
+  "postal_code": "31-514",
+  "city": "Kraków",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdmilicz": {
+  "full_name": "MILICKIE CENTRUM MEDYCZNE Sp. z o.o.",
+  "address": "ul. Grzybowa 1",
+  "postal_code": "56-300",
+  "city": "Milicz",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "faceclinic": {
+  "full_name": "KONRAD WALERZAK NZOZ CENTRUM LECZENIA WAD ZGRYZU",
+  "address": "Łuczek 4",
+  "postal_code": "02-434",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "wizjamed": {
+  "full_name": "WIZJA V SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "św. Teresy od Dzieciątka Jezus 92/3",
+  "postal_code": "91-341",
+  "city": "Łódź",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "powiatsredzki": {
+  "full_name": "ŚREDZKIE CENTRUM ZDROWIA SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W ŚRODZIE ŚLĄSKIEJ",
+  "address": "Kolejowa 16A",
+  "postal_code": "55-300",
+  "city": "Środa Śląska",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "uskbialystok": {
+  "full_name": "UNIWERSYTECKI SZPITAL KLINICZNY W BIAŁYMSTOKU",
+  "address": "M. Curie-Skłodowskiej 24A",
+  "postal_code": "15-276",
+  "city": "Białystok",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "puszczykowo": {
+  "full_name": "ARTERIEART SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Rakoniewicka 23A",
+  "postal_code": "60-111",
+  "city": "Poznań",
+  "payment_term_days": 14,
+  "alt_name": "arterieart"
+ },
+ "cobydgoszcz": {
+  "full_name": "CENTRUM ONKOLOGII IM. PROF. FRANCISZKA ŁUKASZCZYKA W BYDGOSZCZY",
+  "address": "Izabeli Romanowskiej 2",
+  "postal_code": "85-796",
+  "city": "Bydgoszcz",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdbonifratrzy": {
+  "full_name": "BONIFRATERSKIE CENTRUM MEDYCZNE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "gen. Romualda Traugutta 57/59",
+  "postal_code": "50-417",
+  "city": "Wrocław",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "almed": {
+  "full_name": "ALMED SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Grunwaldzka 1",
+  "postal_code": "37-500",
+  "city": "Jarosław",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "mswsiedlce": {
+  "full_name": "MAZOWIECKI SZPITAL WOJEWÓDZKI IM. ŚW. JANA PAWŁA II W SIEDLCACH SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Księcia Józefa Poniatowskiego 26",
+  "postal_code": "08-110",
+  "city": "Siedlce",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdsmswinoujscie": {
+  "full_name": "SZPITAL MIEJSKI IM. JANA GARDUŁY W ŚWINOUJŚCIU SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Mieszka I 7",
+  "postal_code": "72-600",
+  "city": "Świnoujście",
+  "payment_term_days": 28,
+  "alt_name": ""
+ },
+ "tdnowomedica": {
+  "full_name": "NOWOMEDICA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Energetyków 19",
+  "postal_code": "20-468",
+  "city": "Lublin",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdprzemysl": {
+  "full_name": "Usługi Rtg-Diagnostyka Medyczna, Development M.M. Włodzimierz Bodnar",
+  "address": "ul. Kazimierza Brodzińskiego 4",
+  "postal_code": "37-700",
+  "city": "Przemyśl",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdscanmedpila": {
+  "full_name": "\\ARS MEDICAL\\\" Sp. z o.o.\"",
+  "address": "aleja Wojska Polskiego 43",
+  "postal_code": "64-920",
+  "city": "Piła",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdsuchab": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W SUCHEJ BESKIDZKIEJ",
+  "address": "ul. Szpitalna 22",
+  "postal_code": "34-200",
+  "city": "Sucha Beskidzka",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "szpitalzakopane": {
+  "full_name": "SZPITAL POWIATOWY IM. DR TYTUSA CHAŁUBIŃSKIEGO W ZAKOPANEM",
+  "address": "Kamieniec 10",
+  "postal_code": "34-500",
+  "city": "Zakopane",
+  "payment_term_days": 21,
+  "alt_name": ""
+ },
+ "szpitalrydygier": {
+  "full_name": "SZPITAL SPECJALISTYCZNY IM. LUDWIKA RYDYGIERA W KRAKOWIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Osiedle Złotej Jesieni 1",
+  "postal_code": "31-826",
+  "city": "Kraków",
+  "payment_term_days": 21,
+  "alt_name": ""
+ },
+ "szpitalopole": {
+  "full_name": "SZPITAL WOJEWÓDZKI W OPOLU SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Augustyna Kośnego 53",
+  "postal_code": "45-372",
+  "city": "Opole",
+  "payment_term_days": 21,
+  "alt_name": ""
+ },
+ "szpitallubartow": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W LUBARTOWIE",
+  "address": "Cicha 14",
+  "postal_code": "21-100",
+  "city": "Lubartów",
+  "payment_term_days": 25,
+  "alt_name": ""
+ },
+ "poddebice": {
+  "full_name": "USŁUGI RADIOLOGICZNE LIWIŃSKI, TŁOKIŃSKI S.C.",
+  "address": "Zygmunta Augusta 4",
+  "postal_code": "95-070",
+  "city": "Aleksandrów Łódzki",
+  "payment_term_days": 25,
+  "alt_name": "poddebice2"
+ },
+ "starachowice": {
+  "full_name": "POWIATOWY ZAKŁAD OPIEKI ZDROWOTNEJ",
+  "address": "Batalionów Chłopskich 6",
+  "postal_code": "27-200",
+  "city": "Starachowice",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tworki": {
+  "full_name": "MAZOWIECKIE SPECJALISTYCZNE CENTRUM ZDROWIA IM. PROF. JANA MAZURKIEWICZA W PRUSZKOWIE",
+  "address": "Partyzantów 2/4",
+  "postal_code": "05-802",
+  "city": "Pruszków",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "swk": {
+  "full_name": "SZPITAL WOJEWÓDZKI IM. MIKOŁAJA KOPERNIKA W KOSZALINIE",
+  "address": "Tytusa Chałubińskiego 7",
+  "postal_code": "75-581",
+  "city": "Koszalin",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "rodamed": {
+  "full_name": "RODAMED SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Korytkowska 2",
+  "postal_code": "62-700",
+  "city": "Turek",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdipin": {
+  "full_name": "INSTYTUT PSYCHIATRII I NEUROLOGII",
+  "address": "ul. Jana III Sobieskiego 9",
+  "postal_code": "02-957",
+  "city": "Warszawa",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdgniezno": {
+  "full_name": "SZPITAL POMNIK CHRZTU POLSKI",
+  "address": "ul. św. Jana 9",
+  "postal_code": "62-200",
+  "city": "Gniezno",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "wsswroclaw": {
+  "full_name": "WOJEWÓDZKI SZPITAL SPECJALISTYCZNY WE WROCŁAWIU",
+  "address": "Henryka Michała Kamieńskiego 73 A",
+  "postal_code": "51-124",
+  "city": "Wrocław",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdorzesze": {
+  "full_name": "SZPITAL CHORÓB PŁUC W ORZESZU",
+  "address": "ul. Gliwicka 20",
+  "postal_code": "43-180",
+  "city": "Orzesze",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "brzesko": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ OPIEKI ZDROWOTNEJ W BRZESKU",
+  "address": "Tadeusza Kościuszki 68",
+  "postal_code": "32-800",
+  "city": "Brzesko",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "grajewo": {
+  "full_name": "SZPITAL OGÓLNY IM. DR WITOLDA GINELA W GRAJEWIE",
+  "address": "Konstytucji 3-go Maja 34",
+  "postal_code": "19-200",
+  "city": "Grajewo",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "brodnica": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ",
+  "address": "Wiejska 9",
+  "postal_code": "87-300",
+  "city": "Brodnica",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "kartuzy": {
+  "full_name": "POWIATOWE CENTRUM ZDROWIA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Floriana Ceynowy 7",
+  "postal_code": "83-300",
+  "city": "Kartuzy",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "wlodawa": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ OPIEKI ZDROWOTNEJ WE WŁODAWIE",
+  "address": "Aleja Józefa Piłsudskiego 64",
+  "postal_code": "22-200",
+  "city": "Włodawa",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "wegorzewo": {
+  "full_name": "MAZURSKIE CENTRUM ZDROWIA SZPITAL POWIATOWY W WĘGORZEWIE PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ",
+  "address": "3 Maja 17",
+  "postal_code": "11-600",
+  "city": "Węgorzewo",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "ostrow": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ ZAKŁADÓW OPIEKI ZDROWOTNEJ W OSTROWI MAZOWIECKIEJ",
+  "address": "Stanisława Duboisa 68",
+  "postal_code": "07-300",
+  "city": "Ostrów Mazowiecka",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "grodzisk": {
+  "full_name": "SAMODZIELNY PUBLICZNY SPECJALISTYCZNY SZPITAL ZACHODNI IM.ŚW.JANA PAWŁA II",
+  "address": "Daleka 11",
+  "postal_code": "05-825",
+  "city": "Grodzisk Mazowiecki",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdpoludniowy": {
+  "full_name": "WARSZAWSKI SZPITAL POŁUDNIOWY Sp. z o.o.",
+  "address": "ul. rtm. Witolda Pileckiego 99",
+  "postal_code": "02-781",
+  "city": "Warszawa",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "goleniow": {
+  "full_name": "SZPITALNE CENTRUM MEDYCZNE W GOLENIOWIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Nowogardzka 2",
+  "postal_code": "72-100",
+  "city": "Goleniów",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "dzierzoniow": {
+  "full_name": "NIEPUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ SZPITAL POWIATOWY W DZIERŻONIOWIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Cicha 1",
+  "postal_code": "58-200",
+  "city": "Dzierżoniów",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "rybnik": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ WOJEWÓDZKI SZPITAL SPECJALISTYCZNY  NR 3 W RYBNIKU",
+  "address": "Energetyków 46",
+  "postal_code": "44-200",
+  "city": "Rybnik",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "gorlice": {
+  "full_name": "SZPITAL SPECJALISTYCZNY IM. HENRYKA KLIMONTOWICZA W GORLICACH",
+  "address": "Węgierska 21",
+  "postal_code": "38-300",
+  "city": "Gorlice",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "szpitalzawiercie": {
+  "full_name": "SZPITAL POWIATOWY W ZAWIERCIU",
+  "address": "Miodowa 14",
+  "postal_code": "42-400",
+  "city": "Zawiercie",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "spzozmc": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W MIĘDZYRZECU PODLASKIM",
+  "address": "Warszawska 2-4",
+  "postal_code": "21-560",
+  "city": "Międzyrzec Podlaski",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "zarywojskowy105": {
+  "full_name": "105 KRESOWY SZPITAL WOJSKOWY Z PRZYCHODNIĄ SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W ŻARACH",
+  "address": "Domańskiego 2",
+  "postal_code": "68-200",
+  "city": "Żary",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "zozswietochlowice": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W ŚWIĘTOCHŁOWICACH SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Chorzowska 38",
+  "postal_code": "41-605",
+  "city": "Świętochłowice",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdksskrakow": {
+  "full_name": "KRAKOWSKI SZPITAL SPECJALISTYCZNY IM. ŚW. JANA PAWŁA II",
+  "address": "Prądnicka 80",
+  "postal_code": "31-202",
+  "city": "Kraków",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdspzozkolo": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W KOLE",
+  "address": "Józefa Poniatowskiego 25",
+  "postal_code": "62-600",
+  "city": "Koło",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdszpitalkolno": {
+  "full_name": "SZPITAL OGÓLNY W KOLNIE",
+  "address": "ul. Wojska Polskiego 69",
+  "postal_code": "18-500",
+  "city": "Kolno",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdsulechow": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W SULECHOWIE",
+  "address": "Zwycięstwa 1",
+  "postal_code": "66-100",
+  "city": "Sulechów",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "uskpoznan": {
+  "full_name": "UNIWERSYTECKI SZPITAL KLINICZNY W POZNANIU",
+  "address": "Stanisława Przybyszewskiego 49",
+  "postal_code": "60-355",
+  "city": "Poznań",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdspzozsiedlce": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W SIEDLCACH",
+  "address": "JANA KILIŃSKIEGO 29",
+  "postal_code": "08-110",
+  "city": "SIEDLCE",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "szpitalsiemiatycze": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W SIEMIATYCZACH",
+  "address": "Szpitalna 8",
+  "postal_code": "17-300",
+  "city": "Siemiatycze",
+  "payment_term_days": 45,
+  "alt_name": ""
+ },
+ "mswiapoznan": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ MINISTERSTWA SPRAW WEWNĘTRZNYCH I ADMINISTRACJI W POZNANIU IM. PROF. LUDWIKA BIERKOWSKIEGO",
+  "address": "Dojazd 34",
+  "postal_code": "60-631",
+  "city": "Poznań",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "sokolow": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W SOKOŁOWIE PODLASKIM",
+  "address": "Księdza Bosco 5",
+  "postal_code": "08-300",
+  "city": "Sokołów Podlaski",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "kamienpomorski": {
+  "full_name": "SZPITAL W KAMIENIU POMORSKIM SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Wolińska 7B",
+  "postal_code": "72-400",
+  "city": "Kamień Pomorski",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "smtorun": {
+  "full_name": "SPECJALISTYCZNY SZPITAL MIEJSKI IM.MIKOŁAJA KOPERNIKA",
+  "address": "Stefana Batorego 17/19",
+  "postal_code": "87-100",
+  "city": "Toruń",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "zozsochaczew": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ \\SZPITALA POWIATOWEGO\\\" W SOCHACZEWIE\"",
+  "address": "Batalionów Chłopskich 3/7",
+  "postal_code": "96-500",
+  "city": "Sochaczew",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdbrodnowski": {
+  "full_name": "MAZOWIECKI SZPITAL BRÓDNOWSKI  SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Ludwika Kondratowicza 8",
+  "postal_code": "03-242",
+  "city": "Warszawa",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "tdkoszalinmswia": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ MINISTERSTWA SPRAW WEWNĘTRZNYCH I ADMINISTRACJI W KOSZALINIE",
+  "address": "ul. Szpitalna 2",
+  "postal_code": "75-720",
+  "city": "Koszalin",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "lapy": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W ŁAPACH",
+  "address": "Janusza Korczaka 23",
+  "postal_code": "18-100",
+  "city": "Łapy",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "spbochnia": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ W BOCHNI \\SZPITAL POWIATOWY\\\" IM. BŁ. MARTY WIECKIEJ\"",
+  "address": "Krakowska 31",
+  "postal_code": "32-700",
+  "city": "Bochnia",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "spzozturek": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ OPIEKI ZDROWOTNEJ W TURKU",
+  "address": "Poduchowne 1",
+  "postal_code": "62-700",
+  "city": "Turek",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdspectrum": {
+  "full_name": "SPECTRUM DIAGNOSTYKA Sp. z o.o.",
+  "address": "ul. Przemysłowa 21",
+  "postal_code": "63-700",
+  "city": "Krotoszyn",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdszpitalchelm": {
+  "full_name": "SAMODZIELNY PUBLICZNY WOJEWÓDZKI SZPITAL SPECJALISTYCZNY W CHEŁMIE",
+  "address": "ul. Ceramiczna 1",
+  "postal_code": "22-100",
+  "city": "Chełm",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "wss5": {
+  "full_name": "WOJEWÓDZKI SZPITAL SPECJALISTYCZNY NR 5 IM. ŚW. BARBARY W SOSNOWCU",
+  "address": "pl. Medyków 1",
+  "postal_code": "41-200",
+  "city": "Sosnowiec",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdbelzyce": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ NR 1 W BEŁŻYCACH",
+  "address": "ul. Przemysłowa 44",
+  "postal_code": "24-200",
+  "city": "Bełżyce",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tomograf": {
+  "full_name": "SAMODZIELNA PRACOWNIA DIAGNOSTYKI OBRAZOWEJ \\TOMOGRAF\\\" Sp. z o.o.\"",
+  "address": "Aleja Bielska 105",
+  "postal_code": "43-100",
+  "city": "Tychy",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdcrir": {
+  "full_name": "\\CENTRUM REUMATOLOGII I REHABILITACJI\\\" Sp. z o.o.\"",
+  "address": "ul. Ks. Ryszarda Markwarta 8",
+  "postal_code": "85-015",
+  "city": "Bydgoszcz",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdonkologiaradom": {
+  "full_name": "KLINIKI NEURORADIOCHIRURGII SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Wojciecha Górskiego 6/92",
+  "postal_code": "00-033",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdzozplonsk": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ ZAKŁADÓW OPIEKI ZDROWOTNEJ IM.MARSZAŁKA JÓZEFA PIŁSUDSKIEGO W PŁOŃSKU",
+  "address": "ul. Henryka Sienkiewicza 7",
+  "postal_code": "09-100",
+  "city": "Płońsk",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdpionki": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZESPÓŁ ZAKŁADÓW OPIEKI ZDROWOTNEJ W PIONKACH IM. LECHA I MARII KACZYŃSKICH - PARY PREZYDENCKIEJ",
+  "address": "ul. Niepodległości 1",
+  "postal_code": "26-670",
+  "city": "Pionki",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "sm4gliwice": {
+  "full_name": "SZPITAL MIEJSKI W GLIWICACH Sp. z o.o.",
+  "address": "ul. Zygmunta Starego 20",
+  "postal_code": "44-100",
+  "city": "Gliwice",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdpyrzyce": {
+  "full_name": "SZPITAL POWIATOWY W PYRZYCACH",
+  "address": "ul. Jana Pawła II 2",
+  "postal_code": "74-200",
+  "city": "Pyrzyce",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdpraski": {
+  "full_name": "SZPITAL PRASKI P.W. PRZEMIENIENIA PAŃSKIEGO Sp. z o.o.",
+  "address": "Aleja \\Solidarności\\\" 67\"",
+  "postal_code": "03-401",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdzoznidzica": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W NIDZICY",
+  "address": "ul. Mickiewicza 23 Lok. -",
+  "postal_code": "13-100",
+  "city": "Nidzica",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "tdtargowek": {
+  "full_name": "SAMODZIELNY ZESPÓŁ PUBLICZNYCH ZAKŁADÓW LECZNICTWA OTWARTEGO WARSZAWA BIAŁOŁĘKA-TARGÓWEK",
+  "address": "Tykocińska 34",
+  "postal_code": "03-545",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdwszplock": {
+  "full_name": "WOJEWÓDZKI SZPITAL ZESPOLONY W PŁOCKU",
+  "address": "Medyczna 19",
+  "postal_code": "09-400",
+  "city": "Płock",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "pczotwock": {
+  "full_name": "POWIATOWE CENTRUM ZDROWIA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Stefana Batorego 44",
+  "postal_code": "05-400",
+  "city": "Otwock",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tdcmbatorego": {
+  "full_name": "CENTRUM MEDYCZNE \\BATOREGO\\\" Sp. z o.o.\"",
+  "address": "Aleje Stefana Batorego 77",
+  "postal_code": "33-300",
+  "city": "Nowy Sącz",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdzozwola": {
+  "full_name": "SAMODZIELNY PUBLICZNY ZAKŁAD OPIEKI ZDROWOTNEJ WARSZAWA  WOLA - ŚRÓDMIEŚCIE",
+  "address": "ul. Erazma Ciołka 11",
+  "postal_code": "01-445",
+  "city": "Warszawa",
+  "payment_term_days": 21,
+  "alt_name": ""
+ },
+ "arterieart": {
+  "full_name": "ARTERIEART SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Rakoniewicka 23A",
+  "postal_code": "60-111",
+  "city": "Poznań",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdkluczbork": {
+  "full_name": "SCANMED SPÓŁKA AKCYJNA",
+  "address": "Stefana Okrzei 1A",
+  "postal_code": "03-715",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": "tdscanmed2"
+ },
+ "scanmed": {
+  "full_name": "SCANMED SPÓŁKA AKCYJNA",
+  "address": "Stefana Okrzei 1A",
+  "postal_code": "03-715",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "gz": {
+  "full_name": "GRUPA ZDROWIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Henryka Sienkiewicza 7",
+  "postal_code": "09-100",
+  "city": "Płońsk",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdblachownia": {
+  "full_name": "SCANMED SPÓŁKA AKCYJNA",
+  "address": "Stefana Okrzei 1A",
+  "postal_code": "03-715",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": "tdscanmed2"
+ },
+ "tdgammaknife": {
+  "full_name": "KLINIKI NEURORADIOCHIRURGII SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Wojciecha Górskiego 6/92",
+  "postal_code": "00-033",
+  "city": "Warszawa",
+  "payment_term_days": 14,
+  "alt_name": "tdonkologiaradom"
+ },
+ "tdstalowawola": {
+  "full_name": "POWIATOWY SZPITAL SPECJALISTYCZNY W STALOWEJ WOLI",
+  "address": "ul. Stanisława Staszica 4",
+  "postal_code": "37-450",
+  "city": "Stalowa Wola",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "bimed": {
+  "full_name": "CENTRUM MEDYCZNE BIMED",
+  "address": "ul. Sienkiewicza 30",
+  "postal_code": "96-320",
+  "city": "Mszczonów",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "tdparczew": {
+  "full_name": "Samodzielny Publiczny Zakład Opieki Zdrowotnej (SPZOZ) w Parczewie",
+  "address": "ul. Kościelna 136",
+  "postal_code": "21-200",
+  "city": "Parczew",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "medflow": {
+  "full_name": "MEDflow sp. z o.o.",
+  "address": "Nowina 9",
+  "postal_code": "60-589",
+  "city": "Poznań",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "swp": {
+  "full_name": "ARTERIEART SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+  "address": "Rakoniewicka 23A",
+  "postal_code": "60-111",
+  "city": "Poznań",
+  "payment_term_days": 14,
+  "alt_name": "arterieart"
+ },
+ "zozboleslawiec": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W BOLESŁAWCU",
+  "address": "Jeleniogórska 4",
+  "postal_code": "59-700",
+  "city": "Bolesławiec",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "td7szmw": {
+  "full_name": "7 Szpital Marynarki Wojennej z Przychodnią Samodzielny Publiczny Zakład Opieki Zdrowotnej imienia kontradmirała profesora Wiesława Łasińskiego w Gdańsku",
+  "address": "Polanki 117",
+  "postal_code": "80-305",
+  "city": "Gdańsk",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "tdkolbuszowa": {
+  "full_name": "Samodzielny Publiczny Zespół Opieki Zdrowotnej w Kolbuszowej",
+  "address": "ul. Grunwaldzka 4",
+  "postal_code": "36-100",
+  "city": "Kolbuszowa",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "zozolawa": {
+  "full_name": "ZESPÓŁ OPIEKI ZDROWOTNEJ W OŁAWIE",
+  "address": "ul. Krzysztofa Kamila Baczyńskiego 1",
+  "postal_code": "55-200",
+  "city": "Oława",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "szpitalmikolow": {
+  "full_name": "Akademickie Centrum Zdrowia w Mikołowie Sp. z o.o.",
+  "address": "ul. Waryńskiego 2",
+  "postal_code": "43-190",
+  "city": "Mikołów",
+  "payment_term_days": 60,
+  "alt_name": ""
+ },
+ "szpitalpoludniowy": {
+  "full_name": "WARSZAWSKI SZPITAL POŁUDNIOWY Sp. z o.o.",
+  "address": "ul. rtm. Witolda Pileckiego 99",
+  "postal_code": "02-781",
+  "city": "Warszawa",
+  "payment_term_days": 30,
+  "alt_name": ""
+ },
+ "tduskszczecin": {
+  "full_name": "UNIWERSYTECKI SZPITAL KLINICZNY NR 1 IM. PROF. TADEUSZA SOKOŁOWSKIEGO PUM W SZCZECINIE",
+  "address": "Unii Lubelskiej 1",
+  "postal_code": "71-252",
+  "city": "Szczecin",
+  "payment_term_days": 28,
+  "alt_name": ""
+ },
+ "gzszczecin": {
+  "full_name": "Grupa Zdrowie Sp. z o.o.",
+  "address": "Sienkiewicza 7",
+  "postal_code": "09-100",
+  "city": "Płońsk",
+  "payment_term_days": 14,
+  "alt_name": ""
+ },
+ "szpitalleszno": {
+  "full_name": "Wojewódzki Szpital Wielospecjalistyczny im. dr. Jana Jonstona w Lesznie",
+  "address": "Jana Kiepury 45",
+  "postal_code": "64-100",
+  "city": "Leszno",
+  "payment_term_days": 14,
+  "alt_name": ""
+ }
+}

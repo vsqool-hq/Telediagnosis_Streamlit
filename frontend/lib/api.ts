@@ -91,7 +91,51 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function reqBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const res = await fetch(API_BASE + path, {
+    ...init,
+    headers: authHeaders(init.headers as Record<string, string>),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error((detail as { detail?: string }).detail || `Błąd ${res.status}`);
+  }
+  return res.blob();
+}
+
 // ---- Typy -------------------------------------------------------------------
+
+export interface InvoiceMonth {
+  period: string;
+  job_id: string;
+  delivery_date: string;
+  revenue?: number | null;
+  studies?: number | null;
+}
+
+export interface InvoiceUnit {
+  system_name: string;
+  full_name: string;
+  address: string;
+  postal_code: string;
+  city: string;
+  payment_term_days: number;
+  alt_name: string;
+}
+
+export interface InvoicePreviewRow {
+  system_name: string;
+  positions: number;
+  wsparcie?: number | null;
+  total: number;
+  in_slownik: boolean;
+}
+
+export interface InvoicePreview {
+  units: InvoicePreviewRow[];
+  count: number;
+  missing_slownik: string[];
+}
 
 export type VersionKind = "wzorcowe" | "cennik" | "cennik_lekarzy";
 
@@ -784,4 +828,18 @@ export const api = {
     ),
 
   cashflowOverview: () => req<CashflowOverview>("/api/cashflow/overview"),
+
+  // ---- Faktury ----
+  invoicesMonths: () => req<{ months: InvoiceMonth[] }>("/api/invoices/months"),
+  invoicesUnits: () => req<{ units: InvoiceUnit[] }>("/api/invoices/units"),
+  invoicesSaveUnits: (units: InvoiceUnit[]) =>
+    req<{ ok: boolean; count: number }>("/api/invoices/units", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ units }),
+    }),
+  invoicesPreview: (jobId: string) =>
+    req<InvoicePreview>(`/api/invoices/preview?job_id=${encodeURIComponent(jobId)}`),
+  invoicesGenerate: (payload: { job_id: string; issue_date: string; overrides?: Record<string, string> }) =>
+    reqBlob("/api/invoices/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    }),
 };
