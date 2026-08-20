@@ -1400,14 +1400,21 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                                 # porównawcze"); w jej braku — procent × stawka bazowa × „w tym
                                 # porównawcze" (współczynnik, jak dotychczas).
                                 porown_col_letter = col_map.get(f'{priority_prefix} w tym porównawcze')
+                                # Człon dodajemy TYLKO gdy w tym miesiącu wykonano ≥1 badanie
+                                # porównawcze tego typu (liczba > 0) — inaczej formuła puchła
+                                # o setki zerowych składników. Wartość sumy bez zmian (0·stawka=0).
+                                try:
+                                    _porown_cnt = float(row_data.get(f'{priority_prefix} w tym porównawcze', 0) or 0)
+                                except (TypeError, ValueError):
+                                    _porown_cnt = 0.0
                                 _pkey = (row_data['Modalność'], row_data['Procedura'],
                                          row_data['Rodzaj procedury rozlicz.'], row_data['Procedura rozlicz.'],
                                          priority_prefix)
                                 zl = zloty_map.get(_pkey)
                                 ratio = ratio_map.get(_pkey)
-                                if porown_col_letter and zl:
+                                if porown_col_letter and _porown_cnt > 0 and zl:
                                     comp_value_parts.append(f"{zl:.10g}*{porown_col_letter}{r_idx}")
-                                elif porown_col_letter and ratio:
+                                elif porown_col_letter and _porown_cnt > 0 and ratio:
                                     comp_value_parts.append(
                                         f"{ratio:.10g}*{stawka_col_letter}{r_idx}*{porown_col_letter}{r_idx}")
                         else:
