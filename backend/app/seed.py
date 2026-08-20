@@ -159,6 +159,57 @@ def seed_invoice_slownik_if_absent():
     print(f"[seed] Wczytano Słownik jednostek do faktur: {len(out)} jednostek.", flush=True)
 
 
+def _units_with_comparative_price() -> set | None:
+    """Jednostki z AKTYWNEGO cennika, które mają ≥1 stawkę „… PORÓWNAWCZE …" > 0.
+    Zwraca set nazw systemowych albo None, gdy cennika nie da się odczytać (wtedy
+    NIE ustawiamy listy, by przypadkiem nie wyłączyć porównawczych)."""
+    import csv as _csv
+    from app.storage import version_dir
+    active = db.get_active_version("cennik")
+    if not active:
+        return None
+    csvs = glob.glob(os.path.join(version_dir("cennik", active["id"]), "*.csv"))
+    if not csvs:
+        return None
+    units: set[str] = set()
+    try:
+        with open(csvs[0], encoding="utf-8-sig") as f:
+            for row in _csv.reader(f, delimiter=";"):
+                if len(row) < 3:
+                    continue
+                bad, jed, cena = row[0].strip(), row[1].strip(), row[2].strip()
+                if bad.upper() == "BADANIE" or "PORÓWNAWCZE" not in bad.upper():
+                    continue
+                try:
+                    c = float(cena.replace(",", "."))
+                except ValueError:
+                    c = 0.0
+                if c > 0:
+                    units.add(jed)
+    except OSError:
+        return None
+    return units
+
+
+def seed_comparative_units_if_absent():
+    """
+    Jednorazowo ustawia listę jednostek, dla których liczymy badania porównawcze
+    ('comparative_units'), jeśli klucza jeszcze nie ma. Zasiewamy jednostkami, które
+    JUŻ MAJĄ stawkę porównawczą w aktywnym cenniku — dzięki temu zachowanie się nie
+    zmienia (te same jednostki co dotychczas), a użytkownik może listę edytować w
+    Ustawieniach. Gdy cennika brak — nie ustawiamy klucza (billing traktuje brak klucza
+    jako „licz jak dawniej", więc nic się nie psuje)."""
+    settings = db.get_settings()
+    if "comparative_units" in settings:
+        return
+    units = _units_with_comparative_price()
+    if units is None:
+        return
+    settings["comparative_units"] = sorted(units)
+    db.save_settings(settings)
+    print(f"[seed] Ustawiono listę jednostek z porównawczymi: {len(units)} jednostek.", flush=True)
+
+
 def seed_if_empty():
     if not os.path.isdir(SEED_DIR):
         return
@@ -168,3 +219,4 @@ def seed_if_empty():
     seed_adjustments_if_absent()
     seed_payment_terms_if_absent()
     seed_invoice_slownik_if_absent()
+    seed_comparative_units_if_absent()

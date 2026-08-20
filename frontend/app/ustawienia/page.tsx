@@ -7,6 +7,7 @@ import { toast } from "@/lib/toast";
 import BackendSwitcher from "@/components/BackendSwitcher";
 import DoctorsSettings from "@/components/DoctorsSettings";
 import UnitsSettings from "@/components/UnitsSettings";
+import ComparativeUnitsSettings from "@/components/ComparativeUnitsSettings";
 import UnitAliasSettings from "@/components/UnitAliasSettings";
 import ConsultSettings from "@/components/ConsultSettings";
 import PaymentTermsSettings from "@/components/PaymentTermsSettings";
@@ -577,6 +578,7 @@ export default function UstawieniaPage() {
 
       <DoctorsSettings />
       <UnitsSettings />
+      <ComparativeUnitsSettings />
       <UnitAliasSettings />
       <ConsultSettings />
       <PaymentTermsSettings />

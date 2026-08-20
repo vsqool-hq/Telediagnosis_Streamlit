@@ -4,4 +4,6 @@
 # zostały automatycznie przeliczone — inaczej Pulpit/Historia/Porównanie pokazują
 # rozjechane liczby, dopóki użytkownik ręcznie nie przeliczy miesiąca.
 # v3: listy badań po stawce 0 zł (jednostki + lekarze), marża per priorytet.
-ENGINE_VERSION = 3
+# v4: WSPARCIE doliczane do przychodu jednostek (Pulpit/Mapa/Porównanie); dopłata
+#     porównawcza zbiorczo w podsumowaniu jednostki (bez zmiany kwoty przychodu).
+ENGINE_VERSION = 4

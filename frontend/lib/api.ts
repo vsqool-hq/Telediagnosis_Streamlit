@@ -700,6 +700,14 @@ export const api = {
     }),
   unitsList: () =>
     req<{ job_id: string | null; units: { name: string; key: string; excluded: boolean }[] }>("/api/units"),
+  comparativeUnitsList: () =>
+    req<{ job_id: string | null; configured: boolean; units: { name: string; key: string; excluded: boolean }[] }>(
+      "/api/units/comparative",
+    ),
+  setComparativeUnits: (keys: string[]) =>
+    req<{ ok: boolean; comparative_units: string[] }>("/api/units/comparative", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }),
+    }),
   unitAliases: () =>
     req<{ aliases: Record<string, string> }>("/api/settings/unit-aliases"),
   consultConfig: () =>

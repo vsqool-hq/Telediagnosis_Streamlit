@@ -11,7 +11,7 @@ type Item = { name: string; key: string; excluded: boolean };
 
 export default function ExclusionSettings({
   icon, title, description, cacheKey, load, save, savedMsg, searchPlaceholder, emptyMsg,
-  excludedPill = "wyłączone",
+  excludedPill = "wyłączone", mode = "exclude", counterLabel = "Wyłączonych",
 }: {
   icon: React.ReactNode;
   title: string;
@@ -23,7 +23,11 @@ export default function ExclusionSettings({
   searchPlaceholder: string;
   emptyMsg: string;
   excludedPill?: string;
+  // "exclude" (zaznaczone = wyłączone, przekreślone) | "include" (zaznaczone = włączone)
+  mode?: "exclude" | "include";
+  counterLabel?: string;
 }) {
+  const isInclude = mode === "include";
   // Lista jest stała per wgrany plik → długi TTL; backend i tak trzyma ją w cache.
   const { data: items, loading, error } = useCachedData<Item[]>(cacheKey, load, 600_000);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
@@ -77,7 +81,7 @@ export default function ExclusionSettings({
               <input className="input pl-9 sm:w-64" placeholder={searchPlaceholder}
                 value={filter} onChange={(e) => setFilter(e.target.value)} />
             </div>
-            <span className="text-xs text-slate-400">Wyłączonych: {excluded.size} z {items.length}</span>
+            <span className="text-xs text-slate-400">{counterLabel}: {excluded.size} z {items.length}</span>
             <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
               {saving
                 ? <><Loader2 className="animate-spin" size={14} /> Zapisywanie…</>
@@ -94,8 +98,10 @@ export default function ExclusionSettings({
                 className="flex cursor-pointer items-center gap-3 border-b border-white/5 px-4 py-2 text-sm last:border-0 hover:bg-white/[0.03]">
                 <input type="checkbox" className="h-4 w-4 accent-brand-accent"
                   checked={excluded.has(d.key)} onChange={() => toggle(d.key)} />
-                <span className={excluded.has(d.key) ? "text-slate-500 line-through" : ""}>{d.name}</span>
-                {excluded.has(d.key) && <span className="pill pill-muted ml-auto">{excludedPill}</span>}
+                <span className={excluded.has(d.key) && !isInclude ? "text-slate-500 line-through" : ""}>{d.name}</span>
+                {excluded.has(d.key) && (
+                  <span className={`pill ml-auto ${isInclude ? "pill-ok" : "pill-muted"}`}>{excludedPill}</span>
+                )}
               </label>
             ))}
             {shown.length === 0 && <p className="px-4 py-3 text-sm text-slate-500">Brak pasujących pozycji.</p>}

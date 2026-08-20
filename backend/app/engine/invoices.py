@@ -34,6 +34,7 @@ from app.engine.billing import (
     prepare_adjustments,
     get_unit_adjustments,
     get_excluded_units,
+    mask_comparative,
     _prices_to_pmap,
     _norm_unit,
 )
@@ -120,6 +121,14 @@ def compute_invoice_lines(wynik_dir: str, cennik_dir: str) -> tuple[dict, dict]:
         df = df.dropna(subset=["Modalność", "Klient"])
         if df.empty:
             continue
+
+        # Bramka per jednostka (lista 'comparative_units') — spójnie z tabelą
+        # jednostek / Pulpitem / Porównaniem: dla jednostek spoza listy nie ma
+        # osobnej linii porównawczej.
+        if "Badania do porównania" not in df.columns:
+            df["Badania do porównania"] = 0
+        df["Badania do porównania"] = pd.to_numeric(df["Badania do porównania"], errors="coerce").fillna(0)
+        df = mask_comparative(df)
 
         for _, r in df.iterrows():
             kl = str(r["Klient"]).strip()

@@ -16,6 +16,7 @@ import pandas as pd
 
 from app.engine.billing import (
     build_price_key, bill_extract_multiplier, fill_price_with_base, porownawcze_surcharge,
+    mask_comparative, wsparcie_by_unit,
 )
 
 GROUPING_COLUMNS = [
@@ -85,6 +86,9 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
             df["Badania do porównania"] = 0
         df["Badania do porównania"] = pd.to_numeric(df["Badania do porównania"], errors="coerce").fillna(0)
 
+        # Bramka per jednostka (lista 'comparative_units') — spójnie z tabelą jednostek.
+        df = mask_comparative(df)
+
         # Przemnożenie porównawczych przez okolice per opis (tylko dla surowych plików
         # sprawdzonych) — spójnie z billing.py na Szczegółowych. „Wynik" ma już przemnożone.
         if _raw_source:
@@ -129,14 +133,30 @@ def build_revenue(wynik_dir: str, cennik_dir: str) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame(columns=["Klient", "Modalność", "Ilość", "Wartość"])
 
-    return pd.concat(frames, ignore_index=True)
+    combined = pd.concat(frames, ignore_index=True)
+
+    # WSPARCIE — stała miesięczna kwota z cennika, doliczana RAZ na jednostkę jako
+    # osobny wiersz (Modalność „WSPARCIE"). Wchodzi do przychodu (Pulpit) i marży
+    # (Porównanie) — spójnie z podsumowaniem w pliku rozliczenia jednostki.
+    wsp = wsparcie_by_unit(prices)
+    if wsp:
+        rows = []
+        for kl in combined["Klient"].dropna().unique():
+            amt = wsp.get(str(kl).strip())
+            if amt:
+                rows.append({"Klient": kl, "Modalność": "WSPARCIE", "Ilość": 0,
+                             "Wartość": amt, "CENA_KLUCZ": "WSPARCIE", "#": 0, "Cena": amt})
+        if rows:
+            combined = pd.concat([combined, pd.DataFrame(rows)], ignore_index=True)
+
+    return combined
 
 
 def _modality_norm(m) -> str:
     m = str(m).strip().upper()
     if m.startswith("MAMMOGRAF"):
         return "MMG"
-    return m if m in {"RTG", "TK", "MR", "MMG"} else "INNE"
+    return m if m in {"RTG", "TK", "MR", "MMG", "WSPARCIE"} else "INNE"
 
 
 def _result_period(wynik_dir: str) -> str | None:
@@ -259,12 +279,15 @@ def cached_summary(base_dir: str, wynik_dir: str, cennik_dir: str) -> dict:
     """
     from app.engine.config import load_config
     from app.engine import ENGINE_VERSION
-    from app.engine.billing import get_excluded_units
+    from app.engine.billing import get_excluded_units, get_comparative_units
     # Sygnatura: grupy jednostek (zmiana grupowania → przelicz „top jednostki"),
     # wersja silnika (zmiana logiki wyceny → przelicz cały przychód z bieżącym silnikiem,
-    # by Pulpit zgadzał się z Porównaniem) ORAZ wyłączone jednostki (zmiana → przelicz).
+    # by Pulpit zgadzał się z Porównaniem), wyłączone jednostki ORAZ lista jednostek
+    # z porównawczymi (zmiana → przelicz, bo zmienia przychód).
+    _comp = get_comparative_units()
     sig = json.dumps({"groups": load_config().get("unit_groups", []), "engine": ENGINE_VERSION,
-                      "units_excluded": sorted(get_excluded_units())},
+                      "units_excluded": sorted(get_excluded_units()),
+                      "comparative_units": sorted(_comp) if _comp is not None else "__all__"},
                      ensure_ascii=False, sort_keys=True)
     cache = os.path.join(base_dir, "stats.json")
     if os.path.isfile(cache):

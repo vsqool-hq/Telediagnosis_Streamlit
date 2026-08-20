@@ -554,6 +554,72 @@ def get_excluded_units() -> set:
     return {_norm_unit(u) for u in raw if str(u).strip()}
 
 
+def get_comparative_units():
+    """
+    Jednostki, dla których LICZYMY badania porównawcze (dopłata = „drugi człon"
+    formuły). Zwraca:
+      • set(...) znormalizowanych nazw — skonfigurowana lista (pusta = nikt),
+      • None — klucz 'comparative_units' NIE jest ustawiony → NIE bramkujemy
+        (zachowanie jak dawniej: porównawcze wszędzie, gdzie cennik ma stawkę porówn.).
+    W subprocesie zadania bierzemy z CONFIG (snapshot), w API — z ustawień w bazie.
+    """
+    raw = CONFIG.get("comparative_units")
+    if raw is None:
+        try:
+            from app import db
+            s = db.get_settings()
+            if "comparative_units" not in s:
+                return None
+            raw = s.get("comparative_units") or []
+        except Exception:  # noqa: BLE001
+            return None
+    return {_norm_unit(u) for u in raw if str(u).strip()}
+
+
+def mask_comparative(df, klient_col="Klient", flag_col="Badania do porównania"):
+    """
+    Zeruje flagę „Badania do porównania" dla jednostek SPOZA listy comparative_units.
+    Dzięki temu dopłata porównawcza znika SPÓJNIE we wszystkich widokach (tabela
+    jednostek, Pulpit, Porównanie, Faktury) — wszystkie liczą ją z tej flagi.
+    Gdy lista nieustawiona (None) — nie zmienia niczego (zachowanie jak dawniej).
+    Modyfikuje i zwraca `df`.
+    """
+    allowed = get_comparative_units()
+    if allowed is None:
+        return df
+    cols = getattr(df, "columns", [])
+    if flag_col not in cols or klient_col not in cols:
+        return df
+    mask = ~df[klient_col].map(_norm_unit).isin(allowed)
+    if mask.any():
+        df.loc[mask, flag_col] = 0
+    return df
+
+
+def wsparcie_by_unit(prices_df) -> dict:
+    """
+    Kwota WSPARCIA (stała miesięczna z cennika, badanie „WSPARCIE") per jednostka.
+    Zwraca { nazwa_jednostki(strip): kwota_float } tylko dla kwot > 0. Wspólne dla
+    tabeli jednostek, Pulpitu, Porównania i Faktur — jedno źródło prawdy.
+    """
+    out = {}
+    try:
+        cols = getattr(prices_df, "columns", [])
+        if not ({"BADANIE", "Jednostka", "Cena"} <= set(cols)):
+            return out
+        m = prices_df["BADANIE"].astype(str).str.upper().str.strip() == "WSPARCIE"
+        for jed, cena in zip(prices_df.loc[m, "Jednostka"], prices_df.loc[m, "Cena"]):
+            try:
+                c = float(cena)
+            except (TypeError, ValueError):
+                continue
+            if pd.notna(c) and c > 0:
+                out[str(jed).strip()] = c
+    except Exception:  # noqa: BLE001
+        return out
+    return out
+
+
 def prepare_adjustments(raw: dict | None) -> dict:
     """Indeksuje współczynniki po znormalizowanej nazwie jednostki (do szybkiego dopasowania)."""
     out = {}
@@ -675,7 +741,8 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
     return pd.Series(vals, index=grouped.index), porown_keys
 
 
-def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False, gotowosc_amount=None, row_color=None):
+def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False, gotowosc_amount=None, row_color=None,
+                            comp_value_formula=None, comp_count_tk_formula=None, comp_count_mr_formula=None, wsparcie_amount=None):
     ws = workbook[sheet_name]
     priority_colors = PRIORITY_COLORS
     procedure_type_colors = PROCEDURE_TYPE_COLORS
@@ -758,6 +825,17 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
         last_row = total_row
 
         value_row = last_row + 2
+        # Dodatkowe wiersze podsumowania jednostek (nie dla lekarzy): dopłata
+        # porównawcza (zbiorczo, zamiast per wiersz) + WSPARCIE z cennika.
+        comp_val_row = last_row + 4
+        comp_tk_row = last_row + 5
+        comp_mr_row = last_row + 6
+        wsparcie_row = last_row + 7
+        # Jednostki (nie lekarze) ZAWSZE dostają wiersze: WARTOŚĆ PORÓWNAWCZYCH,
+        # ILOŚĆ PORÓWNAWCZYCH TK/MR, WSPARCIE — nawet gdy zerowe (spójny układ na
+        # każdej jednostce). Jedyny wywołujący z for_doctor=False to rozliczenie jednostek.
+        units_extra = not for_doctor
+
         ws.cell(row=value_row, column=1).value = "RAZEM WARTOŚĆ (CAŁOŚĆ):"
         ws.cell(row=value_row, column=1).font = bold_font
 
@@ -766,6 +844,11 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
             if str(col_name).endswith("Wartość"):
                 col_letter = get_column_letter(c_idx)
                 value_formula_parts.append(f"{col_letter}{total_row}")
+        # Do CAŁOŚCI doliczamy wartość porównawczych i WSPARCIE — odwołaniem do ich
+        # komórek, więc RAZEM przelicza się po ręcznej korekcie tych pozycji.
+        if units_extra:
+            value_formula_parts.append(f"B{comp_val_row}")
+            value_formula_parts.append(f"B{wsparcie_row}")
 
         if value_formula_parts:
             cell = ws.cell(row=value_row, column=2)
@@ -810,6 +893,35 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
                 cell.value = f"={'+'.join(qty_formula_parts)}"
                 cell.font = bold_font
                 cell.fill = medium_blue_fill
+
+            if units_extra:
+                # RAZEM WARTOŚĆ PORÓWNAWCZYCH — dopłata liczona zbiorczo (suma po
+                # podtypach: stawka_porówn × „w tym porównawcze"), zamiast per wiersz.
+                ws.cell(row=comp_val_row, column=1).value = "RAZEM WARTOŚĆ PORÓWNAWCZYCH:"
+                ws.cell(row=comp_val_row, column=1).font = bold_font
+                c = ws.cell(row=comp_val_row, column=2)
+                c.value = f"={comp_value_formula}" if comp_value_formula else 0
+                c.style = "accounting"; c.font = bold_font; c.fill = medium_blue_fill
+
+                # ILOŚĆ PORÓWNAWCZYCH TK / MR — liczba badań porównawczych (× okolice).
+                ws.cell(row=comp_tk_row, column=1).value = "ILOŚĆ PORÓWNAWCZYCH TK:"
+                ws.cell(row=comp_tk_row, column=1).font = bold_font
+                c = ws.cell(row=comp_tk_row, column=2)
+                c.value = f"={comp_count_tk_formula}" if comp_count_tk_formula else 0
+                c.font = bold_font; c.fill = medium_blue_fill
+
+                ws.cell(row=comp_mr_row, column=1).value = "ILOŚĆ PORÓWNAWCZYCH MR:"
+                ws.cell(row=comp_mr_row, column=1).font = bold_font
+                c = ws.cell(row=comp_mr_row, column=2)
+                c.value = f"={comp_count_mr_formula}" if comp_count_mr_formula else 0
+                c.font = bold_font; c.fill = medium_blue_fill
+
+                # WSPARCIE — stała kwota miesięczna z cennika (badanie „WSPARCIE").
+                ws.cell(row=wsparcie_row, column=1).value = "WSPARCIE:"
+                ws.cell(row=wsparcie_row, column=1).font = bold_font
+                c = ws.cell(row=wsparcie_row, column=2)
+                c.value = wsparcie_amount if wsparcie_amount is not None else 0
+                c.style = "accounting"; c.font = bold_font; c.fill = medium_blue_fill
 
     # LEKARZE: węższe kolumny (mniejszy raport). Jednostki bez zmian.
     pad, cap = (1, 26) if for_doctor else (2, 50)
@@ -1105,6 +1217,10 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             df_details['Badania do porównania'] = 0
         df_details['Badania do porównania'] = pd.to_numeric(df_details['Badania do porównania'], errors='coerce').fillna(0)
 
+        # Bramka per jednostka: dla jednostek spoza listy 'comparative_units' zerujemy
+        # flagę porównawczą — dopłaty (drugiego członu formuły) się nie nalicza.
+        df_details = mask_comparative(df_details)
+
         # Porównawcze przemnażamy przez okolice JUŻ NA SZCZEGÓŁOWYCH (per opis): opis
         # porównawczy N-okolicowy liczy się jak N. Rozliczenie zaciąga potem gotową
         # (już przemnożoną) liczbę do „w tym porównawcze" — bez dalszego mnożenia.
@@ -1237,6 +1353,9 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             modalnosci = sorted(billing_table['Modalność'].unique())
             data_sections, current_row = [], 1
             subtotal_rows = []
+            # Człony dopłaty porównawczej — zbieramy je z każdego wiersza i doliczamy
+            # ZBIORCZO na dole (WARTOŚĆ PORÓWNAWCZYCH), zamiast w formule per wiersz.
+            comp_value_parts = []
 
             for m in modalnosci:
                 m_data = billing_table[billing_table['Modalność'] == m].copy()
@@ -1274,11 +1393,12 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                             stawka_col_letter = col_map.get(f'{priority_prefix} Stawka')
                             ilosc_col_letter = col_map.get(f'{priority_prefix} Ilość')
                             if stawka_col_letter and ilosc_col_letter:
-                                formula = f"={stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}"
-                                # Dopłata porównawcza w TEJ SAMEJ formule (bez osobnych
-                                # wierszy). Priorytet: JAWNA stawka złotowa wprost
-                                # (+ stawka_zł × „w tym porównawcze"); w jej braku —
-                                # procent × stawka bazowa × „w tym porównawcze" (jak dotychczas).
+                                # Wartość wiersza = TYLKO stawka × ilość (bez porównawczych).
+                                cell.value = f"={stawka_col_letter}{r_idx}*{ilosc_col_letter}{r_idx}"
+                                # Człon porównawczy zbieramy do sumy zbiorczej (dół arkusza).
+                                # Priorytet: JAWNA stawka złotowa wprost (stawka_zł × „w tym
+                                # porównawcze"); w jej braku — procent × stawka bazowa × „w tym
+                                # porównawcze" (współczynnik, jak dotychczas).
                                 porown_col_letter = col_map.get(f'{priority_prefix} w tym porównawcze')
                                 _pkey = (row_data['Modalność'], row_data['Procedura'],
                                          row_data['Rodzaj procedury rozlicz.'], row_data['Procedura rozlicz.'],
@@ -1286,11 +1406,10 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                                 zl = zloty_map.get(_pkey)
                                 ratio = ratio_map.get(_pkey)
                                 if porown_col_letter and zl:
-                                    formula += f"+({zl:.10g}*{porown_col_letter}{r_idx})"
+                                    comp_value_parts.append(f"{zl:.10g}*{porown_col_letter}{r_idx}")
                                 elif porown_col_letter and ratio:
-                                    formula += (f"+({ratio:.10g}*{stawka_col_letter}{r_idx}"
-                                                f"*{porown_col_letter}{r_idx})")
-                                cell.value = formula
+                                    comp_value_parts.append(
+                                        f"{ratio:.10g}*{stawka_col_letter}{r_idx}*{porown_col_letter}{r_idx}")
                         else:
                             cell.value = row_data[c_name]
                 current_row += len(m_data)
@@ -1306,7 +1425,44 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                     formula_parts = [f"{col_letter}{r}" for r in subtotal_rows]
                     if formula_parts:
                         ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
-            bill_format_excel_sheet(wb, 'Rozliczenie', data_sections, total_row, grand_totals=True)
+
+            # --- Podsumowanie porównawczych + WSPARCIE (dół arkusza) ---
+            # WARTOŚĆ PORÓWNAWCZYCH = suma zebranych członów (po podtypach).
+            comp_value_formula = "+".join(comp_value_parts) if comp_value_parts else None
+            # ILOŚĆ PORÓWNAWCZYCH TK / MR = suma kolumn „… w tym porównawcze" w wierszu
+            # SUMY danej sekcji modalności (TK / MR).
+            porown_col_letters = [get_column_letter(i + 1)
+                                  for i, c in enumerate(billing_table.columns)
+                                  if str(c).endswith(' w tym porównawcze')]
+
+            def _count_formula(modality):
+                parts = [f"{col}{sub}"
+                         for sec, sub in zip(data_sections, subtotal_rows)
+                         if sec['modalnosc'] == modality
+                         for col in porown_col_letters]
+                return "+".join(parts) if parts else None
+
+            comp_count_tk = _count_formula('TK')
+            comp_count_mr = _count_formula('MR')
+
+            # WSPARCIE — stała kwota z cennika (badanie „WSPARCIE" dla tej jednostki).
+            wsparcie_amount = None
+            try:
+                _klient = str(df_details['Klient'].dropna().iloc[0]).strip()
+                _w = df_prices[
+                    (df_prices['Jednostka'].astype(str).str.strip() == _klient)
+                    & (df_prices['BADANIE'].astype(str).str.upper().str.strip() == 'WSPARCIE')
+                ]
+                if not _w.empty and pd.notna(_w['Cena'].iloc[0]):
+                    wsparcie_amount = float(_w['Cena'].iloc[0])
+            except (KeyError, IndexError, ValueError):
+                wsparcie_amount = None
+
+            bill_format_excel_sheet(
+                wb, 'Rozliczenie', data_sections, total_row, grand_totals=True,
+                comp_value_formula=comp_value_formula,
+                comp_count_tk_formula=comp_count_tk, comp_count_mr_formula=comp_count_mr,
+                wsparcie_amount=wsparcie_amount)
         logs.append(f"✓ Rozliczenie zapisane w pliku: {os.path.basename(output_path)}")
         return logs
     except Exception as e:

@@ -64,7 +64,7 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     import pandas as pd
     from app.engine.billing import (
         build_price_key, bill_extract_multiplier, resolve_unit_price,
-        prepare_adjustments, get_unit_adjustments,
+        prepare_adjustments, get_unit_adjustments, mask_comparative,
     )
     from app.engine.cennik_lekarzy_convert import doctor_key
     from app.engine.doctors import (
@@ -94,6 +94,9 @@ def build_comparison(sprawdzone_dir: str, slownik_path: str,
     doc_prices = load_doctor_prices(doctor_cennik_csv)
 
     df = df.copy()
+    # Bramka per jednostka (lista 'comparative_units') — dopłatę porównawczą liczymy
+    # tylko dla wskazanych jednostek, spójnie z tabelą jednostek/Pulpitem/Fakturami.
+    df = mask_comparative(df)
     df["_mult"] = df["Procedura rozlicz."].map(bill_extract_multiplier)
     # Klucz cenowy jednostki budujemy IDENTYCZNIE jak rozliczenie jednostek/Pulpit:
     # bez flagi „Badania do porównania" (silnik przy grupowaniu zmienia nazwę tej
