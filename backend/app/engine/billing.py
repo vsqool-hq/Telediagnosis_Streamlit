@@ -1261,18 +1261,13 @@ def bill_process_single_file(excel_path, csv_path, output_path):
         if merged['Cena'].isna().any():
             logs.append(f"! OSTRZEŻENIE: Nie znaleziono cen dla {merged['Cena'].isna().sum()} pozycji (po dwóch próbach).")
 
-        # Badania porównawcze: NIE rozbijamy na osobne wiersze — dopłatę porównawczą
-        # wliczamy WPROST w formułę „Wartość" danego wiersza. Dwa warianty stawki
-        # porównawczej (spójne z Pulpitem i Porównaniem):
-        #   • JAWNA stawka złotowa „… PORÓWNAWCZE …" w cenniku → wstawiamy ją WPROST:
-        #       Wartość += stawka_porówn_zł × „w tym porównawcze";
-        #   • gdy jawnej stawki NIE ma (stawka z współczynnika/dziedziczenia) → jak
-        #     dotychczas przez procent:
-        #       Wartość += (stawka_porówn ÷ stawka_bazowa) × Stawka(komórka) × „w tym porównawcze".
-        # Przewaga wariantu złotowego: dopłata nie zależy od (edytowalnej) komórki stawki
-        # bazowej i nalicza się nawet gdy stawka bazowa jest 0/pusta. „w tym porównawcze"
-        # niesie już LICZBĘ badań × okolice. Wariant istnieje tylko dla TK/MR (RTG/MMG
-        # nie mają klucza porównawczego → brak dopłaty).
+        # Stawka porównawcza per badanie: JAWNA „… PORÓWNAWCZE …" z cennika, a gdy jej
+        # brak — dobrana przez dziedziczenie/współczynnik (resolve_unit_price). W obu
+        # przypadkach do podsumowania na dole trafia GOTOWA KWOTA ZŁOTOWA i mnożymy ją
+        # przez „w tym porównawcze" (liczba badań × okolice). NIE wiążemy jej z komórką
+        # stawki bazowej — inaczej formuła wyglądałaby jak „ratio × stawka" (mylące:
+        # przypomina współczynnik, choć wynik = stawka porównawcza z cennika). Wariant
+        # istnieje tylko dla TK/MR (RTG/MMG nie mają klucza porównawczego → brak dopłaty).
         _porown_keys = merged.assign(**{'Badania do porównania': 1}).apply(build_price_key, axis=1)
         _pmap = _prices_to_pmap(df_prices)
         _adj = prepare_adjustments(get_unit_adjustments())
@@ -1289,20 +1284,20 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             _comp_zloty.append(bool(_is_zl))
         merged['Porown_Cena'] = _comp_cena
         merged['Porown_Zloty'] = _comp_zloty
-        # (klucz) -> stawka złotowa (wprost) LUB procent (współczynnik) — rozłącznie.
-        zloty_map, ratio_map = {}, {}
+        # (klucz) -> STAWKA PORÓWNAWCZA (złotowa) — ZAWSZE jako płaska kwota × „w tym
+        # porównawcze". Bez względu na to, czy stawkę wzięto wprost z cennika, czy dobrano
+        # przez dziedziczenie/współczynnik (resolve_unit_price), do podsumowania trafia
+        # gotowa kwota złotowa. NIE wiążemy jej z (edytowalną) komórką stawki bazowej —
+        # inaczej formuła wyglądałaby jak „ratio × stawka" (mylące: przypomina współczynnik,
+        # choć wartość i tak = stawka porównawcza z cennika).
+        comp_price_map = {}
         for _, _mr in merged.iterrows():
             _comp = _mr.get('Porown_Cena') or 0.0
             if _comp <= 0:
                 continue
             _key = (_mr['Modalność'], _mr['Procedura'], _mr['Rodzaj procedury rozlicz.'],
                     _mr['Procedura rozlicz.'], _mr['Priorytet opisu'])
-            if _mr.get('Porown_Zloty'):
-                zloty_map[_key] = float(_comp)                       # jawna stawka złotowa
-            else:
-                _base = _mr.get('Cena')
-                if pd.notna(_base) and _base and _base > 0:
-                    ratio_map[_key] = float(_comp) / float(_base)    # współczynnik (jak dotychczas)
+            comp_price_map[_key] = float(_comp)
 
         merged['Ilość'] = merged['#'] * merged['Mnożnik']
         merged['Wartość'] = np.nan
@@ -1410,13 +1405,10 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                                 _pkey = (row_data['Modalność'], row_data['Procedura'],
                                          row_data['Rodzaj procedury rozlicz.'], row_data['Procedura rozlicz.'],
                                          priority_prefix)
-                                zl = zloty_map.get(_pkey)
-                                ratio = ratio_map.get(_pkey)
-                                if porown_col_letter and _porown_cnt > 0 and zl:
-                                    comp_value_parts.append(f"{zl:.10g}*{porown_col_letter}{r_idx}")
-                                elif porown_col_letter and _porown_cnt > 0 and ratio:
-                                    comp_value_parts.append(
-                                        f"{ratio:.10g}*{stawka_col_letter}{r_idx}*{porown_col_letter}{r_idx}")
+                                comp_price = comp_price_map.get(_pkey)
+                                if porown_col_letter and _porown_cnt > 0 and comp_price:
+                                    # płaska stawka porównawcza × „w tym porównawcze"
+                                    comp_value_parts.append(f"{comp_price:.10g}*{porown_col_letter}{r_idx}")
                         else:
                             cell.value = row_data[c_name]
                 current_row += len(m_data)
