@@ -104,3 +104,60 @@ async def save_converted(conv_id: str, label: str = Form(""), filename: str = Fo
         pass
 
     return db.get_version(version_id)
+
+
+@router.post("/apply-additions")
+async def apply_additions(payload: dict):
+    """Dopisuje zatwierdzone pozycje (jednostka, badanie, kwota) do AKTYWNEGO cennika,
+    tworząc jego KOPIĘ jako nową wersję z dopiskiem „(aneks RRRR-MM-DD)" i aktywując ją.
+    Pozycje pochodzą z propozycji generatora (luki wyrażone kwotą w ZOBOWIĄZANIACH)."""
+    additions = payload.get("additions", [])
+    if not isinstance(additions, list) or not additions:
+        raise HTTPException(400, "Brak pozycji do dodania.")
+    active = db.get_active_version("cennik")
+    if not active:
+        raise HTTPException(400, "Brak aktywnej wersji cennika — nie ma czego kopiować.")
+    src = os.path.join(version_dir("cennik", active["id"]), active["filename"])
+    if not os.path.isfile(src):
+        raise HTTPException(404, "Plik aktywnego cennika nie istnieje.")
+
+    with open(src, encoding="utf-8-sig") as f:
+        text = f.read()
+    if text and not text.endswith("\n"):
+        text += "\n"
+
+    lines = []
+    for a in additions:
+        unit = str(a.get("unit", "")).strip().replace(";", " ").replace("\n", " ")
+        key = str(a.get("key", "")).strip().replace(";", " ").replace("\n", " ")
+        try:
+            amt = float(a.get("amount"))
+        except (TypeError, ValueError):
+            continue
+        if not unit or not key or amt <= 0:
+            continue
+        cena = str(int(amt)) if amt == int(amt) else ("%g" % amt).replace(".", ",")
+        lines.append(f"{key};{unit};{cena}")
+    if not lines:
+        raise HTTPException(400, "Brak poprawnych pozycji do dodania.")
+
+    text += "\n".join(lines) + "\n"
+    data = text.encode("utf-8-sig")
+
+    version_id = uuid.uuid4().hex[:12]
+    vdir = version_dir("cennik", version_id)
+    os.makedirs(vdir, exist_ok=True)
+    filename = active["filename"]
+    with open(os.path.join(vdir, filename), "wb") as out:
+        out.write(data)
+
+    today = datetime.date.today().isoformat()
+    base_label = (active.get("label") or os.path.splitext(filename)[0] or "Cennik").strip()
+    label = f"{base_label} (aneks {today})"
+    db.add_version({
+        "id": version_id, "kind": "cennik", "filename": filename,
+        "original_name": filename, "label": label,
+        "size": len(data), "is_active": 1, "uploaded_at": _now(),
+    })
+    db.set_active_version("cennik", version_id)
+    return {"version": db.get_version(version_id), "added": len(lines)}

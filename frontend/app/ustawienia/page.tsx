@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu, Sliders, Download, Wand2, Loader2 } from "lucide-react";
+import { Save, RotateCcw, Plus, Trash2, X, ArrowRight, CheckCircle2, Cpu, Sliders, Download, Wand2, Loader2, FilePlus2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import BackendSwitcher from "@/components/BackendSwitcher";
@@ -162,33 +162,66 @@ function AdjustmentsEditor({
   const [base, setBase] = useState("");
   const [factor, setFactor] = useState("");
 
-  // Generowanie współczynników z pliku ZOBOWIĄZANIA SZPITALE (propozycja do zatwierdzenia).
+  // Generowanie uzupełnień z pliku ZOBOWIĄZANIA SZPITALE (propozycja do zatwierdzenia).
   const [gen, setGen] = useState<Awaited<ReturnType<typeof api.generateAdjustments>> | null>(null);
   const [genBusy, setGenBusy] = useState(false);
   const [genErr, setGenErr] = useState<string | null>(null);
+  // Zaznaczone dodania do cennika (klucz `${unit}|${key}`) + stan zapisu.
+  const [cennikSel, setCennikSel] = useState<Set<string>>(new Set());
+  const [cennikBusy, setCennikBusy] = useState(false);
+  // Współczynniki, które aktywny cennik już pokrywa (do wyszarzenia jako uśpione).
+  const [redundant, setRedundant] = useState<Set<string>>(new Set());
+
+  async function refreshRedundant() {
+    try {
+      const { redundant } = await api.adjustmentsRedundant();
+      setRedundant(new Set(redundant.map((r) => `${r.unit}|${r.key}`)));
+    } catch { /* brak cennika — nic nie wyszarzamy */ }
+  }
+  useEffect(() => { refreshRedundant(); }, []);
 
   async function onGenFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
     setGenBusy(true); setGenErr(null); setGen(null);
-    try { setGen(await api.generateAdjustments(f)); }
+    try {
+      const r = await api.generateAdjustments(f);
+      setGen(r);
+      setCennikSel(new Set(r.cennik_additions.map((a) => `${a.unit}|${a.key}`))); // domyślnie wszystkie
+    }
     catch (err: any) { setGenErr(err.message); }
     finally { setGenBusy(false); }
   }
   function applyGen(mode: "replace" | "merge") {
     if (!gen) return;
     if (mode === "replace") {
-      onChange(gen.proposal);
+      onChange(gen.coefficients);
     } else {
       const next: AdjMap = { ...value };
-      for (const [u, rules] of Object.entries(gen.proposal)) {
+      for (const [u, rules] of Object.entries(gen.coefficients)) {
         next[u] = { ...(next[u] || {}), ...rules };
       }
       onChange(next);
     }
-    setGen(null);
-    toast(`Wczytano propozycję (${mode === "replace" ? "zastąpiono" : "scalono"}). Kliknij „Zapisz ustawienia”, aby utrwalić.`);
+    toast(`Wczytano współczynniki (${mode === "replace" ? "zastąpiono" : "scalono"}). Kliknij „Zapisz ustawienia”, aby utrwalić.`);
+  }
+  async function applyCennik() {
+    if (!gen) return;
+    const chosen = gen.cennik_additions.filter((a) => cennikSel.has(`${a.unit}|${a.key}`));
+    if (chosen.length === 0) { toast("Nie zaznaczono żadnej pozycji."); return; }
+    if (!confirm(`Utworzyć NOWĄ wersję cennika (kopia aktywnej + ${chosen.length} pozycji) i ją aktywować?`)) return;
+    setCennikBusy(true);
+    try {
+      const { version, added } = await api.applyCennikAdditions(chosen);
+      toast(`Dodano ${added} pozycji. Nowa aktywna wersja cennika: „${version.label}”.`);
+      // usuń zapisane z propozycji i odśwież wyszarzanie (cennik już je pokrywa)
+      const remaining = gen.cennik_additions.filter((a) => !cennikSel.has(`${a.unit}|${a.key}`));
+      setGen({ ...gen, cennik_additions: remaining });
+      setCennikSel(new Set(remaining.map((a) => `${a.unit}|${a.key}`)));
+      refreshRedundant();
+    } catch (err: any) { toast(`Błąd: ${err.message}`); }
+    finally { setCennikBusy(false); }
   }
 
   // Domyślnie pokaż pierwszą jednostkę; trzymaj wybór w granicach dostępnych.
@@ -266,9 +299,15 @@ function AdjustmentsEditor({
                 {ruleKeys.length === 0 && (
                   <tr><td colSpan={4} className="px-2 py-3 text-slate-500">Brak współczynników dla tej jednostki.</td></tr>
                 )}
-                {ruleKeys.map((ex) => (
-                  <tr key={ex} className="border-t border-white/10">
-                    <td className="px-2 py-1.5 font-semibold">{ex}</td>
+                {ruleKeys.map((ex) => {
+                  const dormant = redundant.has(`${unit}|${ex}`);
+                  return (
+                  <tr key={ex} className={`border-t border-white/10 ${dormant ? "opacity-45" : ""}`}
+                      title={dormant ? "Uśpiony — cennik ma już tę stawkę wprost, więc ten współczynnik się nie stosuje." : undefined}>
+                    <td className="px-2 py-1.5 font-semibold">
+                      {ex}
+                      {dormant && <span className="pill pill-muted ml-2 align-middle">w cenniku</span>}
+                    </td>
                     <td className="px-2 py-1.5">
                       <input className="input !py-1" value={rules[ex].base}
                         onChange={(e) => setRule(unit, ex, { ...rules[ex], base: e.target.value })} />
@@ -282,7 +321,8 @@ function AdjustmentsEditor({
                         onClick={() => setRule(unit, ex, null)}><Trash2 size={15} /></button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -320,34 +360,95 @@ function AdjustmentsEditor({
       </div>
 
       <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
-        „Wygeneruj” czyta pełny plik ZOBOWIĄZANIA SZPITALE (arkusze per jednostka) i wylicza współczynniki
-        dla badań pochodnych (PORÓWNAWCZE / ONKO / ANGIO) jako <b>stawka pochodna ÷ stawka bazowa</b> z
-        najnowszego aneksu. Wynik to <b>propozycja</b> — zatwierdzasz ją poniżej, a utrwala dopiero „Zapisz ustawienia”.
+        „Wygeneruj” czyta plik ZOBOWIĄZANIA SZPITALE i proponuje uzupełnienia <b>tylko dla luk</b> —
+        stawek pochodnych (PORÓWNAWCZE / ONKO / ANGIO) z ostatniego aneksu, których <b>brak w aktywnym cenniku</b>.
+        Gdy stawka jest formułą <b>baza × współczynnik</b> → trafia do współczynników; gdy jest kwotą →
+        do <b>dodań do cennika</b> (tworzą nową wersję cennika po zatwierdzeniu). Pozycje, które cennik ma już
+        wprost, są pomijane, a istniejące uśpione współczynniki — wyszarzone powyżej.
       </p>
 
       {genErr && <p className="mt-2 text-sm text-red-300">{genErr}</p>}
 
       {gen && (
-        <div className="soft mt-2 space-y-2 px-3 py-3">
+        <div className="soft mt-2 space-y-3 px-3 py-3">
           {gen.warning
             ? <p className="text-sm text-amber-300">{gen.warning}</p>
             : <p className="text-sm text-slate-200">
-                Wyliczono <b>{gen.stats.rules}</b> współczynników dla <b>{gen.stats.units}</b> jednostek
-                (przeskanowano {gen.stats.sheets_scanned} arkuszy; pochodne bez stawki bazowej pominięte: {gen.stats.skipped_no_base}).
+                Luki do uzupełnienia: <b>{gen.stats.coefficients}</b> współczynników (dla {gen.stats.units} jednostek)
+                oraz <b>{gen.stats.cennik_additions}</b> dodań do cennika. Pominięto {gen.stats.redundant_skipped} pozycji
+                już obecnych w cenniku{gen.stats.no_canon ? `, ${gen.stats.no_canon} nierozpoznanych (wolny tekst)` : ""}
+                {" "}(przeskanowano {gen.stats.sheets_scanned} arkuszy).
               </p>}
-          {!gen.warning && (
-            <div className="flex flex-wrap gap-2">
-              <button className="btn-primary" onClick={() => applyGen("merge")}>
-                <CheckCircle2 size={16} /> Scal z obecnymi (nadpisz wspólne)
-              </button>
-              <button className="btn-secondary" onClick={() => applyGen("replace")}>
-                <RotateCcw size={16} /> Zastąp wszystkie
-              </button>
-              <button className="btn-secondary" onClick={() => setGen(null)}>
-                <X size={16} /> Anuluj
-              </button>
+
+          {!gen.warning && gen.stats.coefficients > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[13px] font-semibold text-slate-200">Współczynniki (formuła baza × k)</p>
+              <div className="flex flex-wrap gap-2">
+                <button className="btn-primary" onClick={() => applyGen("merge")}>
+                  <CheckCircle2 size={16} /> Scal z obecnymi (nadpisz wspólne)
+                </button>
+                <button className="btn-secondary" onClick={() => applyGen("replace")}>
+                  <RotateCcw size={16} /> Zastąp wszystkie
+                </button>
+              </div>
             </div>
           )}
+
+          {!gen.warning && gen.cennik_additions.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[13px] font-semibold text-slate-200">
+                Dodania do cennika (kwoty spoza cennika) — {cennikSel.size}/{gen.cennik_additions.length} zaznaczonych
+              </p>
+              <div className="flex gap-2 text-xs">
+                <button className="btn-secondary !py-1"
+                  onClick={() => setCennikSel(new Set(gen.cennik_additions.map((a) => `${a.unit}|${a.key}`)))}>
+                  Zaznacz wszystkie
+                </button>
+                <button className="btn-secondary !py-1" onClick={() => setCennikSel(new Set())}>Odznacz wszystkie</button>
+              </div>
+              <div className="max-h-64 overflow-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead className="text-slate-400">
+                    <tr>
+                      <th className="px-2 py-1.5"></th>
+                      <th className="px-2 py-1.5 text-left text-xs uppercase">Jednostka</th>
+                      <th className="px-2 py-1.5 text-left text-xs uppercase">Badanie (klucz)</th>
+                      <th className="px-2 py-1.5 text-right text-xs uppercase">Kwota</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gen.cennik_additions.map((a) => {
+                      const id = `${a.unit}|${a.key}`;
+                      return (
+                        <tr key={id} className="border-t border-white/5">
+                          <td className="px-2 py-1.5">
+                            <input type="checkbox" className="h-4 w-4 accent-brand-accent" checked={cennikSel.has(id)}
+                              onChange={() => setCennikSel((prev) => {
+                                const next = new Set(prev);
+                                next.has(id) ? next.delete(id) : next.add(id);
+                                return next;
+                              })} />
+                          </td>
+                          <td className="px-2 py-1.5">{a.unit}</td>
+                          <td className="px-2 py-1.5 font-semibold">{a.key}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{a.amount}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <button className="btn-primary" onClick={applyCennik} disabled={cennikBusy || cennikSel.size === 0}>
+                {cennikBusy ? <Loader2 className="animate-spin" size={16} /> : <FilePlus2 size={16} />}
+                Dodaj zaznaczone do cennika (nowa wersja)
+              </button>
+              <p className="text-[12px] text-slate-500">
+                Utworzy kopię aktywnego cennika z dopiskiem „(aneks data)” i ustawi ją jako aktywną. Przelicz miesiąc ponownie, by użyć nowych stawek.
+              </p>
+            </div>
+          )}
+
+          <button className="btn-secondary" onClick={() => setGen(null)}><X size={16} /> Zamknij propozycję</button>
         </div>
       )}
     </div>

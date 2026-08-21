@@ -764,12 +764,23 @@ export const api = {
     const fd = new FormData();
     fd.append("file", file);
     return req<{
-      proposal: Record<string, Record<string, { base: string; factor: number }>>;
+      coefficients: Record<string, Record<string, { base: string; factor: number }>>;
+      cennik_additions: Array<{ unit: string; key: string; amount: number }>;
       current: Record<string, Record<string, { base: string; factor: number }>>;
-      stats: { units: number; rules: number; skipped_no_base: number; sheets_scanned: number };
+      stats: {
+        units: number; coefficients: number; cennik_additions: number;
+        redundant_skipped: number; no_canon: number; sheets_scanned: number;
+      };
       warning: string | null;
     }>("/api/settings/adjustments/generate", { method: "POST", body: fd });
   },
+  adjustmentsRedundant: () =>
+    req<{ redundant: Array<{ unit: string; key: string }> }>("/api/settings/adjustments/redundant"),
+  applyCennikAdditions: (additions: Array<{ unit: string; key: string; amount: number }>) =>
+    req<{ version: { id: string; label: string; filename: string }; added: number }>(
+      "/api/cennik/apply-additions",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ additions }) },
+    ),
 
   windykacjaList: (params: { period?: string; status?: string; unit?: string } = {}) => {
     const q = new URLSearchParams();

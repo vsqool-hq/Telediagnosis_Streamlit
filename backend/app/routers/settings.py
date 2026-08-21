@@ -147,19 +147,59 @@ async def reseed_adjustments():
     return {"ok": True, "unit_adjustments": seed}
 
 
+def _active_cennik_rows():
+    """Wiersze aktywnego cennika jako (jednostka, BADANIE, cena_str). [] gdy brak."""
+    import os
+    import csv
+    from app.storage import version_dir
+    active = db.get_active_version("cennik")
+    if not active:
+        return []
+    path = os.path.join(version_dir("cennik", active["id"]), active["filename"])
+    rows = []
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8-sig") as f:
+            rd = csv.reader(f, delimiter=";")
+            next(rd, None)  # nagłówek BADANIE;Jednostka;Cena
+            for r in rd:
+                if len(r) >= 3:
+                    rows.append((r[1].strip(), r[0].strip(), r[2].strip()))
+    return rows
+
+
 @router.post("/adjustments/generate")
 async def generate_adjustments_from_file(file: UploadFile = File(...)):
-    """Generuje PROPOZYCJĘ współczynników cen jednostek z pliku ZOBOWIĄZANIA SZPITALE
-    (arkusze per jednostka). Dla każdego badania pochodnego (…PORÓWNAWCZE…/…ONKO/
-    …ANGIO…) liczy factor = stawka_pochodna / stawka_bazowa z najnowszego aneksu.
-    NIE zapisuje — zwraca propozycję do zatwierdzenia w interfejsie. Zapis odbywa się
-    zwykłym PUT /api/settings (po scaleniu/zastąpieniu po stronie klienta)."""
+    """PROPOZYCJA uzupełnień cen z pliku ZOBOWIĄZANIA SZPITALE — TYLKO luki (stawki
+    pochodne z ostatniego aneksu, których BRAK w aktualnym cenniku). Formuła baza×k →
+    współczynnik; literał → dodanie do cennika. Nic nie zapisuje — zwraca propozycję
+    do zatwierdzenia (współczynniki przez PUT /api/settings, dodania przez
+    POST /api/cennik/apply-additions)."""
     from app.engine.adjustments_gen import generate_adjustments
     content = await file.read()
     try:
-        result = generate_adjustments(io.BytesIO(content))
+        result = generate_adjustments(io.BytesIO(content), _active_cennik_rows())
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, f"Nie udało się odczytać pliku: {e}")
-    # bieżące współczynniki — do pokazania różnicy „nowe / zmienione" po stronie klienta
     result["current"] = db.get_settings().get("unit_adjustments", {}) or {}
     return result
+
+
+@router.get("/adjustments/redundant")
+async def adjustments_redundant():
+    """Zwraca współczynniki, które aktualny cennik POKRYWA już wprost (cena > 0) — do
+    wyszarzenia w interfejsie (są uśpione: w resolve_unit_price wygrywa cena z cennika)."""
+    from app.engine.adjustments_gen import _cmp, _unorm
+    per_unit = {}
+    for unit, bad, cena in _active_cennik_rows():
+        try:
+            c = float(str(cena).replace(",", "."))
+        except (TypeError, ValueError):
+            c = 0.0
+        if c > 0:
+            per_unit.setdefault(_unorm(unit), set()).add(_cmp(bad))
+    adj = db.get_settings().get("unit_adjustments", {}) or {}
+    covered = [{"unit": unit, "key": key}
+               for unit, rules in adj.items()
+               for key in rules
+               if _cmp(key) in per_unit.get(_unorm(unit), set())]
+    return {"redundant": covered}
