@@ -91,6 +91,33 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Budzi uśpioną maszynę (Fly `auto_stop_machines = suspend`, scale-to-zero) LEKKIM
+ * żądaniem GET i czeka, aż odpowie — ZANIM wyślemy duży multipart-upload. Wysyłka
+ * pliku do maszyny, która właśnie się wybudza, bywa zrywana na poziomie sieci
+ * („Load failed" / „Failed to fetch"). Dla backendu lokalnego (brak usypiania) to
+ * no-op. Best-effort: po timeoucie po prostu wraca (upload i tak zostanie ponowiony).
+ */
+export async function wakeBackend(timeoutMs = 25000): Promise<void> {
+  if (isLocalBackend()) return;
+  const deadline = Date.now() + timeoutMs;
+  let lastErr: unknown;
+  while (Date.now() < deadline) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 9000);
+      const res = await fetch(API_BASE + "/api/jobs/active", { headers: authHeaders(), signal: ctrl.signal });
+      clearTimeout(t);
+      if (res.ok || res.status === 401) return;   // maszyna odpowiada = wybudzona
+      lastErr = new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  if (lastErr) throw lastErr;
+}
+
 async function reqBlob(path: string, init: RequestInit = {}): Promise<Blob> {
   const res = await fetch(API_BASE + path, {
     ...init,
@@ -600,11 +627,25 @@ export const api = {
       }[];
     }>(`/api/jobs/${id}/daily-check`),
 
-  createJob: (file: File, mode: "full" | "unmatched" | "doctors") => {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("mode", mode);
-    return req<Job>("/api/jobs", { method: "POST", body: fd });
+  createJob: async (file: File, mode: "full" | "unmatched" | "doctors") => {
+    // FormData budujemy na każdą próbę od nowa (świeży strumień ciała przy ponowieniu).
+    const post = () => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("mode", mode);
+      return req<Job>("/api/jobs", { method: "POST", body: fd });
+    };
+    await wakeBackend().catch(() => {});   // obudź uśpioną maszynę przed wysyłką pliku
+    try {
+      return await post();
+    } catch (e) {
+      // Pierwsza próba mogła trafić w wybudzającą się maszynę i zostać zerwana na
+      // poziomie sieci — obudź ponownie i wyślij jeszcze raz. Błędy z odpowiedzią
+      // serwera (np. „Wgraj plik Excel") mają własny komunikat i też tu wpadną, ale
+      // druga próba zwróci ten sam, czytelny komunikat.
+      await wakeBackend().catch(() => {});
+      return await post();
+    }
   },
 
   rerunJob: (id: string, mode?: "full" | "unmatched") =>

@@ -9,6 +9,15 @@ import ReferenceImage from "@/components/ReferenceImage";
 type Phase = "idle" | "running" | "done" | "error";
 type DailyCheck = Awaited<ReturnType<typeof api.dailyCheck>>;
 
+/** Czytelny komunikat dla błędów sieci (surowe „Load failed"/„Failed to fetch" nic nie mówią). */
+function netMsg(e: any): string {
+  const m = String(e?.message || e || "");
+  if (/load failed|failed to fetch|networkerror|aborted/i.test(m)) {
+    return "Nie udało się połączyć z serwerem (mógł się właśnie wybudzać po bezczynności). Poczekaj chwilę i kliknij jeszcze raz — plik zostanie wysłany.";
+  }
+  return m || "Nieznany błąd.";
+}
+
 function fmtDuration(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
@@ -170,14 +179,14 @@ export default function RozliczeniePage() {
   async function run(mode: "full" | "unmatched") {
     if (!file) return;
     setPhase("running");
-    setLogs([]);
+    setLogs(["⏳ Łączę z serwerem i wysyłam plik…"]);
     setError(null);
     setJob(null);
     try {
       const created = await api.createJob(file, mode);
       attach(created.id);
     } catch (e: any) {
-      setError(e.message);
+      setError(netMsg(e));
       setPhase("error");
     }
   }
@@ -194,7 +203,7 @@ export default function RozliczeniePage() {
       const created = await api.rerunJob(jobId, mode);
       attach(created.id);
     } catch (e: any) {
-      setError(e.message);
+      setError(netMsg(e));
       setPhase("error");
     }
   }
