@@ -180,6 +180,18 @@ def compute(job_id: str) -> dict:
             result["commitments_error"] = str(e)
             print(f"! Plik zobowiązań — błąd: {e}", flush=True)
 
+        # Raport KONSULTACJE — LUZEM w paczce (jak Zobowiązania): kto konsultował,
+        # komu (opisujący), po jakiej stawce, jakie badanie/priorytet + wartość.
+        try:
+            from app.engine.doctors import write_consultations_report
+            kpath = os.path.join(pliki_dir, "Konsultacje.xlsx")
+            n = write_consultations_report(result.get("consultations_report", []), kpath)
+            result["consultations_file"] = os.path.basename(kpath) if n else None
+            print(f"✓ Konsultacje.xlsx: {n} pozycji.", flush=True)
+        except Exception as e:  # noqa: BLE001
+            result["consultations_report_error"] = str(e)
+            print(f"! Konsultacje.xlsx — błąd: {e}", flush=True)
+
         result["computed_at"] = _rnow()
         result["_excluded_keys"] = excluded
         _save_cache(paths, "billing.json", result)

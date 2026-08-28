@@ -501,16 +501,23 @@ async def doctor_billing_files(job_id: str):
     Pliki powstają przy „Policz/Przelicz ponownie" rozliczenia lekarzy."""
     paths = job_paths(job_id)
     pliki_dir = os.path.join(_lekarze_dir(paths), "pliki")
-    files = sorted(
-        f for f in glob.glob(os.path.join(pliki_dir, "*.xlsx"))
-        if not os.path.basename(f).startswith("~$")
-    )
-    if not files:
+    # Paczka ma strukturę: formuły/<lekarze>.xlsx, wartości/<lekarze>.xlsx oraz
+    # LUZEM na górze: ZOBOWIĄZANIA … .xlsx i Konsultacje.xlsx. Pakujemy rekursywnie,
+    # zachowując ścieżki względne (podfoldery).
+    entries = []
+    for root, _dirs, fnames in os.walk(pliki_dir):
+        for fn in fnames:
+            if fn.startswith("~$") or not fn.lower().endswith((".xlsx", ".xls")):
+                continue
+            full = os.path.join(root, fn)
+            entries.append((full, os.path.relpath(full, pliki_dir)))
+    if not entries:
         raise HTTPException(404, "Brak plików — najpierw policz rozliczenie lekarzy.")
+    entries.sort(key=lambda t: t[1])
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for p in files:
-            zf.write(p, os.path.basename(p))
+        for full, rel in entries:
+            zf.write(full, rel)
     buf.seek(0)
     # octet-stream (nie „application/zip") — zniechęca Safari do automatycznego
     # rozpakowania po pobraniu, dzięki czemu można wysłać dalej TEN paczkowany ZIP

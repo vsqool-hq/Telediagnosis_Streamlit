@@ -259,6 +259,7 @@ def per_study_consultations(df, cat_map, prices, groups, excluded_keys=None):
         ]
     if "_lek_key" not in d.columns:
         d["_lek_key"] = d[OPISUJACY_COL].map(doctor_key)
+    d["_lek_disp"] = d[OPISUJACY_COL].map(_norm)   # nazwa lekarza OPISUJĄCEGO (do raportu konsultacji)
     d["_kons_key"] = d[KONSULTUJACY_COL].map(doctor_key)
     d["_kons_disp"] = d[KONSULTUJACY_COL].map(_norm)
     d = d[(d["_kons_key"] != "") & (d["_kons_key"] != d["_lek_key"]) & (d["_kategoria"] != "")]
@@ -288,8 +289,8 @@ def per_study_consultations(df, cat_map, prices, groups, excluded_keys=None):
             tryb = f"{int(pct * 100)}%"
             val = stawka * okc * pct
         rec = {c: r[c] for c in keep}
-        rec.update({"_kons_key": kk, "_kons_disp": r["_kons_disp"], "_kategoria": kat,
-                    "_okolice": okc, "_stawka": float(stawka), "_tryb": tryb,
+        rec.update({"_kons_key": kk, "_kons_disp": r["_kons_disp"], "_lek_disp": r["_lek_disp"],
+                    "_kategoria": kat, "_okolice": okc, "_stawka": float(stawka), "_tryb": tryb,
                     "_pct": pct, "_wartosc": round(val, 2), "_src_idx": idx})
         recs.append(rec)
     return pd.DataFrame(recs)
@@ -518,6 +519,62 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
                 .to_dict("records")
             )
 
+    # --- KONSULTACJE 100% → ILOŚCI do pliku ZOBOWIĄZAŃ (jak własne opisy) ----------
+    # Konsultacje rozliczane PO 100% (poza parą: konsultant dostaje 100% SWOJEJ stawki
+    # opisowej — jak gdyby sam opisał to badanie) doliczamy KONSULTANTOWI do okolic per
+    # kategoria. Dzięki temu w pliku zobowiązań (wiersz okolic × stawka opisowa) wchodzą
+    # tak samo jak opisy. Trybów „50%" i „stawka grupy" NIE dokładamy — tam stawka jest
+    # inna niż opisowa, a wiersz zobowiązań liczy po opisowej, więc tylko 100% wyceni się
+    # w nim poprawnie. Ilości sczytujemy zawsze (raport Konsultacje.xlsx niżej).
+    cat_okolice_records = cat_okolice.to_dict("records")
+    if not cons_df.empty:
+        c100 = cons_df[cons_df["_tryb"] == "100%"]
+        if not c100.empty:
+            merged_ok = {(r["lekarz"], r["kategoria"]): dict(r) for r in cat_okolice_records}
+            add = c100.groupby(["_kons_disp", "_kategoria"])["_okolice"].sum().reset_index()
+            for _, r in add.iterrows():
+                key = (r["_kons_disp"], r["_kategoria"])
+                if key in merged_ok:
+                    merged_ok[key]["okolice"] = int(merged_ok[key]["okolice"]) + int(r["_okolice"])
+                else:
+                    merged_ok[key] = {"lekarz": r["_kons_disp"], "kategoria": r["_kategoria"],
+                                      "okolice": int(r["_okolice"])}
+            cat_okolice_records = sorted(merged_ok.values(), key=lambda x: (x["lekarz"], x["kategoria"]))
+            # rozbicie dzienne (dla miesięcy rozbitych aneksem) — data badania z df po _src_idx
+            if _date_col is not None:
+                for _, cr in c100.iterrows():
+                    try:
+                        d = pd.to_datetime(df.loc[cr["_src_idx"], _date_col], errors="coerce")
+                    except (KeyError, TypeError):
+                        d = None
+                    if d is not None and pd.notna(d):
+                        cat_okolice_daily.append({
+                            "lekarz": cr["_kons_disp"], "kategoria": cr["_kategoria"],
+                            "data": d.strftime("%Y-%m-%d"), "okolice": int(cr["_okolice"])})
+
+    # --- Raport KONSULTACJE (wszystkie rozliczone konsultacje, wiersz = badanie) -----
+    # Kto konsultował, komu (opisujący), po jakiej stawce, jakiego badania i priorytetu —
+    # do pliku Konsultacje.xlsx w paczce. „Stawka za konsultację" = stawka × % (kwota
+    # płacona konsultantowi za okolicę); Wartość = × okolice (żeby łatwo zsumować „ile
+    # trafiło do lekarzy z konsultacji").
+    consultations_report = []
+    if not cons_df.empty:
+        _rep = cons_df.copy()
+        _rep["_rate_eff"] = (_rep["_stawka"] * _rep["_pct"]).round(2)
+        _rep = _rep.sort_values(["_kons_disp", "Modalność", "Rodzaj procedury rozlicz.", "Priorytet opisu"])
+        for _, r in _rep.iterrows():
+            consultations_report.append({
+                "Lekarz konsultujący": r["_kons_disp"],
+                "Lekarz opisujący": r.get("_lek_disp", ""),
+                "Stawka za konsultację": float(r["_rate_eff"]),
+                "Tryb": r["_tryb"],
+                "Rodzaj procedury rozlicz.": r["Rodzaj procedury rozlicz."],
+                "Opis badania": r["Procedura"],
+                "Priorytet": r["Priorytet opisu"],
+                "Okolice": int(r["_okolice"]),
+                "Wartość": round(float(r["_wartosc"]), 2),
+            })
+
     value_opis = round(float(ok["wartosc"].sum()), 2)
     return {
         "empty": False,
@@ -525,8 +582,9 @@ def build_doctor_billing(sprawdzone_dir: str, slownik_path: str, doctor_cennik_c
         "by_doctor": by_doctor_records,
         "consultations": consultations,
         "consult_detail": consult_detail,
+        "consultations_report": consultations_report,
         "category_counts": cat_counts.to_dict("records"),
-        "category_okolice": cat_okolice.to_dict("records"),
+        "category_okolice": cat_okolice_records,
         "category_okolice_daily": cat_okolice_daily,
         "validation": {
             "total_studies": int(len(df)),
@@ -618,6 +676,51 @@ def _aggregate_consultations(sub_c):
     return g.rename(columns={"_stawka": "Stawka"})
 
 
+def write_consultations_report(rows: list, out_path: str) -> int:
+    """Zapisuje raport KONSULTACJE (Konsultacje.xlsx) — jeden wiersz na rozliczoną
+    konsultację. Kolumny: Lekarz konsultujący, Lekarz opisujący, Stawka za konsultację,
+    Tryb, Rodzaj procedury rozlicz., Opis badania, Priorytet, Okolice, Wartość + wiersz
+    RAZEM (suma okolic i wartości). Zwraca liczbę pozycji. `rows` = result['consultations_report']."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    cols = ["Lekarz konsultujący", "Lekarz opisujący", "Stawka za konsultację", "Tryb",
+            "Rodzaj procedury rozlicz.", "Opis badania", "Priorytet", "Okolice", "Wartość"]
+    money = '_-* #,##0.00 zł_-;-* #,##0.00 zł_-;_-* "-"??_-;_-@_-'
+    bold = Font(bold=True)
+    head_fill = PatternFill(start_color="CCEAFF", end_color="CCEAFF", fill_type="solid")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Konsultacje"
+    for j, c in enumerate(cols, 1):
+        cell = ws.cell(row=1, column=j, value=c)
+        cell.font = bold
+        cell.fill = head_fill
+    r = 2
+    for row in rows or []:
+        for j, c in enumerate(cols, 1):
+            cell = ws.cell(row=r, column=j, value=row.get(c))
+            if c in ("Stawka za konsultację", "Wartość"):
+                cell.number_format = money
+        r += 1
+    if rows:
+        ws.cell(row=r, column=1, value="RAZEM").font = bold
+        for name in ("Okolice", "Wartość"):
+            col = cols.index(name) + 1
+            L = get_column_letter(col)
+            c = ws.cell(row=r, column=col, value=f"=SUBTOTAL(9,{L}2:{L}{r-1})")
+            c.font = bold
+            if name == "Wartość":
+                c.number_format = money
+    for j, c in enumerate(cols, 1):
+        maxlen = max([len(str(c))] + [len(str((row or {}).get(c, ""))) for row in (rows or [])[:800]])
+        ws.column_dimensions[get_column_letter(j)].width = min(maxlen + 2, 46)
+    wb.save(out_path)
+    return len(rows or [])
+
+
 def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor_cennik_csv: str,
                                   out_dir: str, excluded_keys=None, period_mmyyyy=None,
                                   availability=None) -> dict:
@@ -634,6 +737,7 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
     import shutil
     import numpy as np
     from app.engine.billing import bill_make_grouped, bill_finalize_to_excel
+    from app.engine.formula_eval import evaluate_workbook_to_values
 
     excluded = set(excluded_keys or [])
     df = read_verified_studies(sprawdzone_dir)
@@ -675,9 +779,24 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
     def _raw_consulted(kk):
         return df[(df["_kons_key"] == kk) & (df["_kons_key"] != df["_lek_key"])]
 
-    # świeży katalog wyjściowy
+    # świeży katalog wyjściowy z DWIEMA wersjami każdego pliku:
+    #   formuły/  — pliki z formułami (jak dotąd),
+    #   wartości/ — te same pliki z formułami PRZELICZONYMI na liczby (do dalszej obróbki).
+    # Zobowiązania i Konsultacje.xlsx dokłada doctors_job LUZEM (na górze paczki).
     shutil.rmtree(out_dir, ignore_errors=True)
-    _os.makedirs(out_dir, exist_ok=True)
+    formuly_dir = _os.path.join(out_dir, "formuły")
+    wartosci_dir = _os.path.join(out_dir, "wartości")
+    _os.makedirs(formuly_dir, exist_ok=True)
+    _os.makedirs(wartosci_dir, exist_ok=True)
+
+    def _write_pair(fn, writer):
+        """writer(path) tworzy plik z formułami w formuły/<fn>; my dorabiamy wartości/<fn>."""
+        fpath = _os.path.join(formuly_dir, fn)
+        writer(fpath)
+        try:
+            evaluate_workbook_to_values(fpath, _os.path.join(wartosci_dir, fn))
+        except Exception as e:  # noqa: BLE001
+            print(f'! Wersja „wartości" dla {fn}: {e}', flush=True)
 
     files = []
     described_keys = set()
@@ -736,10 +855,11 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         cons_agg = _aggregate_consultations(cons_by_kons.get(lek_key))
         cons_raw = _raw_consulted(lek_key) if lek_key in cons_by_kons else None
         try:
-            bill_finalize_to_excel(grouped, det, _os.path.join(out_dir, fname),
-                                   for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount,
-                                   consultations=cons_agg, consult_raw=cons_raw,
-                                   row_color=row_color_fn, row_sort_key=row_sort_fn)
+            _write_pair(fname, lambda path: bill_finalize_to_excel(
+                grouped, det, path,
+                for_doctor=True, rate_resolver=_rate, gotowosc_amount=got_amount,
+                consultations=cons_agg, consult_raw=cons_raw,
+                row_color=row_color_fn, row_sort_key=row_sort_fn))
             files.append(fname)
             described_keys.add(lek_key)
         except Exception as e:  # noqa: BLE001
@@ -761,9 +881,10 @@ def generate_doctor_billing_files(sprawdzone_dir: str, slownik_path: str, doctor
         fname = (_safe_filename(f"{period} dr {_surname_first(disp)}") or "dr lekarz") + ".xlsx"
         empty_grouped = pd.DataFrame(columns=empty_cols)
         try:
-            bill_finalize_to_excel(empty_grouped, raw, _os.path.join(out_dir, fname),
-                                   for_doctor=True, consultations=_aggregate_consultations(sub_c),
-                                   row_color=row_color_fn, row_sort_key=row_sort_fn)
+            _write_pair(fname, lambda path, _sc=sub_c: bill_finalize_to_excel(
+                empty_grouped, raw, path,
+                for_doctor=True, consultations=_aggregate_consultations(_sc),
+                row_color=row_color_fn, row_sort_key=row_sort_fn))
             files.append(fname)
         except Exception as e:  # noqa: BLE001
             print(f"BŁĄD tworzenia pliku konsultanta {disp}: {e}", flush=True)
