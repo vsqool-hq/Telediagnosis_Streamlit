@@ -579,8 +579,12 @@ def get_comparative_units():
 def mask_comparative(df, klient_col="Klient", flag_col="Badania do porównania"):
     """
     Zeruje flagę „Badania do porównania" dla jednostek SPOZA listy comparative_units.
-    Dzięki temu dopłata porównawcza znika SPÓJNIE we wszystkich widokach (tabela
-    jednostek, Pulpit, Porównanie, Faktury) — wszystkie liczą ją z tej flagi.
+    Używane w Pulpicie / Porównaniu / Fakturach, gdzie flaga steruje WYŁĄCZNIE
+    KWOTĄ dopłaty (ilość badań liczy się osobno, z # × mnożnik / linii bazowej),
+    więc wyzerowanie flagi = „0 zł za porównawcze", a badania i tak są policzone.
+    UWAGA: tabela jednostek (bill_process_single_file) NIE używa tej funkcji —
+    tam bramkę stosujemy tylko do członu kwotowego (_comp_bill_allowed), by ILOŚCI
+    PORÓWNAWCZYCH TK/MR i oznaczenia na „Szczegółowych" zostały nietknięte.
     Gdy lista nieustawiona (None) — nie zmienia niczego (zachowanie jak dawniej).
     Modyfikuje i zwraca `df`.
     """
@@ -1217,9 +1221,15 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             df_details['Badania do porównania'] = 0
         df_details['Badania do porównania'] = pd.to_numeric(df_details['Badania do porównania'], errors='coerce').fillna(0)
 
-        # Bramka per jednostka: dla jednostek spoza listy 'comparative_units' zerujemy
-        # flagę porównawczą — dopłaty (drugiego członu formuły) się nie nalicza.
-        df_details = mask_comparative(df_details)
+        # Bramka per jednostka (lista 'comparative_units') — WYŁĄCZNIE dla KWOTY.
+        # Dla jednostek SPOZA listy nie naliczamy WARTOŚCI za porównawcze (RAZEM
+        # WARTOŚĆ PORÓWNAWCZYCH = 0 zł, bez względu na ilość), ale same badania
+        # porównawcze ZOSTAJĄ: flagi NIE zerujemy, więc na „Szczegółowych" nadal są
+        # oznaczone, a na „Rozliczeniu" nadal liczą się ILOŚCI PORÓWNAWCZYCH TK/MR.
+        # (Plik jest per jednostka — split po Kliencie — więc to jeden przełącznik.)
+        _comp_allowed_units = get_comparative_units()
+        _units_in_file = {_norm_unit(u) for u in df_details['Klient'].dropna().unique()}
+        _comp_bill_allowed = (_comp_allowed_units is None) or bool(_units_in_file & _comp_allowed_units)
 
         # Porównawcze przemnażamy przez okolice JUŻ NA SZCZEGÓŁOWYCH (per opis): opis
         # porównawczy N-okolicowy liczy się jak N. Rozliczenie zaciąga potem gotową
@@ -1406,7 +1416,10 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                                          row_data['Rodzaj procedury rozlicz.'], row_data['Procedura rozlicz.'],
                                          priority_prefix)
                                 comp_price = comp_price_map.get(_pkey)
-                                if porown_col_letter and _porown_cnt > 0 and comp_price:
+                                # Człon KWOTOWY doliczamy tylko gdy jednostka jest na liście
+                                # 'comparative_units' (_comp_bill_allowed). Poza listą kwota = 0,
+                                # ale ILOŚCI porównawczych i tak zliczamy (osobne formuły niżej).
+                                if porown_col_letter and _porown_cnt > 0 and comp_price and _comp_bill_allowed:
                                     # płaska stawka porównawcza × „w tym porównawcze"
                                     comp_value_parts.append(f"{comp_price:.10g}*{porown_col_letter}{r_idx}")
                         else:
