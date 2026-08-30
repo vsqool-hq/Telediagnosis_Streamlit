@@ -452,6 +452,21 @@ def base_price_key(badanie):
 
 _PRIORITY_LADDER = ["CITO", "PILNE", "PLANOWE"]
 
+# Złożone tiery „CITO" (własne, wyższe stawki) — gdy jednostka nie ma dla nich
+# osobnej stawki, wyceniamy jak zwykłe „CITO" tej samej struktury klucza. Zwijanie
+# robi resolve_unit_price REKURENCYJNIE (nie w _fallback_keys), żeby po drodze zadziałały
+# współczynniki/_inne/ONKO→baza — inaczej pominęlibyśmy np. współczynnik na „TK ANGIO CITO".
+_COMPOUND_CITO = ("CITO NA RATUNEK", "CITO-UDAR")
+
+
+def _collapse_compound_cito(badanie: str) -> str:
+    """'TK CITO NA RATUNEK ONKO' → 'TK CITO ONKO', 'MR CITO-UDAR GŁ/KRG angio' →
+    'MR CITO GŁ/KRG angio'. Zwraca ten sam string, gdy klucz nie ma złożonego CITO."""
+    out = str(badanie)
+    for tok in _COMPOUND_CITO:
+        out = re.sub(rf"\b{re.escape(tok)}\b", "CITO", out)
+    return re.sub(r"\s+", " ", out).strip()
+
 
 def _fallback_keys(badanie):
     """
@@ -681,6 +696,20 @@ def resolve_unit_price(pmap, klient, badanie, adj_by_unit=None, _seen=None):
     ip = _inne_price(bk)
     if ip is not None:
         return ip
+
+    # Złożony tier CITO (CITO NA RATUNEK / CITO-UDAR) bez własnej stawki → wycena jak
+    # zwykłe CITO tej samej struktury. Rekurencyjnie przez pełne resolve, więc łapie
+    # też współczynniki i dziedziczenie ONKO/ANGIO na kluczu CITO (inaczej pominęlibyśmy
+    # np. współczynnik na „TK ANGIO CITO"). Ma pierwszeństwo przed drabinką priorytetów.
+    collapsed = _collapse_compound_cito(bk)
+    if collapsed != bk:
+        seen = _seen if _seen is not None else set()
+        if collapsed not in seen:
+            seen.add(bk)
+            pc = resolve_unit_price(pmap, klient, collapsed, adj_by_unit, seen)
+            if pc is not None and pd.notna(pc) and pc > 0:
+                return pc
+
     for fb in _fallback_keys(badanie):
         bc = pmap.get((k, fb))
         if bc is not None and pd.notna(bc) and bc > 0:

@@ -35,13 +35,15 @@ DEFAULT_CONFIG = {
         },
     },
 
-    # Mapowanie priorytetu opisu na sufiks cennikowy
+    # Mapowanie priorytetu opisu na sufiks cennikowy.
+    # UWAGA: „CITO NA RATUNEK" i „CITO-UDAR" NIE są tu zwijane do „CITO" — to osobne
+    # tiery z własnymi stawkami w cenniku (klucz np. „TK CITO NA RATUNEK", „TK CITO-UDAR").
+    # Gdy jednostka nie ma osobnej stawki, silnik i tak zejdzie do zwykłego „CITO"
+    # (fallback w _fallback_keys), więc brak stawki nie zeruje pozycji.
     "priority_map": {
         "CITO-CITO": "CITO",
         "Pilny": "PILNE",
         "Planowy": "PLANOWE",
-        "CITO NA RATUNEK": "CITO",
-        "CITO-UDAR": "CITO",
         "Bardzo pilny": "PILNE",
     },
 
