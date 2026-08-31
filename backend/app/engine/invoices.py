@@ -218,6 +218,73 @@ def _parse_date(s) -> _dt.date | None:
     return None
 
 
+# --- Łączenie podjednostek (jedna faktura dla wspólnego kontrahenta) ---------
+def build_subunit_parent_map(slownik: dict) -> dict:
+    """Z pola 'subunits' rekordów Słownika buduje mapę {podjednostka: rodzic}.
+    Podjednostka (inna nazwa skrócona) trafia na fakturę rodzica — tego samego
+    pełnego kontrahenta — zamiast dostawać własną, osobną fakturę."""
+    m = {}
+    for parent, rec in (slownik or {}).items():
+        if not isinstance(rec, dict):
+            continue
+        for sub in rec.get("subunits") or []:
+            sub = str(sub).strip()
+            if sub and sub != parent:
+                m[sub] = parent
+    return m
+
+
+def _ultimate_parent(unit: str, sub2parent: dict) -> str:
+    """Rodzic docelowy (obsługa łańcucha A←B←C oraz ochrona przed cyklem)."""
+    seen, cur = set(), unit
+    while cur in sub2parent and cur not in seen:
+        seen.add(cur)
+        cur = sub2parent[cur]
+    return cur
+
+
+def merge_subunits(lines_by_unit: dict, wsparcie_by_unit: dict, slownik: dict):
+    """Łączy podjednostki do faktury jednostki-rodzica: pozycje sklejamy (agregując
+    identyczne badanie+cena — sumujemy ilości; różne ceny zostają osobno), a WSPARCIE
+    sumujemy. Zwraca (lines_by_unit, wsparcie_by_unit, merged_into), gdzie
+    merged_into = {rodzic: [podjednostki, które faktycznie coś wniosły]}.
+    Bez zdefiniowanych podjednostek zwraca wejście bez zmian."""
+    sub2parent = build_subunit_parent_map(slownik)
+    if not sub2parent:
+        return lines_by_unit, wsparcie_by_unit, {}
+
+    agg, order, merged = {}, {}, {}
+    for unit, lines in (lines_by_unit or {}).items():
+        tgt = _ultimate_parent(unit, sub2parent)
+        d = agg.setdefault(tgt, {})
+        o = order.setdefault(tgt, [])
+        for l in lines:
+            key = (l["badanie"], round(float(l["cena"]), 4))
+            if key not in d:
+                d[key] = 0
+                o.append(key)
+            d[key] += int(l["ilosc"])
+        if unit != tgt and lines:
+            merged.setdefault(tgt, set()).add(unit)
+
+    out_wsp = {}
+    for unit, w in (wsparcie_by_unit or {}).items():
+        if not (w and float(w) > 0):
+            continue
+        tgt = _ultimate_parent(unit, sub2parent)
+        out_wsp[tgt] = round(out_wsp.get(tgt, 0.0) + float(w), 2)
+        if unit != tgt:
+            merged.setdefault(tgt, set()).add(unit)
+
+    out_lines = {}
+    for tgt, d in agg.items():
+        out_lines[tgt] = [{"badanie": k[0], "ilosc": d[k], "cena": k[1]} for k in order[tgt]]
+    for tgt in out_wsp:
+        out_lines.setdefault(tgt, [])
+    merged_into = {p: sorted(s) for p, s in merged.items()}
+    return out_lines, out_wsp, merged_into
+
+
 # --- Budowa skoroszytu ------------------------------------------------------
 def build_invoice_workbook(
     lines_by_unit: dict,

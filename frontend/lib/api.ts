@@ -148,6 +148,7 @@ export interface InvoiceUnit {
   city: string;
   payment_term_days: number;
   alt_name: string;
+  subunits?: string[];   // podjednostki łączone na TĘ SAMĄ fakturę (wspólny kontrahent)
 }
 
 export interface InvoicePreviewRow {
@@ -156,6 +157,7 @@ export interface InvoicePreviewRow {
   wsparcie?: number | null;
   total: number;
   in_slownik: boolean;
+  merged?: string[];     // podjednostki wliczone do tej faktury
 }
 
 export interface InvoicePreview {

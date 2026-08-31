@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   FileSpreadsheet, Download, Loader2, AlertTriangle, CheckCircle2,
-  Plus, Trash2, Search, Save, CalendarClock,
+  Plus, Trash2, Search, Save, CalendarClock, Link2, X,
 } from "lucide-react";
 import { api, InvoiceMonth, InvoiceUnit, InvoicePreview } from "@/lib/api";
 import { toast } from "@/lib/toast";
@@ -190,6 +190,11 @@ function WystawTab() {
                         {!u.in_slownik && (
                           <span className="ml-2 text-xs text-amber-300">(brak w Słowniku)</span>
                         )}
+                        {u.merged && u.merged.length > 0 && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-xs text-sky-300">
+                            <Link2 size={12} /> + {u.merged.join(", ")}
+                          </span>
+                        )}
                       </td>
                       <td className="py-1.5 pr-3 text-right">{u.positions}</td>
                       <td className="py-1.5 pr-3 text-right">{u.wsparcie ? zl(u.wsparcie) : "—"}</td>
@@ -214,8 +219,59 @@ function WystawTab() {
 // ---------------------------------------------------------------------------
 const EMPTY_UNIT: InvoiceUnit = {
   system_name: "", full_name: "", address: "", postal_code: "", city: "",
-  payment_term_days: 14, alt_name: "",
+  payment_term_days: 14, alt_name: "", subunits: [],
 };
+
+// Wybór podjednostek (innych nazw skróconych) łączonych na TĘ SAMĄ fakturę.
+function SubunitsPicker({
+  value, candidates, onChange,
+}: { value: string[]; candidates: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return candidates.filter((c) => !s || c.toLowerCase().includes(s));
+  }, [candidates, q]);
+  function toggle(name: string) {
+    onChange(value.includes(name) ? value.filter((x) => x !== name) : [...value, name]);
+  }
+  return (
+    <div className="relative">
+      <button type="button" className="btn-secondary !py-1 !px-2 !text-xs"
+        onClick={() => setOpen((o) => !o)}>
+        <Link2 size={13} /> {value.length ? `${value.length} podjedn.` : "Dodaj…"}
+      </button>
+      {value.length > 0 && (
+        <div className="mt-1 flex max-w-56 flex-wrap gap-1">
+          {value.map((v) => (
+            <span key={v} className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px]">
+              {v}
+              <button type="button" className="text-slate-400 hover:text-red-300" onClick={() => toggle(v)}>
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1 max-h-64 w-60 overflow-auto rounded border border-white/10 bg-slate-800 p-2 shadow-xl">
+            <input className="input !mb-2 !w-full !py-1 !text-xs" placeholder="Szukaj jednostki…"
+              value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+            {filtered.map((c) => (
+              <label key={c} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-white/5">
+                <input type="checkbox" checked={value.includes(c)} onChange={() => toggle(c)} />
+                {c}
+              </label>
+            ))}
+            {filtered.length === 0 && <div className="px-1 py-2 text-xs text-slate-500">brak jednostek</div>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function SlownikTab() {
   const [units, setUnits] = useState<InvoiceUnit[]>([]);
@@ -249,6 +305,10 @@ function SlownikTab() {
       };
       return copy;
     });
+  }
+
+  function patchUnit(u: InvoiceUnit, patch: Partial<InvoiceUnit>) {
+    setUnits((arr) => arr.map((x) => (x === u ? { ...x, ...patch } : x)));
   }
 
   function addUnit() {
@@ -289,6 +349,15 @@ function SlownikTab() {
         </button>
       </div>
 
+      <p className="flex items-center gap-1.5 text-xs text-slate-400">
+        <Link2 size={13} className="text-sky-300" />
+        <span>
+          <b className="text-slate-300">Podjednostki</b>: gdy kilka nazw skróconych to ten sam kontrahent,
+          dodaj je do jednostki-rodzica — trafią na <b className="text-slate-300">jedną wspólną fakturę</b>
+          {" "}(pozycje sklejone, WSPARCIE zsumowane), zamiast osobnych faktur.
+        </span>
+      </p>
+
       {loading ? (
         <div className="flex items-center gap-2 text-slate-400"><Loader2 size={18} className="animate-spin" /> Wczytuję…</div>
       ) : (
@@ -302,6 +371,7 @@ function SlownikTab() {
                 <th className="py-2 pr-2">Kod</th>
                 <th className="py-2 pr-2">Miejscowość</th>
                 <th className="py-2 pr-2 text-right">Termin [dni]</th>
+                <th className="py-2 pr-2">Podjednostki (jedna faktura)</th>
                 <th className="py-2 pr-2"></th>
               </tr>
             </thead>
@@ -334,13 +404,20 @@ function SlownikTab() {
                       onChange={(e) => update(i, "payment_term_days", e.target.value)} />
                   </td>
                   <td className="py-1 pr-2">
+                    <SubunitsPicker
+                      value={u.subunits || []}
+                      candidates={units.filter((x) => x !== u && x.system_name.trim())
+                        .map((x) => x.system_name).sort((a, b) => a.localeCompare(b))}
+                      onChange={(v) => patchUnit(u, { subunits: v })} />
+                  </td>
+                  <td className="py-1 pr-2">
                     <button className="text-slate-500 hover:text-red-400" title="Usuń"
                       onClick={() => removeUnit(u)}><Trash2 size={16} /></button>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="py-4 text-center text-slate-500">Brak jednostek.</td></tr>
+                <tr><td colSpan={8} className="py-4 text-center text-slate-500">Brak jednostek.</td></tr>
               )}
             </tbody>
           </table>

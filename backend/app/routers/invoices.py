@@ -41,6 +41,14 @@ def _clean_unit_record(rec: dict) -> dict:
                 out[f] = 14
         else:
             out[f] = str(v or "").strip()
+    # Podjednostki: inne nazwy skrócone, które mają trafić na TĘ SAMĄ fakturę
+    # (wspólny pełny kontrahent). Lista nazw systemowych, bez pustych i bez self.
+    name = str(rec.get("system_name", "")).strip()
+    subs = rec.get("subunits")
+    if isinstance(subs, list):
+        out["subunits"] = sorted({str(s).strip() for s in subs if str(s).strip() and str(s).strip() != name})
+    else:
+        out["subunits"] = []
     return out
 
 
@@ -71,6 +79,19 @@ async def save_units(payload: dict):
         if not name:
             continue
         slownik[name] = _clean_unit_record(u)
+
+    # Podjednostka może należeć tylko do JEDNEGO rodzica (inaczej podwójna faktura).
+    # Pierwszy rodzic wygrywa. Podjednostka nie musi mieć własnego wpisu w Słowniku
+    # (typowo to jednostka rozliczana, dla której nie wypełniamy danych nabywcy).
+    claimed = set()
+    for pname, rec in slownik.items():
+        keep = []
+        for s in rec.get("subunits") or []:
+            if s == pname or s in claimed:
+                continue
+            claimed.add(s)
+            keep.append(s)
+        rec["subunits"] = keep
 
     settings = db.get_settings()
     settings["invoice_slownik"] = slownik
@@ -135,12 +156,14 @@ def _resolve_job(job_id: str | None, period: str | None) -> str:
 # --- Podgląd (co zostanie wystawione) --------------------------------------
 @router.get("/preview")
 async def preview(job_id: str | None = None, period: str | None = None):
-    from app.engine.invoices import compute_invoice_lines
+    from app.engine.invoices import compute_invoice_lines, merge_subunits
 
     jid = _resolve_job(job_id, period)
     paths = job_paths(jid)
     lines_by_unit, wsparcie_by_unit = compute_invoice_lines(paths["wynik"], _cennik_dir_for_job(jid))
     slownik = _get_slownik()
+    # Łączenie podjednostek: jedna faktura dla wspólnego kontrahenta.
+    lines_by_unit, wsparcie_by_unit, merged_into = merge_subunits(lines_by_unit, wsparcie_by_unit, slownik)
 
     rows = []
     for unit in sorted(lines_by_unit.keys()):
@@ -153,6 +176,7 @@ async def preview(job_id: str | None = None, period: str | None = None):
             "wsparcie": wsp or None,
             "total": round(total, 2),
             "in_slownik": unit in slownik,
+            "merged": merged_into.get(unit, []),
         })
     return {
         "units": rows,
@@ -165,7 +189,7 @@ async def preview(job_id: str | None = None, period: str | None = None):
 @router.post("/generate")
 async def generate(payload: dict):
     from app.engine.invoices import (compute_invoice_lines, build_invoice_workbook,
-                                      last_day_of_period, DEFAULT_BANK_ACCOUNT)
+                                      merge_subunits, last_day_of_period, DEFAULT_BANK_ACCOUNT)
 
     job_id = payload.get("job_id")
     period = payload.get("period")
@@ -193,6 +217,8 @@ async def generate(payload: dict):
 
     settings = db.get_settings()
     slownik = settings.get("invoice_slownik") or {}
+    # Łączenie podjednostek: jedna faktura dla wspólnego kontrahenta (przed budową pliku).
+    lines_by_unit, wsparcie_by_unit, _merged = merge_subunits(lines_by_unit, wsparcie_by_unit, slownik)
     bank = str(settings.get("invoice_bank_account") or DEFAULT_BANK_ACCOUNT).strip() or DEFAULT_BANK_ACCOUNT
 
     wb, meta = build_invoice_workbook(
