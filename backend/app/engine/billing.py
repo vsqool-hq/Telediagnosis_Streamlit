@@ -450,45 +450,40 @@ def base_price_key(badanie):
     return out if out != k else None
 
 
+# Premium tiery „CITO" (własne, wyższe stawki: „na ratunek" / „udar") — traktowane
+# jak zwykły poziom priorytetu NAD „CITO". Schodzą do: CITO → PILNE → PLANOWE.
+_PREMIUM_CITO = ["CITO NA RATUNEK", "CITO-UDAR"]
 _PRIORITY_LADDER = ["CITO", "PILNE", "PLANOWE"]
-
-# Złożone tiery „CITO" (własne, wyższe stawki) — gdy jednostka nie ma dla nich
-# osobnej stawki, wyceniamy jak zwykłe „CITO" tej samej struktury klucza. Zwijanie
-# robi resolve_unit_price REKURENCYJNIE (nie w _fallback_keys), żeby po drodze zadziałały
-# współczynniki/_inne/ONKO→baza — inaczej pominęlibyśmy np. współczynnik na „TK ANGIO CITO".
-_COMPOUND_CITO = ("CITO NA RATUNEK", "CITO-UDAR")
-
-
-def _collapse_compound_cito(badanie: str) -> str:
-    """'TK CITO NA RATUNEK ONKO' → 'TK CITO ONKO', 'MR CITO-UDAR GŁ/KRG angio' →
-    'MR CITO GŁ/KRG angio'. Zwraca ten sam string, gdy klucz nie ma złożonego CITO."""
-    out = str(badanie)
-    for tok in _COMPOUND_CITO:
-        out = re.sub(rf"\b{re.escape(tok)}\b", "CITO", out)
-    return re.sub(r"\s+", " ", out).strip()
+# Pełna drabinka od najwyższego priorytetu w dół (premium na górze).
+_FULL_PRIORITY_LADDER = _PREMIUM_CITO + _PRIORITY_LADDER
 
 
 def _fallback_keys(badanie):
     """
     Klucze zastępcze (w kolejności prób), gdy stawka jednostki dla danego badania
-    jest 0/pusta. Drabinka potwierdzona przez klienta (dotyczy MR, TK i RTG):
-      1) wariant ONKO/ANGIO → GŁÓWNA cena badania (klucz bazowy, ten sam priorytet),
-         np. 'MR PILNE GŁ/KRG ONKO' → 'MR PILNE GŁ/KRG', 'TK CITO ONKO' → 'TK CITO';
-      2) schodzenie po priorytetach W DÓŁ: CITO → PILNE → PLANOWE, przy TEJ SAMEJ
-         okolicy/układzie klucza, np. 'MR PILNE GŁ/KRG' → 'MR PLANOWE GŁ/KRG',
-         'TK CITO' → 'TK PILNE' → 'TK PLANOWE'.
-      Nigdy w górę (z PLANOWE nie bierzemy PILNE). Obejmuje też dawne specjalne
-      przypadki MR CITO→MR PILNE i RTG CITO→RTG PILNE (pierwszy szczebel drabinki).
+    jest 0/pusta. Kolejność (dotyczy MR, TK i RTG) — dla KAŻDEGO priorytetu identyczna:
+      1) wariant ONKO/ANGIO → GŁÓWNA cena badania (klucz bazowy, TEN SAM priorytet),
+         np. 'MR PILNE GŁ/KRG ONKO' → 'MR PILNE GŁ/KRG', 'TK CITO ONKO' → 'TK CITO',
+         'TK ANGIO CITO-UDAR' → 'TK CITO-UDAR';
+      2) schodzenie po priorytetach W DÓŁ, na kluczu JUŻ bez ONKO/ANGIO:
+         CITO NA RATUNEK / CITO-UDAR → CITO → PILNE → PLANOWE, przy tej samej okolicy,
+         np. 'TK CITO-UDAR' → 'TK CITO' → 'TK PILNE' → 'TK PLANOWE'.
+      Premium tiery („na ratunek"/„udar") są zwykłym poziomem priorytetu NAD CITO —
+      najpierw zdejmujemy ONKO/ANGIO, dopiero potem schodzimy z priorytetu (spójnie
+      z pozostałymi). Nigdy w górę (z PLANOWE nie bierzemy PILNE), nigdy do drugiego
+      premium (z „udar" nie bierzemy „na ratunek").
     """
     b = str(badanie).strip()
     out = []
     base = base_price_key(b) or b      # bez ONKO/ANGIO (ten sam priorytet)
     if base != b:
         out.append(base)
-    for i, prio in enumerate(_PRIORITY_LADDER):
-        if re.search(rf"\b{prio}\b", base):
-            for lower in _PRIORITY_LADDER[i + 1:]:
-                out.append(re.sub(rf"\b{prio}\b", lower, base))
+    for i, prio in enumerate(_FULL_PRIORITY_LADDER):
+        if re.search(rf"\b{re.escape(prio)}\b", base):
+            # niższe tiery; nigdy nie schodzimy DO premium (tylko CITO/PILNE/PLANOWE)
+            lowers = [p for p in _FULL_PRIORITY_LADDER[i + 1:] if p not in _PREMIUM_CITO]
+            for lower in lowers:
+                out.append(re.sub(rf"\b{re.escape(prio)}\b", lower, base))
             break
     seen, res = set(), []
     for k in out:
@@ -696,19 +691,6 @@ def resolve_unit_price(pmap, klient, badanie, adj_by_unit=None, _seen=None):
     ip = _inne_price(bk)
     if ip is not None:
         return ip
-
-    # Złożony tier CITO (CITO NA RATUNEK / CITO-UDAR) bez własnej stawki → wycena jak
-    # zwykłe CITO tej samej struktury. Rekurencyjnie przez pełne resolve, więc łapie
-    # też współczynniki i dziedziczenie ONKO/ANGIO na kluczu CITO (inaczej pominęlibyśmy
-    # np. współczynnik na „TK ANGIO CITO"). Ma pierwszeństwo przed drabinką priorytetów.
-    collapsed = _collapse_compound_cito(bk)
-    if collapsed != bk:
-        seen = _seen if _seen is not None else set()
-        if collapsed not in seen:
-            seen.add(bk)
-            pc = resolve_unit_price(pmap, klient, collapsed, adj_by_unit, seen)
-            if pc is not None and pd.notna(pc) and pc > 0:
-                return pc
 
     for fb in _fallback_keys(badanie):
         bc = pmap.get((k, fb))
