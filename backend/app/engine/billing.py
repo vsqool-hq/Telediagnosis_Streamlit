@@ -757,7 +757,7 @@ def porownawcze_surcharge(grouped, df_prices, klient_col="Klient", flag_col="Por
 
 
 def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None, grand_totals=None, for_doctor=False, gotowosc_amount=None, row_color=None,
-                            comp_value_formula=None, comp_count_tk_formula=None, comp_count_mr_formula=None, wsparcie_amount=None):
+                            comp_value_spec=None, comp_count_tk_formula=None, comp_count_mr_formula=None, wsparcie_amount=None):
     ws = workbook[sheet_name]
     priority_colors = PRIORITY_COLORS
     procedure_type_colors = PROCEDURE_TYPE_COLORS
@@ -910,8 +910,21 @@ def bill_format_excel_sheet(workbook, sheet_name, data_sections, total_row=None,
                 cell.fill = medium_blue_fill
 
             if units_extra:
-                # RAZEM WARTOŚĆ PORÓWNAWCZYCH — dopłata liczona zbiorczo (suma po
-                # podtypach: stawka_porówn × „w tym porównawcze"), zamiast per wiersz.
+                # RAZEM WARTOŚĆ PORÓWNAWCZYCH — dopłata liczona zbiorczo per modalność.
+                # Gdy w danej modalności jest JEDNA stawka porównawcza (i brak porównawczych
+                # bez stawki) → krótka formuła: stawka × ILOŚĆ PORÓWNAWCZYCH {TK/MR} (komórka
+                # podsumowania — obejmuje też CITO-UDAR/CITO NA RATUNEK). Gdy stawki są różne
+                # → człony per wiersz (stawka_i × „w tym porównawcze"). comp_value_spec:
+                # {mod: {'uniform_rate': float|None, 'parts': [str,...]}}.
+                _count_cell = {"TK": f"B{comp_tk_row}", "MR": f"B{comp_mr_row}"}
+                _terms = []
+                for _mod, _spec in (comp_value_spec or {}).items():
+                    _rate = _spec.get("uniform_rate")
+                    if _rate is not None and _mod in _count_cell:
+                        _terms.append(f"{_rate:.10g}*{_count_cell[_mod]}")
+                    else:
+                        _terms.extend(_spec.get("parts") or [])
+                comp_value_formula = "+".join(_terms) if _terms else None
                 ws.cell(row=comp_val_row, column=1).value = "RAZEM WARTOŚĆ PORÓWNAWCZYCH:"
                 ws.cell(row=comp_val_row, column=1).font = bold_font
                 c = ws.cell(row=comp_val_row, column=2)
@@ -1369,9 +1382,12 @@ def bill_process_single_file(excel_path, csv_path, output_path):
             modalnosci = sorted(billing_table['Modalność'].unique())
             data_sections, current_row = [], 1
             subtotal_rows = []
-            # Człony dopłaty porównawczej — zbieramy je z każdego wiersza i doliczamy
-            # ZBIORCZO na dole (WARTOŚĆ PORÓWNAWCZYCH), zamiast w formule per wiersz.
-            comp_value_parts = []
+            # Człony dopłaty porównawczej — zbierane PER MODALNOŚĆ. Dla każdej modalności
+            # trzymamy: człony per wiersz (parts), zbiór użytych stawek (rates) i flagę
+            # 'unrated' (są porównawcze bez stawki → nie wolno użyć skrótu stawka×ilość).
+            # Na dole (bill_format_excel_sheet): jedna stawka → stawka × ILOŚĆ PORÓWNAWCZYCH
+            # {TK/MR}; różne stawki → suma członów per wiersz.
+            comp_by_mod = {}
 
             for m in modalnosci:
                 m_data = billing_table[billing_table['Modalność'] == m].copy()
@@ -1430,9 +1446,19 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                                 # Człon KWOTOWY doliczamy tylko gdy jednostka jest na liście
                                 # 'comparative_units' (_comp_bill_allowed). Poza listą kwota = 0,
                                 # ale ILOŚCI porównawczych i tak zliczamy (osobne formuły niżej).
-                                if porown_col_letter and _porown_cnt > 0 and comp_price and _comp_bill_allowed:
-                                    # płaska stawka porównawcza × „w tym porównawcze"
-                                    comp_value_parts.append(f"{comp_price:.10g}*{porown_col_letter}{r_idx}")
+                                if porown_col_letter and _porown_cnt > 0 and _comp_bill_allowed:
+                                    _mod = row_data['Modalność']
+                                    _info = comp_by_mod.setdefault(
+                                        _mod, {"parts": [], "rates": set(), "rate_val": None, "unrated": False})
+                                    if comp_price:
+                                        # płaska stawka porównawcza × „w tym porównawcze"
+                                        _info["parts"].append(f"{comp_price:.10g}*{porown_col_letter}{r_idx}")
+                                        _info["rates"].add(round(float(comp_price), 6))
+                                        _info["rate_val"] = float(comp_price)
+                                    else:
+                                        # porównawcze bez stawki (brak klucza porównawczego w cenniku)
+                                        # → per wiersz i tak dodaje 0; blokuje skrót stawka×ilość.
+                                        _info["unrated"] = True
                         else:
                             cell.value = row_data[c_name]
                 current_row += len(m_data)
@@ -1450,8 +1476,19 @@ def bill_process_single_file(excel_path, csv_path, output_path):
                         ws.cell(row=total_row, column=c_idx).value = f"={'+'.join(formula_parts)}"
 
             # --- Podsumowanie porównawczych + WSPARCIE (dół arkusza) ---
-            # WARTOŚĆ PORÓWNAWCZYCH = suma zebranych członów (po podtypach).
-            comp_value_formula = "+".join(comp_value_parts) if comp_value_parts else None
+            # WARTOŚĆ PORÓWNAWCZYCH: per modalność. Jedna stawka (i brak porównawczych bez
+            # stawki) → skrót stawka × ILOŚĆ PORÓWNAWCZYCH {TK/MR} (składany niżej, w
+            # bill_format_excel_sheet, gdzie znane są adresy komórek ILOŚCI). Różne stawki
+            # → człony per wiersz. Skrót obejmuje też CITO-UDAR / CITO NA RATUNEK, bo komórka
+            # ILOŚCI sumuje wszystkie priorytety danej modalności.
+            comp_value_spec = {}
+            for _mod, _info in comp_by_mod.items():
+                if not _info["parts"]:
+                    continue
+                if len(_info["rates"]) == 1 and not _info["unrated"]:
+                    comp_value_spec[_mod] = {"uniform_rate": _info["rate_val"], "parts": _info["parts"]}
+                else:
+                    comp_value_spec[_mod] = {"uniform_rate": None, "parts": _info["parts"]}
             # ILOŚĆ PORÓWNAWCZYCH TK / MR = suma kolumn „… w tym porównawcze" w wierszu
             # SUMY danej sekcji modalności (TK / MR).
             porown_col_letters = [get_column_letter(i + 1)
@@ -1483,7 +1520,7 @@ def bill_process_single_file(excel_path, csv_path, output_path):
 
             bill_format_excel_sheet(
                 wb, 'Rozliczenie', data_sections, total_row, grand_totals=True,
-                comp_value_formula=comp_value_formula,
+                comp_value_spec=comp_value_spec,
                 comp_count_tk_formula=comp_count_tk, comp_count_mr_formula=comp_count_mr,
                 wsparcie_amount=wsparcie_amount)
         logs.append(f"✓ Rozliczenie zapisane w pliku: {os.path.basename(output_path)}")
