@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, CheckCircle2, Download, Trash2, Star } from "lucide-react";
-import { api, Version, isLocalBackend } from "@/lib/api";
+import { UploadCloud, CheckCircle2, Download, Trash2, Star, FilePlus2 } from "lucide-react";
+import { api, Version, MergeReport, isLocalBackend } from "@/lib/api";
 import ReferenceImage from "@/components/ReferenceImage";
 import { toast } from "@/lib/toast";
 
@@ -18,18 +18,24 @@ export default function VersionManager({
   description,
   accept,
   embedded = false,
+  allowAppend = false,
 }: {
   kind: "wzorcowe" | "cennik" | "cennik_lekarzy";
   title: string;
   description: string;
   accept: string;
   embedded?: boolean;
+  /** Pokaż sekcję „dosyłka" — doklejanie dodatkowego pliku do aktywnej wersji. */
+  allowAppend?: boolean;
 }) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [label, setLabel] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const addRef = useRef<HTMLInputElement>(null);
+  const [appending, setAppending] = useState(false);
+  const [merge, setMerge] = useState<MergeReport | null>(null);
 
   function refresh() {
     api.listVersions(kind).then(setVersions).catch((e) => setError(e.message));
@@ -58,6 +64,32 @@ export default function VersionManager({
       setError(e.message);
     } finally {
       setUploading(false);
+    }
+  }
+
+  // Dosyłka: sklejamy wgrany plik z AKTYWNĄ wersją słownika → powstaje nowa wersja.
+  async function appendToActive() {
+    const file = addRef.current?.files?.[0];
+    if (!file) return;
+    setAppending(true);
+    setError(null);
+    setMerge(null);
+    try {
+      const created = await api.appendWzorcowe(file, label);
+      setLabel("");
+      if (addRef.current) addRef.current.value = "";
+      setMerge(created.merge);
+      refresh();
+      toast(`Dosyłka wczytana: +${created.merge.added} nowych, ${created.merge.replaced} poprawionych.`);
+      if (isLocalBackend() && created?.id) {
+        api.pushVersionToCloud("wzorcowe", created.id)
+          .then(() => toast("Wysłano do chmury."))
+          .catch((e) => toast("Nie wysłano do chmury: " + e.message));
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setAppending(false);
     }
   }
 
@@ -98,6 +130,42 @@ export default function VersionManager({
           </button>
         </div>
       </div>
+
+      {allowAppend && (
+        <div className="card space-y-4">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <FilePlus2 size={18} className="text-brand-accent" /> Dosyłka do aktywnego słownika
+            </h2>
+            <p className="text-sm text-slate-400">
+              Wgraj plik z samymi <b>nowymi lub poprawionymi</b> pozycjami — zostanie doklejony do
+              aktywnej wersji, a wynik zapisany jako nowa wersja (poprzednia zostaje w historii).
+              Jeżeli dosyłka powtarza pozycję po parze <i>Procedura + Rodzaj procedury rozlicz.</i>,
+              zastępuje starą — dzięki temu poprawki faktycznie wchodzą w życie.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input ref={addRef} type="file" accept={accept} className="input sm:max-w-xs" />
+            <button className="btn-secondary" disabled={appending} onClick={appendToActive}>
+              <FilePlus2 size={18} />
+              {appending ? "Doklejanie…" : "Doklej do aktywnego"}
+            </button>
+          </div>
+          {merge && (
+            <div className="rounded-xl border border-brand-accent/40 bg-brand-accent/10 px-4 py-3 text-sm">
+              <p className="font-medium text-brand-accent">Dosyłka wczytana</p>
+              <p className="text-slate-300">
+                Aktywny słownik miał <b>{merge.base_rows}</b> pozycji. Z dosyłki
+                (<b>{merge.add_rows}</b>) doszło <b>{merge.added}</b> nowych, a <b>{merge.replaced}</b>{" "}
+                zastąpiło istniejące wpisy. Nowa wersja ma <b>{merge.final_rows}</b> pozycji i jest już aktywna.
+                {merge.new_columns.length > 0 && (
+                  <> Doszły też kolumny: {merge.new_columns.join(", ")}.</>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card space-y-2">
         <h2 className="font-semibold">Wzór pliku w tym miejscu</h2>

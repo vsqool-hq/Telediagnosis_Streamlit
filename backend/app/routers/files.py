@@ -79,6 +79,57 @@ async def upload_version(kind: str, request: Request, file: UploadFile = File(..
     return db.get_version(version_id)
 
 
+@router.post("/wzorcowe/append")
+async def append_wzorcowe(request: Request, file: UploadFile = File(...), label: str = Form("")):
+    """Doklejenie DODATKOWEGO słownika do wersji aktywnej (zamiast wgrywania całości).
+
+    Powstaje NOWA wersja (aktywna), a poprzednia zostaje w historii — cofnięcie to
+    kwestia kliknięcia „Ustaw jako aktywną" na starej pozycji. Reguła: wiersze z
+    dosyłki idą na koniec, a powtórzone klucze (Procedura + Rodzaj procedury
+    rozlicz.) zastępują stare wpisy. Szczegóły w engine/slownik_merge.py.
+    """
+    if not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(400, "Dosyłany słownik musi być plikiem Excel (.xlsx lub .xls).")
+    active = db.get_active_version("wzorcowe")
+    if not active:
+        raise HTTPException(400, "Brak aktywnego słownika — najpierw wgraj pełną wersję.")
+    src = os.path.join(version_dir("wzorcowe", active["id"]), active["filename"])
+    if not os.path.isfile(src):
+        raise HTTPException(404, "Plik aktywnego słownika nie istnieje na dysku.")
+
+    from app.engine.slownik_merge import merge_reference
+    content = await file.read()
+    try:
+        res = merge_reference(src, content)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Nie udało się scalić słowników: {e}")
+
+    ensure_dirs()
+    version_id = uuid.uuid4().hex[:12]
+    vdir = version_dir("wzorcowe", version_id)
+    os.makedirs(vdir, exist_ok=True)
+    filename = active["filename"]
+    if not filename.lower().endswith(".xlsx"):
+        filename = os.path.splitext(filename)[0] + ".xlsx"   # wynik zapisujemy jako .xlsx
+    with open(os.path.join(vdir, filename), "wb") as out:
+        out.write(res["content"])
+
+    st = res["stats"]
+    base_label = (active.get("label") or os.path.splitext(active["filename"])[0] or "Słownik").strip()
+    auto = f"{base_label} + dosyłka {os.path.basename(file.filename)}"
+    db.add_version({
+        "id": version_id, "kind": "wzorcowe", "filename": filename,
+        "original_name": filename, "label": (label or auto)[:300],
+        "size": len(res["content"]), "is_active": 0, "uploaded_at": _now(),
+        "uploaded_by": getattr(request.state, "username", None),
+    })
+    db.set_active_version("wzorcowe", version_id)
+    return {**(db.get_version(version_id) or {}), "merge": st,
+            "base_version_id": active["id"]}
+
+
 @router.post("/{kind}/import")
 async def import_version(kind: str, request: Request):
     """Odbiera wersję z innego backendu (bundle ZIP: pliki katalogu wersji +

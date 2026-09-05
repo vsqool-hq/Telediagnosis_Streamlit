@@ -472,6 +472,16 @@ export interface CompareMonth {
   computed_at?: string | null;
 }
 
+/** Raport ze sklejenia dosyłki z aktywnym słownikiem. */
+export interface MergeReport {
+  base_rows: number;      // wierszy w aktywnym słowniku
+  add_rows: number;       // wierszy w dosyłce
+  replaced: number;       // stare wpisy zastąpione przez dosyłkę
+  added: number;          // wpisy całkiem nowe
+  final_rows: number;     // wierszy w nowej wersji
+  new_columns: string[];  // kolumny, których nie było w aktywnym słowniku
+}
+
 /** Pozycja listy na zakładce „Rozliczenie lekarzy". Poza miesiącami z pełnego
  *  rozliczenia zawiera też zadania „tylko lekarze" (mode = "doctors"). */
 export interface DoctorMonth {
@@ -683,6 +693,14 @@ export const api = {
     fd.append("file", file);
     fd.append("label", label);
     return req<Version>(`/api/versions/${kind}`, { method: "POST", body: fd });
+  },
+  /** Dosyłka do słownika: skleja wgrany plik z AKTYWNĄ wersją i zapisuje jako nową. */
+  appendWzorcowe: (file: File, label: string) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("label", label);
+    return req<Version & { merge: MergeReport; base_version_id: string }>(
+      "/api/versions/wzorcowe/append", { method: "POST", body: fd });
   },
   activateVersion: (kind: string, id: string) =>
     req(`/api/versions/${kind}/${id}/activate`, { method: "POST" }),

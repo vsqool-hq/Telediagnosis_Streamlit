@@ -7,6 +7,7 @@ export default function WzorcowePage() {
       title="Pliki wzorcowe (słownik)"
       description="Słownik procedur i okolic anatomicznych. Wgraj nowe wersje i wskaż, która ma być używana przy rozliczeniach."
       accept=".xlsx,.xls"
+      allowAppend
     />
   );
 }
