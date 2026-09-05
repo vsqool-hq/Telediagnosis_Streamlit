@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Stethoscope, Play, Loader2, AlertTriangle, CheckCircle2, Download, RefreshCw, UploadCloud } from "lucide-react";
-import { api, CompareMonth, DoctorBilling, DoctorCoverage } from "@/lib/api";
+import { api, DoctorMonth, DoctorBilling, DoctorCoverage } from "@/lib/api";
 import { useCachedData } from "@/lib/cache";
 import { useAuth } from "@/lib/auth";
 
@@ -27,9 +27,13 @@ export default function RozliczenieLekarzyPage() {
   const { data: coverage } = useCachedData<DoctorCoverage>("doctorsCoverage", () => api.doctorsCoverage());
   // Do wyboru: MIESIĄCE (unikalne pliki miesięczne — ostatnie przeliczenie miesiąca),
   // a nie surowe zadania mnożone przez kolejne przeliczenia.
-  const { data: monthsData } = useCachedData<{ months: CompareMonth[] }>(
-    "doctorsMonths", () => api.doctorsCompareMonths());
+  const { data: monthsData, refresh: refreshMonths } = useCachedData<{ months: DoctorMonth[] }>(
+    "doctorsMonths", () => api.doctorsMonths());
   const months = useMemo(() => monthsData?.months ?? [], [monthsData]);
+
+  // Trwa złożony przepływ „Nowy plik → tylko lekarze" (wgranie → Etap 1 → liczenie).
+  // W jego trakcie zmiana jobId jest NASZA, więc efekt poniżej nie może go przerwać.
+  const flowRef = useRef(false);
 
   function stopPolling() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -44,6 +48,7 @@ export default function RozliczenieLekarzyPage() {
   // Po wyborze zadania: zatrzymaj ewentualne odpytywanie i wczytaj ZAPISANY wynik
   // (bez liczenia) — dzięki temu po powrocie na zakładkę rozliczenie jest od razu.
   useEffect(() => {
+    if (flowRef.current) return;   // wybór ustawiony przez uploadAndRun — nie przerywaj
     stopPolling(); setBusy(false);
     if (!jobId) { setResult(null); return; }
     setResult(null); setError(null);
@@ -91,6 +96,7 @@ export default function RozliczenieLekarzyPage() {
   // po czym liczymy rozliczenie lekarzy na tym zadaniu.
   async function uploadAndRun(file: File) {
     stopPolling();
+    flowRef.current = true;
     setBusy(true); setError(null); setResult(null);
     try {
       const job = await api.createJob(file, "doctors");
@@ -105,9 +111,14 @@ export default function RozliczenieLekarzyPage() {
           } catch { /* przejściowy błąd pingu — próbujemy dalej */ }
         }, 2500);
       });
+      // Zadanie „tylko lekarze" musi trafić na listę wyboru, inaczej pole pokazywałoby
+      // inny miesiąc niż ten faktycznie liczony (i po odświeżeniu nie dałoby się wrócić).
+      refreshMonths();
       await run(false, job.id);
     } catch (e: any) {
       stopPolling(); setError(e.message || "Nie udało się przetworzyć pliku."); setBusy(false);
+    } finally {
+      flowRef.current = false;
     }
   }
 
@@ -142,7 +153,9 @@ export default function RozliczenieLekarzyPage() {
             {months.length === 0 && <option value="">brak rozliczeń miesięcznych</option>}
             {months.map((m) => (
               <option key={m.job_id} value={m.job_id}>
-                {periodLabel(m.period)} · {zl(m.revenue)}
+                {m.mode === "doctors"
+                  ? `${m.period ? periodLabel(m.period) : (m.input_name || "wgrany plik")} · tylko lekarze`
+                  : `${periodLabel(m.period || "")} · ${zl(m.revenue)}`}
               </option>
             ))}
           </select>

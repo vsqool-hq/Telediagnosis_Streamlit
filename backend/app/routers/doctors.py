@@ -312,6 +312,43 @@ async def doctor_compare_months():
     return {"months": months}
 
 
+@router.get("/months")
+async def doctor_months():
+    """Pozycje do wyboru na zakładce „Rozliczenie lekarzy".
+
+    To NIE to samo co /compare/months (tamto zasila Porównanie i musi zawierać
+    wyłącznie pełne rozliczenia jednostek). Tutaj oprócz miesięcy z trybu „full"
+    zwracamy też zadania z trybu „doctors" — czyli pliki wgrane przyciskiem
+    „Nowy plik → tylko lekarze". Bez nich takie zadanie nie pojawiało się na
+    liście: pole wyboru pokazywało wtedy inny miesiąc niż ten faktycznie liczony,
+    a po odświeżeniu strony nie dało się do wyniku wrócić.
+    """
+    from app.routers.stats import latest_jobs_by_month
+    from app.engine.periods import period_from_filename
+
+    months = []
+    best = latest_jobs_by_month()
+    for period in sorted(best.keys(), reverse=True):
+        b = best[period]
+        months.append({
+            "period": period, "job_id": b["job_id"], "revenue": b.get("revenue") or 0,
+            "mode": "full", "input_name": b.get("input_name"),
+            "computed_at": b.get("computed_at"),
+        })
+    # Zadania „tylko lekarze" — na końcu, żeby domyślnym wyborem przy wejściu na
+    # zakładkę pozostał najnowszy pełny miesiąc (jak dotąd).
+    for j in db.list_jobs(limit=500):
+        if j.get("mode") != "doctors" or j.get("status") != "done":
+            continue
+        months.append({
+            "period": period_from_filename(j.get("input_name")),
+            "job_id": j["id"], "revenue": 0, "mode": "doctors",
+            "input_name": j.get("input_name"),
+            "computed_at": j.get("finished_at") or j.get("created_at"),
+        })
+    return {"months": months}
+
+
 @router.get("/revenue-history")
 async def doctors_revenue_history():
     """Historia wypłaty per lekarz (badania + gotowość/triaż) za miesiące, dla

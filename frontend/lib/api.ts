@@ -472,6 +472,17 @@ export interface CompareMonth {
   computed_at?: string | null;
 }
 
+/** Pozycja listy na zakładce „Rozliczenie lekarzy". Poza miesiącami z pełnego
+ *  rozliczenia zawiera też zadania „tylko lekarze" (mode = "doctors"). */
+export interface DoctorMonth {
+  period: string | null;
+  job_id: string;
+  revenue: number;
+  mode: "full" | "doctors";
+  input_name?: string | null;
+  computed_at?: string | null;
+}
+
 export interface DoctorComparison {
   empty: boolean;
   reason?: string;
@@ -736,6 +747,8 @@ export const api = {
     req<DoctorComparison>(`/api/doctors/compare/${jobId}?peek=${!!opts.peek}&recompute=${!!opts.recompute}`),
   doctorsCompareLatest: () => req<DoctorComparison>("/api/doctors/compare/latest"),
   doctorsCompareMonths: () => req<{ months: CompareMonth[] }>("/api/doctors/compare/months"),
+  /** Lista dla zakładki lekarzy — zawiera też zadania „tylko lekarze". */
+  doctorsMonths: () => req<{ months: DoctorMonth[] }>("/api/doctors/months"),
   doctorsCompareDownloadUrl: (jobId: string) => withToken(`${API_BASE}/api/doctors/compare/${jobId}/download`),
   doctorsRevenueHistory: () =>
     req<{ doctors: Record<string, Record<string, number>>; names: Record<string, string> }>(
